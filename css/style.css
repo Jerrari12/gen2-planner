@@ -158,6 +158,41 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .field-row input:focus, .field-row select:focus { outline: none; border-color: var(--accent); }
 #space-readout, #printer-readout { color: var(--accent); min-height: 1.2em; }
 
+/* ---------- explainer ---------- */
+
+.explainer {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 14px 40px 14px 18px;
+  margin-bottom: 16px;
+  max-width: 760px;
+}
+.explainer h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.explainer-body { display: flex; gap: 18px; align-items: center; }
+.explainer-art { flex: 0 0 130px; height: 96px; }
+.explainer ol { margin: 0; padding-left: 18px; font-size: 0.86rem; color: var(--muted); }
+.explainer ol li { margin-bottom: 6px; }
+.explainer ol b { color: var(--text); }
+.explainer-close {
+  position: absolute;
+  top: 8px; right: 10px;
+  background: none; border: 0;
+  color: var(--muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.explainer-close:hover { color: var(--text); }
+.e-mount { fill: var(--accent); }
+.e-case { fill: #46474b; }
+.e-case-in { fill: #2c2d31; }
+.e-drawer { fill: #55565b; stroke: #6a6b70; stroke-width: 1.5; }
+.e-rail { fill: #6a6b70; }
+.e-arrow { stroke: var(--accent); stroke-width: 2.5; fill: none; stroke-linecap: round; }
+
 /* ---------- layout designer ---------- */
 
 .layout-wrap { display: flex; gap: 20px; align-items: flex-start; }
@@ -252,7 +287,32 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .palette-item.active .palette-box { background: var(--accent-dim); border-color: var(--accent); }
 .palette-label { font-size: 0.62rem; }
 
+.fill-blurb {
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin: -6px 0 14px;
+  min-height: 2.2em;
+}
+.palette-units { font-size: 0.72rem; color: var(--muted); margin: -6px 0 8px; }
+.palette-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+.legend-swatch {
+  display: inline-block;
+  width: 16px; height: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 3px;
+  background: repeating-linear-gradient(45deg, #46474b, #46474b 3px, #323337 3px, #323337 6px);
+  opacity: 0.6;
+}
+
 .palette-tools { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.palette-tools .btn { width: 100%; margin-top: 8px; font-size: 0.78rem; padding: 7px 10px; }
 .grid-controls label { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; }
 .stepper { display: inline-flex; align-items: center; gap: 8px; }
 .stepper b { min-width: 30px; text-align: center; color: var(--text); }
@@ -268,6 +328,12 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .stepper button:hover { border-color: var(--accent); }
 
 .board-area { flex: 1; min-width: 0; }
+.board-helper {
+  font-size: 0.82rem;
+  color: var(--accent);
+  margin: 0 0 8px;
+  min-height: 1.2em;
+}
 .board-scroll {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -336,6 +402,14 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 }
 .bom-table td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .bom-table tr:last-child td { border-bottom: 0; }
+.bom-table .thumb { width: 58px; padding: 6px 0 6px 10px; }
+.bom-table .thumb img {
+  width: 46px; height: 46px;
+  object-fit: contain;
+  background: var(--panel-2);
+  border-radius: 8px;
+  display: block;
+}
 .bom-table .qty { width: 50px; font-weight: 700; color: var(--accent); white-space: nowrap; }
 .bom-table .name { font-weight: 600; }
 .bom-table .note { font-weight: 400; font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
@@ -392,8 +466,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 
 @media print {
   body { background: #fff; color: #000; }
-  .topbar, .palette, .board-warnings, .bom-actions, .footer,
-  #step-mount, #step-length, #step-space { display: none !important; }
+  .topbar, .palette, .board-warnings, .bom-actions, .footer, .explainer,
+  .board-helper, #step-mount, #step-length, #step-printer { display: none !important; }
   .bom-table, .bom-table td { border-color: #ccc; background: #fff; color: #000; }
   #bom h3 { color: #000; }
   a { color: #000; }

@@ -336,6 +336,15 @@ function partLinks(name) {
   };
 }
 
+/* Thumbnail path for a part: the part name lowercased with non-alphanumerics
+   collapsed to "-", e.g. "GEN2 185-2W-1H Decor Drawer" →
+   img/parts/gen2-185-2w-1h-decor-drawer.png
+   Missing files fall back to img/parts/placeholder.svg automatically. */
+function partImage(name) {
+  const slug = name.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
+  return "img/parts/" + slug + ".png";
+}
+
 /* Human-readable size token, e.g. (2, 0.5) -> "2W-0.5H" */
 function sizeToken(w, h) {
   return `${w}W-${h}H`;

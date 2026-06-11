@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GEN2 Planner — JERRARI3D</title>
+<meta name="description" content="Design and plan your GEN2 QuickLock Modular System setup. Pick a mount style, lay out your drawers, and get a complete parts list with download links." />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">GEN2</span>
+    <span class="brand-sub">PLANNER</span>
+  </div>
+  <a class="brand-link" href="https://www.jerrari3d.com/gen2-modular-system" target="_blank" rel="noopener">JERRARI3D.com →</a>
+</header>
+
+<main>
+
+  <!-- STEP 1: Mount type -->
+  <section class="step" id="step-mount">
+    <h2><span class="step-num">1</span> Choose your install location</h2>
+    <div class="card-row" id="mount-cards"></div>
+  </section>
+
+  <!-- STEP 2: Length -->
+  <section class="step" id="step-length">
+    <h2><span class="step-num">2</span> Choose your drawer length</h2>
+    <p class="hint">Length is the drawer depth in millimeters. All parts in one setup share the same length.</p>
+    <div class="card-row" id="length-cards"></div>
+  </section>
+
+  <!-- STEP 3: Layout -->
+  <section class="step" id="step-layout" hidden>
+    <h2><span class="step-num">3</span> Design your layout</h2>
+    <p class="hint">Pick a drawer size from the palette, then click the grid to place it. Click a placed drawer to remove it.</p>
+
+    <div class="layout-wrap">
+      <aside class="palette">
+        <h3>Drawer sizes</h3>
+        <div class="palette-style">
+          <label>Drawer style</label>
+          <div class="seg" id="style-seg"></div>
+        </div>
+        <div id="palette-items"></div>
+        <div class="palette-tools">
+          <h3>Grid</h3>
+          <div class="grid-controls">
+            <label>Width
+              <span class="stepper">
+                <button type="button" data-grid="w-">−</button>
+                <b id="grid-w-label"></b>
+                <button type="button" data-grid="w+">+</button>
+              </span>
+            </label>
+            <label>Height
+              <span class="stepper">
+                <button type="button" data-grid="h-">−</button>
+                <b id="grid-h-label"></b>
+                <button type="button" data-grid="h+">+</button>
+              </span>
+            </label>
+          </div>
+          <button type="button" class="btn ghost" id="clear-layout">Clear layout</button>
+        </div>
+      </aside>
+
+      <div class="board-area">
+        <div class="board-scroll">
+          <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div class="board-meta" id="board-meta"></div>
+        <div class="board-warnings" id="board-warnings"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: Parts list -->
+  <section class="step" id="step-parts" hidden>
+    <h2><span class="step-num">4</span> Your parts list</h2>
+    <div id="bom"></div>
+    <div class="bom-actions">
+      <button type="button" class="btn" id="copy-bom">Copy as text</button>
+      <button type="button" class="btn" id="csv-bom">Download CSV</button>
+      <button type="button" class="btn" id="print-bom">Print</button>
+    </div>
+    <p class="fineprint">
+      Quantities for mount hardware are estimates — always confirm against the instructions at
+      <a href="https://www.jerrari3d.com/gen2-modular-system/instructions" target="_blank" rel="noopener">the GEN2 Instruction Hub</a>.
+    </p>
+  </section>
+
+</main>
+
+<footer class="footer">
+  GEN2 QuickLock Modular System by <a href="https://www.jerrari3d.com" target="_blank" rel="noopener">JERRARI3D</a>
+  · Models on <a href="https://www.printables.com/@Jerrari" target="_blank" rel="noopener">Printables</a>
+  and <a href="https://thangs.com/designer/Jerrari" target="_blank" rel="noopener">Thangs</a>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

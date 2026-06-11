@@ -123,6 +123,9 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
   vertical-align: middle;
 }
 
+.len-card .len-num { color: var(--len-color, var(--text)); }
+.len-card.active { border-color: var(--len-color, var(--accent)); }
+
 .card-icon svg { width: 96px; height: 64px; }
 .i-wood { fill: var(--wood); }
 .i-drawer { fill: #46474b; }
@@ -196,15 +199,13 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 
 .style-pick { margin-bottom: 12px; }
 .style-pick label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
-.style-pick select {
-  width: 100%;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text);
-  padding: 7px 10px;
-  font-size: 0.85rem;
-}
+
+.bom-style-row { display: flex; gap: 24px; flex-wrap: wrap; margin: 6px 0 0; }
+.bom-style-row .style-pick { min-width: 280px; margin-bottom: 4px; }
+.bom-style-row .seg { margin-bottom: 0; background: var(--panel); }
+.bom-style-row .seg button { text-align: center; padding: 8px 12px; }
+
+#grid-h-auto { font-size: 0.72rem; margin: -2px 0 8px; }
 
 .inspector {
   margin-top: 14px;
@@ -305,6 +306,9 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .d-hinge { fill: var(--accent-dim); }
 .d-shelf-line { stroke: #5b5c61; stroke-width: 2; }
 .d-shelf-line.dashed { stroke-dasharray: 4 4; stroke: var(--accent-dim); }
+.d-rail { fill: #5e5f64; }
+.d-lip { fill: #55565b; }
+.s-screw { fill: var(--bg); }
 .d-label { fill: var(--muted); font-size: 10px; }
 .drawer:hover .d-case { stroke: var(--accent); }
 .drawer.selected .d-case { stroke: var(--accent); stroke-width: 3; }

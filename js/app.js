@@ -92,7 +92,12 @@
     return max;
   }
 
+  function sizeExists(w, h) {
+    return !GEN2.unavailableSizes.includes(sizeToken(w, h));
+  }
+
   function selectable(w, h) {
+    if (!sizeExists(w, h)) return false;
     if (!fillFits(w, state.fill)) return false;
     const f = fillDef();
     if (f.integerHeightsOnly && !Number.isInteger(h)) return false;
@@ -132,6 +137,23 @@
       (p) => p.x + p.w <= state.gridW && p.y + p.hh <= rows());
   }
 
+  /* Tabletop stacks grow upward from the surface, so the grid height is
+     automatic: tallest stack + headroom for the selected size. Units are
+     bottom-anchored — shift them when the grid grows or shrinks. */
+  function syncTabletopGrid() {
+    if (state.mount !== "tabletop") return;
+    const selH = state.selected ? state.selected.h : 1;
+    const used = state.placed.length
+      ? (rows() - Math.min(...state.placed.map((p) => p.y))) / 2
+      : 0;
+    const target = Math.max(1, Math.min(GRID_LIMITS.hMax, Math.ceil(used) + selH));
+    if (target !== state.gridH) {
+      const delta = (target - state.gridH) * 2;
+      state.gridH = target;
+      state.placed.forEach((p) => { p.y += delta; });
+    }
+  }
+
   /* ------------------------- Step 1 & 2: cards ------------------------- */
 
   function renderMountCards() {
@@ -161,9 +183,10 @@
       const btn = document.createElement("button");
       btn.type = "button";
       const ok = lengthFits(l.id);
-      btn.className = "card slim" + (state.length === l.id ? " active" : "") + (ok ? "" : " disabled");
+      btn.className = "card slim len-card" + (state.length === l.id ? " active" : "") + (ok ? "" : " disabled");
+      btn.style.setProperty("--len-color", l.color);
       btn.innerHTML =
-        `<div class="card-title">${l.label}<span class="mm">mm</span>` +
+        `<div class="card-title"><span class="len-num">${l.label}</span><span class="mm">mm</span>` +
         (l.recommended ? `<span class="badge">recommended</span>` : "") +
         (ok ? "" : `<span class="badge nofit">won't fit</span>`) +
         `</div>` +
@@ -297,27 +320,23 @@
     });
   }
 
-  function buildStyleSelects() {
-    const face = $("#faceplate-style");
-    GEN2.faceplateStyles.forEach((s) => {
-      face.appendChild(new Option(s.label, s.id));
-    });
-    face.value = state.faceStyle;
-    face.addEventListener("change", () => { state.faceStyle = face.value; refresh(); });
-
-    const door = $("#door-style");
-    GEN2.doorStyles.forEach((s) => {
-      door.appendChild(new Option(s.label, s.id));
-    });
-    door.value = state.doorStyle;
-    door.addEventListener("change", () => { state.doorStyle = door.value; refresh(); });
-  }
-
-  function renderStylePicks() {
-    $("#faceplate-style-pick").hidden =
-      !(state.fill === "decor" || state.placed.some((p) => p.fill === "decor"));
-    $("#door-style-pick").hidden =
-      !(state.fill === "cabinet" || state.placed.some((p) => p.fill === "cabinet"));
+  function renderStyleSegs() {
+    const build = (segId, styles, current, onPick) => {
+      const seg = $(segId);
+      seg.innerHTML = "";
+      styles.forEach((s) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = s.id === current ? "active" : "";
+        btn.textContent = s.label;
+        btn.addEventListener("click", () => { onPick(s.id); refresh(); });
+        seg.appendChild(btn);
+      });
+    };
+    build("#faceplate-style-seg", GEN2.faceplateStyles, state.faceStyle, (id) => { state.faceStyle = id; });
+    build("#door-style-seg", GEN2.doorStyles, state.doorStyle, (id) => { state.doorStyle = id; });
+    $("#faceplate-style-pick").hidden = !state.placed.some((p) => p.fill === "decor");
+    $("#door-style-pick").hidden = !state.placed.some((p) => p.fill === "cabinet");
   }
 
   function renderPalette() {
@@ -337,14 +356,16 @@
         item.innerHTML = `<span class="palette-box"></span><span class="palette-label">${sizeToken(w, h)}</span>`;
         if (!ok) {
           const f = fillDef();
-          item.title = fitProblem(w, state.fill) ||
-            (f.integerHeightsOnly && !Number.isInteger(h)
-              ? `${f.label}s come in whole heights only`
-              : `Not available as a ${f.label}`);
+          item.title = !sizeExists(w, h)
+            ? `${sizeToken(w, h)} is not part of the GEN2 lineup`
+            : fitProblem(w, state.fill) ||
+              (f.integerHeightsOnly && !Number.isInteger(h)
+                ? `${f.label}s come in whole heights only`
+                : `Not available as a ${f.label}`);
         } else {
           item.addEventListener("click", () => {
             state.selected = { w, h };
-            renderPalette();
+            refresh();
           });
         }
         row.appendChild(item);
@@ -471,13 +492,21 @@
         const sy = y + (h * s) / ((p.shelves || 0) + 1);
         el("line", { x1: x + 9, y1: sy, x2: x + w - 9, y2: sy, class: "d-shelf-line dashed" }, g);
       }
+    } else if (p.fill === "decor") {
+      // open front with the two vertical faceplate rails
+      el("rect", { x: x + 7, y: y + 7, width: w - 14, height: h - 14, rx: 4, class: "d-interior" }, g);
+      el("rect", { x: x + 9, y: y + 7, width: 7, height: h - 14, rx: 2, class: "d-rail" }, g);
+      el("rect", { x: x + w - 16, y: y + 7, width: 7, height: h - 14, rx: 2, class: "d-rail" }, g);
+      el("line", { x1: x + 16, y1: y + h - 11, x2: x + w - 16, y2: y + h - 11, class: "d-shelf-line" }, g);
     } else {
+      // classic bin: open top + integrated chamfered handle lip at the bottom
       el("rect", { x: x + 7, y: y + 7, width: w - 14, height: h - 14, rx: 4, class: "d-face" }, g);
-      if (p.fill === "decor") {
-        el("rect", { x: x + w / 2 - Math.min(28, w / 4), y: y + h / 2 - 2.5, width: Math.min(56, w / 2), height: 5, rx: 2.5, class: "d-handle" }, g);
-      } else {
-        el("rect", { x: x + w / 2 - Math.min(24, w / 4), y: y + 9, width: Math.min(48, w / 2), height: 6, rx: 3, class: "d-scoop" }, g);
-      }
+      el("rect", { x: x + 9, y: y + 8, width: w - 18, height: 5, rx: 2, class: "d-interior" }, g);
+      const lipTopY = y + h - 16, lipBotY = y + h - 7;
+      el("polygon", {
+        points: `${x + 12},${lipTopY} ${x + w - 12},${lipTopY} ${x + w - 22},${lipBotY} ${x + 22},${lipBotY}`,
+        class: "d-lip",
+      }, g);
     }
     el("text", { x: x + w - 8, y: y + h - 9, class: "d-label", "text-anchor": "end" }, g)
       .textContent = sizeToken(p.w, p.hh / 2);
@@ -500,14 +529,30 @@
       });
       if (cols.length) {
         el("text", { x: PAD.left, y: gridBottom + 24, class: "s-part-label" }, svg)
-          .textContent = `▮ GEN2 Rails - ${state.length ?? ""}: ${railMixText()}`;
+          .textContent = `▮ GEN2 Rails - ${state.length ?? ""}: ${mixText(railMix())}`;
       }
     } else if (state.mount === "tabletop") {
       el("rect", { x: 0, y: gridBottom + 14, width: W, height: 14, class: "s-wood" }, svg);
       el("text", { x: W / 2, y: gridBottom + 44, class: "s-label", "text-anchor": "middle" }, svg)
         .textContent = "tabletop surface";
+      // covers sit on top of each column's stack; contiguous columns at the
+      // same height merge into one slab (uneven tops are visibly broken)
+      const tops = columnTops();
+      let slab = null;
+      const flushSlab = () => {
+        if (!slab) return;
+        el("rect", {
+          x: PAD.left + slab.start * CW + 3, y: gy + slab.top * (CH / 2) - 10,
+          width: (slab.end - slab.start + 1) * CW - 6, height: 8, rx: 2, class: "s-part s-cover",
+        }, svg);
+        slab = null;
+      };
       cols.forEach((c) => {
-        el("rect", { x: PAD.left + c * CW + 3, y: gy - 10, width: CW - 6, height: 8, rx: 2, class: "s-part" }, svg);
+        if (slab && c === slab.end + 1 && tops[c] === slab.top) slab.end = c;
+        else { flushSlab(); slab = { start: c, end: c, top: tops[c] }; }
+      });
+      flushSlab();
+      cols.forEach((c) => {
         el("rect", { x: PAD.left + c * CW + 6, y: gridBottom + 2, width: 14, height: 10, rx: 2, class: "s-part" }, svg);
         el("rect", { x: PAD.left + (c + 1) * CW - 20, y: gridBottom + 2, width: 14, height: 10, rx: 2, class: "s-part" }, svg);
       });
@@ -521,14 +566,32 @@
         el("line", { x1: 4, y1: yy, x2: 12, y2: yy + 8, class: "s-wood-grain" }, svg);
       el("text", { x: 26, y: 16, class: "s-label" }, svg)
         .textContent = "wall" + (state.spaceW ? ` — ${state.spaceW}mm available` : "");
-      cols.forEach((c) => {
-        el("rect", { x: PAD.left + c * CW + 10, y: gy - 9, width: CW - 20, height: 9, rx: 2, class: "s-part" }, svg);
+      // one bar per wall-mount section, with 2 screw dots per 1W
+      wallSections().forEach((s) => {
+        el("rect", { x: PAD.left + s.start * CW + 6, y: gy - 10, width: s.w * CW - 12, height: 10, rx: 2, class: "s-part s-wallmount" }, svg);
+        for (let u = 0; u < s.w; u++) {
+          const cx0 = PAD.left + (s.start + u) * CW;
+          el("circle", { cx: cx0 + CW * 0.32, cy: gy - 5, r: 2, class: "s-screw" }, svg);
+          el("circle", { cx: cx0 + CW * 0.68, cy: gy - 5, r: 2, class: "s-screw" }, svg);
+        }
       });
       if (cols.length) {
         el("text", { x: PAD.left, y: gridBottom + 24, class: "s-part-label" }, svg)
-          .textContent = `▮ ${cols.length}× Wall Mount Kit - Lite - ${state.length ?? ""}`;
+          .textContent = `▮ Wall Mount Kit - Lite - ${state.length ?? ""}: ${mixText(mixOf(wallSections()))}`;
       }
     }
+  }
+
+  /* Topmost occupied half-row per occupied column */
+  function columnTops() {
+    const tops = {};
+    state.placed.forEach((p) => {
+      for (let dx = 0; dx < p.w; dx++) {
+        const c = p.x + dx;
+        tops[c] = tops[c] === undefined ? p.y : Math.min(tops[c], p.y);
+      }
+    });
+    return tops;
   }
 
   function occupiedColumns() {
@@ -556,14 +619,13 @@
     return runs;
   }
 
-  /* Lay rail sections over each contiguous run, biggest-first within the
-     printer's limit. 5W with a 2W max → 2W@0, 2W@2, 1W@4. */
-  function railSections() {
-    const max = maxRailW();
+  /* Lay sections over each contiguous run, biggest-first within the
+     given width limit. 5W with a 2W max → 2W@0, 2W@2, 1W@4. */
+  function sectionsFor(widths, max) {
     const sections = [];
     columnRuns().forEach((run) => {
       let pos = run.start, left = run.len;
-      for (const w of [...GEN2.railWidths].sort((a, b) => b - a)) {
+      for (const w of [...widths].sort((a, b) => b - a)) {
         if (w > max) continue;
         while (left >= w) {
           sections.push({ start: pos, w });
@@ -575,14 +637,19 @@
     return sections;
   }
 
-  function railMix() {
+  const railSections = () => sectionsFor(GEN2.railWidths, maxRailW());
+  const wallSections = () => sectionsFor(GEN2.wallMount.widths, GEN2.wallMount.maxW(bedSize()));
+
+  function mixOf(sections) {
     const mix = {};
-    railSections().forEach((s) => { mix[s.w] = (mix[s.w] || 0) + 1; });
+    sections.forEach((s) => { mix[s.w] = (mix[s.w] || 0) + 1; });
     return mix;
   }
 
-  function railMixText() {
-    return Object.entries(railMix()).sort((a, b) => b[0] - a[0])
+  const railMix = () => mixOf(railSections());
+
+  function mixText(mix) {
+    return Object.entries(mix).sort((a, b) => b[0] - a[0])
       .map(([w, n]) => `${n}× ${w}W`).join(" + ");
   }
 
@@ -630,6 +697,14 @@
     if (misfits.length) {
       const sizes = [...new Set(misfits.map((p) => `${sizeToken(p.w, p.hh / 2)} ${fillDef(p.fill).label}`))];
       warn(box, `${misfits.length} placed unit(s) won't print on the selected printer: ${sizes.join(", ")}.`);
+    }
+
+    // tabletop covers need every column to stack to the same height
+    if (state.mount === "tabletop") {
+      const tops = Object.values(columnTops());
+      if (new Set(tops).size > 1) {
+        warn(box, "Table Top covers need a flat top — every column must stack to the same height before the cover can attach.");
+      }
     }
   }
 
@@ -766,17 +841,21 @@
         { name: P.quickLockL(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
         { name: P.quickLockR(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
       );
-      // optional side covers for units on the outer edges of the layout
+      // optional side covers for units on the outer edges of the layout.
+      // Covers pair to a case via the side dovetails, so cabinets (stacked
+      // 1H cases/extenders) take 1H covers per level.
       const minX = Math.min(...state.placed.map((p) => p.x));
       const maxX = Math.max(...state.placed.map((p) => p.x + p.w));
       const sideCovers = new Map(); // height -> qty
       state.placed.forEach((p) => {
-        if (p.x === minX) count(sideCovers, p.hh / 2);
-        if (p.x + p.w === maxX) count(sideCovers, p.hh / 2);
+        const exposedSides = (p.x === minX ? 1 : 0) + (p.x + p.w === maxX ? 1 : 0);
+        if (!exposedSides) return;
+        if (p.fill === "cabinet") count(sideCovers, 1, exposedSides * (p.hh / 2));
+        else count(sideCovers, p.hh / 2, exposedSides);
       });
       [...sideCovers.entries()].sort().forEach(([h, qty]) => items.push({
         name: P.sideCover(len, h), qty,
-        note: "Optional — covers the exposed sides of the outermost cases. Most popular with Table Top Kits.",
+        note: "Optional — covers the exposed sides of the outermost cases (pairs to each case's height via the side dovetails). Most popular with Table Top Kits.",
         optional: true,
         unreleased: GEN2.unreleased.includes("sideCover"),
       }));
@@ -810,6 +889,7 @@
       cols: occupiedColumns().length,
       railMix: mix,
       railScrews: Object.entries(mix).reduce((sum, [w, n]) => sum + n * GEN2.railScrews(+w), 0),
+      wallMix: mixOf(wallSections()),
     };
     sections.push({ title: "Mounting", items: GEN2.mountBom[state.mount](ctx) });
 
@@ -1017,12 +1097,16 @@
     const ready = state.mount && state.length;
     $("#step-layout").hidden = !ready;
     $("#step-parts").hidden = !ready;
+    syncTabletopGrid();
+    const autoH = state.mount === "tabletop";
+    $("#grid-h-control").hidden = autoH;
+    $("#grid-h-auto").hidden = !autoH;
     $("#grid-w-label").textContent = state.gridW + "W";
     $("#grid-h-label").textContent = state.gridH + "H";
     renderLengthCards();
     renderSpaceStep();
     renderFillSeg();
-    renderStylePicks();
+    renderStyleSegs();
     renderPalette();
     renderInspector();
     if (ready) renderBoard();
@@ -1034,7 +1118,6 @@
   renderMountCards();
   renderLengthCards();
   buildPrinterSelect();
-  buildStyleSelects();
   bindBoard();
   bindControls();
   refresh();

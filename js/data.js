@@ -26,7 +26,10 @@ const GEN2 = {
 
   // Footprints offered in the palette (width units × height units)
   drawerWidths: [1, 2, 3, 4],
-  drawerHeights: [0.5, 1, 1.5, 2, 2.5, 3],
+  drawerHeights: [0.5, 1, 1.5, 2, 3],
+
+  // Size combos that don't exist in the GEN2 lineup
+  unavailableSizes: ["3W-3H", "4W-3H"],
 
   // What a case can be filled with
   fills: [
@@ -58,14 +61,14 @@ const GEN2 = {
 
   // Appearance styles for Decor faceplates and (future) cabinet doors
   faceplateStyles: [
-    { id: "edgelabel", label: "EdgeLabel" },
-    { id: "classic",   label: "Classic" },
-    { id: "essential", label: "Essential" },
+    { id: "essential",  label: "Essential" },
+    { id: "edgelabel",  label: "EdgeLabel" },
+    { id: "classicpro", label: "Classic Pro" },
   ],
   doorStyles: [
-    { id: "edgelabel", label: "EdgeLabel" },
-    { id: "classic",   label: "Classic" },
-    { id: "essential", label: "Essential" },
+    { id: "essential",  label: "Essential" },
+    { id: "edgelabel",  label: "EdgeLabel" },
+    { id: "classicpro", label: "Classic Pro" },
   ],
 
   // Printer presets — usable bed size in mm (X × Y).
@@ -114,19 +117,19 @@ const GEN2 = {
     },
   ],
 
-  // Drawer lengths (depth in mm)
+  // Drawer lengths (depth in mm). `color` matches the official lineup art.
   lengths: [
-    { id: 59,  label: "59",  tagline: "Ultra-shallow — wall storage specialist",
+    { id: 59,  label: "59",  color: "#f2f2f2", tagline: "Ultra-shallow — wall storage specialist",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 115, label: "115", tagline: "Medium — fits the majority of printer beds",
+    { id: 115, label: "115", color: "#9ea3a8", tagline: "Medium — fits the majority of printer beds",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 165, label: "165", tagline: "Mini Edition — for 180mm beds (A1 Mini, Prusa Mini)",
+    { id: 165, label: "165", color: "#3aa0e8", tagline: "Mini Edition — for 180mm beds (A1 Mini, Prusa Mini)",
       page: "https://www.jerrari3d.com/gen2-modular-system/mini" },
-    { id: 185, label: "185", tagline: "The GEN2 Standard — best all-around, start here",
+    { id: 185, label: "185", color: "#ff8a40", tagline: "The GEN2 Standard — best all-around, start here",
       page: "https://www.jerrari3d.com/gen2-modular-system/standard", recommended: true },
-    { id: 240, label: "240", tagline: "Deep storage for extended build plates (X1C, Core One)",
+    { id: 240, label: "240", color: "#3ecfa0", tagline: "Deep storage for extended build plates (X1C, Core One)",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 270, label: "270", tagline: "Large — the deepest drawer in the lineup",
+    { id: 270, label: "270", color: "#e8453c", tagline: "Large — the deepest drawer in the lineup",
       page: "https://www.jerrari3d.com/gen2-modular-system/large" },
   ],
 
@@ -137,6 +140,25 @@ const GEN2 = {
      ----------------------------------------------------------------------- */
   railWidths: [1, 2, 3, 4],
   railScrews: (w) => 2 + 2 * w,
+
+  /* -----------------------------------------------------------------------
+     Wall mounts: sectional like rails, in 1W / 2W / 3W. Sections install
+     side by side to expand the mountable area. 2 screws per 1W.
+     Fit rule: 1W/2W fit if the section length fits either bed axis; the
+     3W section (264mm) can be printed diagonally on beds at least Prusa
+     Core One sized (~250×220mm and up).
+     ----------------------------------------------------------------------- */
+  wallMount: {
+    widths: [1, 2, 3],
+    screwsPer1W: 2,
+    maxW(bed) {
+      if (!bed) return 3;
+      const long = Math.max(bed.x, bed.y), short = Math.min(bed.x, bed.y);
+      if (long >= 250 && short >= 220) return 3; // diagonal trick
+      if (long >= 2 * 88) return 2;
+      return 1;
+    },
+  },
 
   /* -----------------------------------------------------------------------
      Mount-specific BOM. Each function returns an array of items.
@@ -174,19 +196,24 @@ const GEN2 = {
         note: "1 kit (cover + foot rail L/R + feet) per 1W of the structure.",
       },
     ],
-    "wall": (ctx) => [
-      {
-        name: `GEN2 Wall Mount Kit - Lite - ${ctx.len}`,
-        qty: ctx.cols,
-        note: "1 kit per 1W of the top row. Lower rows QuickLock onto the cases above.",
-      },
-      {
+    "wall": (ctx) => {
+      const items = [];
+      Object.entries(ctx.wallMix).sort((a, b) => b[0] - a[0]).forEach(([w, count]) => {
+        items.push({
+          name: `GEN2 Wall Mount Kit - Lite - ${ctx.len}`,
+          variant: `${w}W section`,
+          qty: count,
+          note: "All widths are in the same download — sections install side by side to expand the area.",
+        });
+      });
+      items.push({
         name: "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
-        qty: ctx.cols * 2,
-        note: "Hardware store item — use anchors appropriate for your wall type.",
+        qty: ctx.cols * GEN2.wallMount.screwsPer1W,
+        note: "Hardware store item — 2 screws per 1W. Use anchors appropriate for your wall type.",
         hardware: true,
-      },
-    ],
+      });
+      return items;
+    },
   },
 
   // QuickLocks: every case takes one Left + one Right. Included with each

@@ -35,6 +35,12 @@
   const mountDef = () => GEN2.mounts.find((m) => m.id === state.mount);
   const fillDef = (id) => GEN2.fills.find((f) => f.id === (id || state.fill));
 
+  // localStorage can throw (sandboxed origins) — degrade to session-only
+  const store = {
+    get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* session-only */ } },
+  };
+
   /* ----------------------- Printer / bed fitting ----------------------- */
 
   function bedSize() {
@@ -193,10 +199,18 @@
         `<div class="card-blurb">${l.tagline}</div>`;
       if (ok) {
         btn.addEventListener("click", () => {
+          const wasReady = state.mount && state.length;
           state.length = l.id;
           ensureValidSelection();
           renderLengthCards();
           refresh();
+          // first time the layout unlocks, bring it into view
+          if (!wasReady && state.mount) {
+            const target = $("#step-layout");
+            if (typeof target.scrollIntoView === "function") {
+              try { target.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { /* noop */ }
+            }
+          }
         });
       } else {
         const bed = bedSize();
@@ -318,6 +332,7 @@
       });
       seg.appendChild(btn);
     });
+    $("#fill-blurb").textContent = fillDef().blurb;
   }
 
   function renderStyleSegs() {
@@ -340,6 +355,8 @@
   }
 
   function renderPalette() {
+    $("#palette-units").textContent =
+      `1W = ${GEN2.units.widthMM}mm wide · 1H = ${GEN2.units.heightMM}mm tall`;
     const wrap = $("#palette-items");
     wrap.innerHTML = "";
     GEN2.drawerHeights.forEach((h) => {
@@ -653,6 +670,63 @@
       .map(([w, n]) => `${n}× ${w}W`).join(" + ");
   }
 
+  /* Contextual one-liner above the board, so the place/drag/edit mechanics
+     never need a tutorial. */
+  function renderBoardHelper() {
+    const elH = $("#board-helper");
+    if (!state.placed.length) {
+      elH.textContent = state.selected
+        ? `Click the grid to place your ${sizeToken(state.selected.w, state.selected.h)} ${fillDef().label} — or load an example layout from the panel.`
+        : "Pick a size from the palette to begin.";
+    } else {
+      elH.textContent = "Click the grid to add more · drag a unit to move it · click a unit to edit or remove.";
+    }
+  }
+
+  /* A small ready-made layout so first-time users can see the illustration
+     and parts list react before they understand every control. Adapts to the
+     current grid, printer, and mount. */
+  function loadExample() {
+    state.placed = [];
+    state.selectedUnit = null;
+    const fits = (w, fill) => state.gridW >= w && fillFits(w, fill);
+
+    // top level: a row of 1H drawers
+    const row = [];
+    let x = 0;
+    [
+      { w: 2, fill: "decor" },
+      { w: 1, fill: "decor" },
+      { w: 1, fill: fits(1, "classic") ? "classic" : "decor" },
+    ].forEach((u) => {
+      if (fits(u.w, u.fill) && x + u.w <= state.gridW) {
+        row.push({ x, level: 0, w: u.w, hh: 2, fill: u.fill });
+        x += u.w;
+      }
+    });
+    if (!row.length && fits(1, "decor")) row.push({ x: 0, level: 0, w: 1, hh: 2, fill: "decor" });
+
+    // second level: tabletop needs a flat top, so mirror the full row;
+    // hanging mounts get one taller drawer under the first column
+    const extra = [];
+    if (state.mount === "tabletop") {
+      row.forEach((u) => extra.push({ ...u, level: 1, hh: 2 }));
+    } else if (capH() >= 3 && fits(2, "decor") && x >= 2) {
+      extra.push({ x: 0, level: 1, w: 2, hh: 4, fill: "decor" });
+    }
+
+    const units = row.concat(extra);
+    const levels = Math.max(...units.map((u) => u.level === 0 ? u.hh : u.hh + 2)) / 2;
+    state.gridH = Math.max(state.gridH, Math.min(capH(), Math.ceil(levels)));
+    units.forEach((u) => {
+      const y = state.mount === "tabletop"
+        ? rows() - (u.level * 2 + u.hh)         // bottom-anchored
+        : u.level * 2;                          // top-anchored
+      state.placed.push({ id: state.nextId++, x: u.x, y, w: u.w, hh: u.hh, fill: u.fill, shelves: 0 });
+    });
+    refresh();
+  }
+
   function renderBoardMeta() {
     const meta = $("#board-meta");
     if (!state.placed.length) {
@@ -903,11 +977,19 @@
       wrap.innerHTML = `<p class="hint">Choose a location and length, then place units in the layout — your parts list builds itself here.</p>`;
       return;
     }
+    // starter-kit tip leads the list for first-build-sized layouts
     let html = "";
+    const starter = `GEN2 Under Table Starter Kit - ${state.length}`;
+    if (state.mount === "under-table" && LINK_OVERRIDES[starter] && state.placed.length <= 4) {
+      html += `<p class="tip">💡 New to GEN2? The <a href="${partLinks(starter).printables}" target="_blank" rel="noopener">${starter}</a> bundles everything for a first install.</p>`;
+    }
     sections.forEach((sec) => {
       html += `<h3>${sec.title}</h3><table class="bom-table"><tbody>`;
       sec.items.forEach((it) => {
+        const img = it.hardware ? "img/parts/hardware.svg" : partImage(it.name);
         html += `<tr class="${it.optional ? "optional" : ""}">
+          <td class="thumb"><img src="${img}" alt="" loading="lazy"
+            onerror="this.onerror=null;this.src='img/parts/placeholder.svg'"></td>
           <td class="qty">${it.qty}×</td>
           <td class="name">${it.name}${it.variant ? ` — <em>${it.variant}</em>` : ""}${it.optional ? ' <span class="tag">optional</span>' : ""}
             ${it.note ? `<div class="note">${it.note}</div>` : ""}</td>
@@ -916,11 +998,6 @@
       });
       html += `</tbody></table>`;
     });
-
-    const starter = `GEN2 Under Table Starter Kit - ${state.length}`;
-    if (state.mount === "under-table" && LINK_OVERRIDES[starter]) {
-      html += `<p class="tip">💡 New to GEN2? The <a href="${partLinks(starter).printables}" target="_blank" rel="noopener">${starter}</a> bundles everything for a first install.</p>`;
-    }
     wrap.innerHTML = html;
   }
 
@@ -1086,6 +1163,12 @@
       state.selectedUnit = null;
       refresh();
     });
+    $("#load-example").addEventListener("click", loadExample);
+    if (store.get("gen2-explainer-dismissed")) $("#explainer").hidden = true;
+    $("#explainer-close").addEventListener("click", () => {
+      $("#explainer").hidden = true;
+      store.set("gen2-explainer-dismissed", "1");
+    });
     $("#copy-bom").addEventListener("click", copyBom);
     $("#csv-bom").addEventListener("click", downloadCsv);
     $("#print-bom").addEventListener("click", () => window.print());
@@ -1109,6 +1192,7 @@
     renderStyleSegs();
     renderPalette();
     renderInspector();
+    renderBoardHelper();
     if (ready) renderBoard();
     renderBom();
   }

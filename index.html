@@ -51,14 +51,35 @@
 
   <!-- STEP 3: Length -->
   <section class="step" id="step-length">
-    <h2><span class="step-num">3</span> Choose your drawer length</h2>
-    <p class="hint">Length is the drawer depth in millimeters. All parts in one setup share the same length.</p>
+    <h2><span class="step-num">3</span> Choose your GEN2 length</h2>
+    <p class="hint">Length is how deep the system is, in millimeters. Every component in one setup — drawers, shelves, cabinets, and mounts — shares the same length.</p>
     <div class="card-row" id="length-cards"></div>
   </section>
 
   <!-- STEP 4: Layout -->
   <section class="step" id="step-layout" hidden>
     <h2><span class="step-num">4</span> Design your layout</h2>
+
+    <div class="explainer" id="explainer">
+      <button type="button" class="explainer-close" id="explainer-close" aria-label="Dismiss">×</button>
+      <h3>New to GEN2? Three things to know</h3>
+      <div class="explainer-body">
+        <svg class="explainer-art" viewBox="0 0 150 110" aria-hidden="true">
+          <rect x="10" y="8" width="130" height="10" rx="2" class="e-mount"/>
+          <rect x="25" y="22" width="100" height="74" rx="6" class="e-case"/>
+          <rect x="33" y="30" width="84" height="58" rx="4" class="e-case-in"/>
+          <rect x="46" y="40" width="84" height="38" rx="4" class="e-drawer"/>
+          <rect x="50" y="44" width="10" height="30" rx="2" class="e-rail"/>
+          <rect x="116" y="44" width="10" height="30" rx="2" class="e-rail"/>
+          <path d="M40 59 l-14 0 m0 0 l6 -5 m-6 5 l6 5" class="e-arrow"/>
+        </svg>
+        <ol>
+          <li><b>Cases are the frame.</b> Every spot you fill in the grid is a case — cases QuickLock together into one structure.</li>
+          <li><b>You choose what goes in each case</b> — a Classic or Decor drawer, a shelf, or a cabinet. Swap them anytime.</li>
+          <li><b>The mount holds it all</b> — rails under a table, a Table Top Kit on a surface, or wall mounts.</li>
+        </ol>
+      </div>
+    </div>
 
     <div class="space-box inline" id="space-inputs" hidden>
       <h3>Workable area</h3>
@@ -80,9 +101,12 @@
       <aside class="palette">
         <h3>Fill each case with</h3>
         <div class="seg vertical" id="fill-seg"></div>
+        <p class="fill-blurb" id="fill-blurb"></p>
 
         <h3>Size</h3>
+        <p class="palette-units" id="palette-units"></p>
         <div id="palette-items"></div>
+        <p class="palette-legend"><span class="legend-swatch"></span> unavailable — hover a greyed size to see why</p>
 
         <div class="inspector" id="inspector" hidden></div>
 
@@ -105,11 +129,13 @@
             </label>
             <p class="hint" id="grid-h-auto" hidden>Height adjusts automatically as you build.</p>
           </div>
+          <button type="button" class="btn ghost" id="load-example">Load example layout</button>
           <button type="button" class="btn ghost" id="clear-layout">Clear layout</button>
         </div>
       </aside>
 
       <div class="board-area">
+        <p class="board-helper" id="board-helper"></p>
         <div class="board-scroll">
           <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>

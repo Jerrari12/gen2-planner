@@ -6,8 +6,9 @@ A web tool for designing and planning a [GEN2 QuickLock Modular System](https://
 
 1. **Choose a location** — Under-Table (GEN2 Rails), Tabletop (Table Top Kit V2), or Wall Mount (Kit – Lite)
 2. **Choose a length** — 59 / 115 / 165 / 185 / 240 / 270
-3. **Design the layout** — pick drawer sizes (1W–4W × 0.5H–3H) from the palette and click them onto a 2D grid. The mount surface and required mount parts (rails / covers / brackets) are illustrated around the layout automatically, and floating drawers are flagged.
-4. **Get the parts list** — drawers, cases, faceplates/handles (Decor), and mount kits with quantities and download links. Copy as text, download CSV, or print.
+3. **Describe the space & printer** — under-table and wall mount ask for the workable area in mm (e.g. 480mm wide → grid capped at 5W, 88mm per 1W); tabletop is left open. Picking a printer (or custom bed size) greys out any size whose **case** won't fit the bed — Classic drawers are additionally checked with ~20mm of handle overhang.
+4. **Design the layout** — choose what fills each case (Classic Drawer, Decor Drawer, Shelf, or Cabinet), pick a size (1W–4W × 0.5H–3H), and click it onto the 2D grid. Decor faceplate and cabinet door styles (EdgeLabel / Classic / Essential) have their own selectors. The mount surface and required mount parts are illustrated around the layout; floating units and printer misfits are flagged. Clicking a placed unit opens an inspector — cabinets can add internal shelves there (each swaps a case extender for a full case + insert).
+5. **Get the parts list** — drawers, cases & extenders, QuickLocks (1 Left + 1 Right per case, linked to the universal GEN2 Hardware pack), shelf inserts, doors, hinges, latches, faceplates, and mount kits with quantities and **Printables + Thangs** links. Under-table rails are computed as an optimal section mix for the user's printer (e.g. 5W on a Core One → 2× 2W + 1× 1W) with screw counts (4/6/8/10 per 1W/2W/3W/4W section). Export as text, CSV, or print.
 
 ## Running it
 
@@ -24,25 +25,28 @@ Everything the planner knows about GEN2 lives in **`js/data.js`**. No other file
 
 | What | Where |
 | --- | --- |
-| Available drawer widths/heights in the palette | `GEN2.drawerWidths` / `GEN2.drawerHeights` |
+| Drawer widths/heights in the palette | `GEN2.drawerWidths` / `GEN2.drawerHeights` |
+| Fill types (drawers, shelves, cabinets) | `GEN2.fills` — drop the `soon` flag when shelves/cabinets launch |
+| Faceplate / door styles | `GEN2.faceplateStyles` / `GEN2.doorStyles` |
+| Printer presets (bed sizes) | `GEN2.printers` |
+| Classic-drawer handle overhang | `GEN2.classicHandleExtraMM` (currently 20mm — to confirm) |
 | Lengths and their jerrari3d.com pages | `GEN2.lengths` |
-| Mount kit quantity formulas | `GEN2.mountBom` (plain functions of the layout summary) |
-| Decor extras (handles, magnets) | `GEN2.decorExtras` |
+| Rail widths & screw counts | `GEN2.railWidths` / `GEN2.railScrews` |
+| Mount kit quantity formulas | `GEN2.mountBom` |
+| Part-name templates | `GEN2.partNames` — link searches use these exact names |
+| Unreleased parts ("coming soon" tag) | `GEN2.unreleased` — remove entries as they ship |
 | **Exact download URLs per part** | `LINK_OVERRIDES` |
 
 ### Download links
 
-Part names are generated (e.g. `GEN2 185-2W-1H Decor Drawer`). For each name:
+Part names are generated from `GEN2.partNames` (e.g. `GEN2 185-2W-1H Decor Drawer`). For each name:
 
-1. If `LINK_OVERRIDES` has an exact URL, the parts list shows a **Download** button.
-2. Otherwise it falls back to a Printables search for the exact name (**Find on Printables** button).
-
-To wire up a new listing, add one line to `LINK_OVERRIDES` with the exact generated part name as the key.
+1. If `LINK_OVERRIDES` has the name, its `p:` (Printables) / `t:` (Thangs) URLs render as solid **Download** buttons.
+2. Otherwise the buttons fall back to a search on each platform for the exact name.
+3. Parts listed in `GEN2.unreleased` show a "coming soon" tag instead of links.
 
 ### Quantity assumptions to verify
 
-The mount-hardware quantities are best-effort estimates encoded in `GEN2.mountBom` — adjust the formulas there if real installs differ:
-
-- **Under-Table:** 1 rail set + 4 screws per 1W of the top row
-- **Tabletop:** 1 Table Top Kit V2 (cover + foot rails + feet) per 1W
-- **Wall Mount:** 1 Wall Mount Kit – Lite + 2 screws per 1W of the top row
+- **Wall Mount:** 1 Kit – Lite + 2 screws per 1W of the top row (kit widths/sectioning unconfirmed)
+- **Tabletop:** 1 Table Top Kit V2 per 1W
+- **Case extenders:** assumed to need no QuickLocks of their own; internal cabinet shelves assumed to need a shelf insert each

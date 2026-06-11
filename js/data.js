@@ -3,64 +3,118 @@
    =========================================================================
    This file is the single source of truth for everything the planner knows
    about the GEN2 QuickLock Modular System. To correct a quantity rule, add
-   a size, or point a part at its exact download page, edit this file only —
-   no other code changes needed.
+   a size/printer/style, or point a part at its exact download pages, edit
+   this file only — no other code changes needed.
 
    Link resolution for any part works in two steps:
-     1. If an exact URL exists in LINK_OVERRIDES (keyed by part name), use it.
-     2. Otherwise fall back to a Printables search for the exact part name.
+     1. If LINK_OVERRIDES has the part name (keyed exactly), use those URLs.
+     2. Otherwise fall back to a Printables / Thangs search for the name.
+   Parts flagged `unreleased` show a "coming soon" tag instead of links.
    ========================================================================= */
 
 const GEN2 = {
 
-  // Physical size of one grid unit (used for the dimension readout)
+  // Physical size of one grid unit
   units: {
     widthMM: 88,   // 1W
     heightMM: 56,  // 1H
   },
 
-  // Drawer footprints offered in the palette (width units × height units).
-  // Trim or extend these arrays to match the published size lineup.
+  // Classic drawers have a print-in-place handle that overhangs the front:
+  // their print footprint is this much longer than the case. (To confirm.)
+  classicHandleExtraMM: 20,
+
+  // Footprints offered in the palette (width units × height units)
   drawerWidths: [1, 2, 3, 4],
   drawerHeights: [0.5, 1, 1.5, 2, 2.5, 3],
 
-  // Drawer styles
-  styles: [
+  // What a case can be filled with
+  fills: [
     {
       id: "classic",
-      label: "Classic",
+      label: "Classic Drawer",
       blurb: "Print-in-place handle. No assembly, no extra parts.",
     },
     {
       id: "decor",
-      label: "Decor",
-      blurb: "Swappable faceplate + handle/knob. Clips are included in the drawer download (v2602).",
+      label: "Decor Drawer",
+      blurb: "Swappable faceplate + handle/knob. Clips included in the drawer download (v2602).",
+    },
+    {
+      id: "shelf",
+      label: "Shelf",
+      blurb: "Open shelf — case + shelf insert.",
+      soon: true,
+    },
+    {
+      id: "cabinet",
+      label: "Cabinet",
+      blurb: "Shelf with a door — case (+ extenders), shelf insert, hinges, latches, door.",
+      soon: true,
+      integerHeightsOnly: true,
+      minHeight: 1,
     },
   ],
 
-  // Install locations
+  // Appearance styles for Decor faceplates and (future) cabinet doors
+  faceplateStyles: [
+    { id: "edgelabel", label: "EdgeLabel" },
+    { id: "classic",   label: "Classic" },
+    { id: "essential", label: "Essential" },
+  ],
+  doorStyles: [
+    { id: "edgelabel", label: "EdgeLabel" },
+    { id: "classic",   label: "Classic" },
+    { id: "essential", label: "Essential" },
+  ],
+
+  // Printer presets — usable bed size in mm (X × Y).
+  // A part fits if its footprint fits the bed in either orientation.
+  printers: [
+    { id: "any",       label: "Any printer / not sure", x: null, y: null },
+    { id: "a1mini",    label: "Bambu Lab A1 Mini",      x: 180, y: 180 },
+    { id: "a1",        label: "Bambu Lab A1",           x: 256, y: 256 },
+    { id: "p1s",       label: "Bambu Lab P1P / P1S",    x: 256, y: 256 },
+    { id: "x1c",       label: "Bambu Lab X1C",          x: 256, y: 256 },
+    { id: "h2d",       label: "Bambu Lab H2D",          x: 350, y: 320 },
+    { id: "prusamini", label: "Prusa MINI+",            x: 180, y: 180 },
+    { id: "mk4s",      label: "Prusa MK4S",             x: 250, y: 210 },
+    { id: "coreone",   label: "Prusa Core One",         x: 250, y: 220 },
+    { id: "xl",        label: "Prusa XL",               x: 360, y: 360 },
+    { id: "ender3v3",  label: "Creality Ender-3 V3",    x: 220, y: 220 },
+    { id: "k1max",     label: "Creality K1 Max",        x: 300, y: 300 },
+    { id: "custom",    label: "Custom…",                x: null, y: null },
+  ],
+
+  // Install locations. `askSpace` adds "available width/height in mm" inputs
+  // that cap the layout grid (88mm per 1W, 56mm per 1H).
   mounts: [
     {
       id: "under-table",
       label: "Under-Table",
       blurb: "GEN2 Rails screw to the underside of any surface. Drawers slide in and QuickLock in place.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/instructions-hanging",
+      askSpace: true,
+      spaceHint: "Measure the flat area on the underside of your table.",
     },
     {
       id: "tabletop",
       label: "Tabletop",
       blurb: "Table Top Kit V2 — covers and foot rails create a rigid standalone unit on any surface.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/table-top-kit",
+      askSpace: false,
     },
     {
       id: "wall",
       label: "Wall Mount",
       blurb: "Wall Mount Kit – Lite attaches GEN2 units directly to the wall with wood screws.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/wall-mount",
+      askSpace: true,
+      spaceHint: "Measure the wall area you want to fill.",
     },
   ],
 
-  // Drawer lengths (depth in mm). `page` is the collection page on jerrari3d.com.
+  // Drawer lengths (depth in mm)
   lengths: [
     { id: 59,  label: "59",  tagline: "Ultra-shallow — wall storage specialist",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
@@ -77,51 +131,72 @@ const GEN2 = {
   ],
 
   /* -----------------------------------------------------------------------
-     BOM rules per mount type.
-     Quantity formulas receive a `layout` summary object:
-       layout.widthUnits      — occupied width of the layout (in 1W units)
-       layout.topRowWidth     — width units occupied on the top row
-       layout.bottomRowWidth  — width units occupied on the bottom row
-       layout.drawerCount     — number of drawers placed
-     Adjust `qty` formulas here when verifying against real installs.
+     Rails: available section widths and screws per section.
+     All sections live under the one Rails listing per length.
+     Screw minimums: 1W=4, 2W=6, 3W=8, 4W=10  →  2 + 2×W
+     ----------------------------------------------------------------------- */
+  railWidths: [1, 2, 3, 4],
+  railScrews: (w) => 2 + 2 * w,
+
+  /* -----------------------------------------------------------------------
+     Mount-specific BOM. Each function returns an array of items.
+     `ctx` provides:
+       ctx.len        — selected length (mm)
+       ctx.cols       — number of occupied 1W columns
+       ctx.railMix    — {width: count} rail sections chosen to fit the
+                        user's printer (e.g. {2:2, 1:1} for 5W on a Core One)
+       ctx.railScrews — total screws for that mix
      ----------------------------------------------------------------------- */
   mountBom: {
-    "under-table": [
-      {
-        name: (len) => `GEN2 Rails - ${len}`,
-        qty: (l) => l.topRowWidth,
-        note: "1 rail set per 1W of the top row. Rows below hang from the cases above via QuickLock.",
-      },
-      {
-        name: () => "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
-        qty: (l) => l.topRowWidth * 4,
-        note: "Hardware store item — approx. 4 per rail set.",
+    "under-table": (ctx) => {
+      const items = [];
+      const sections = Object.entries(ctx.railMix).sort((a, b) => b[0] - a[0]);
+      sections.forEach(([w, count]) => {
+        items.push({
+          name: `GEN2 Rails - ${ctx.len}`,
+          variant: `${w}W section`,
+          qty: count,
+          note: "All rail widths are in the same download — print the section sizes listed.",
+        });
+      });
+      items.push({
+        name: "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
+        qty: ctx.railScrews,
+        note: "Hardware store item — minimum 4 / 6 / 8 / 10 screws per 1W / 2W / 3W / 4W rail section.",
         hardware: true,
-      },
-    ],
-    "tabletop": [
+      });
+      return items;
+    },
+    "tabletop": (ctx) => [
       {
-        name: (len) => `GEN2 Table Top Kit V2 - ${len}`,
-        qty: (l) => l.widthUnits,
+        name: `GEN2 Table Top Kit V2 - ${ctx.len}`,
+        qty: ctx.cols,
         note: "1 kit (cover + foot rail L/R + feet) per 1W of the structure.",
       },
     ],
-    "wall": [
+    "wall": (ctx) => [
       {
-        name: (len) => `GEN2 Wall Mount Kit - Lite - ${len}`,
-        qty: (l) => l.topRowWidth,
+        name: `GEN2 Wall Mount Kit - Lite - ${ctx.len}`,
+        qty: ctx.cols,
         note: "1 kit per 1W of the top row. Lower rows QuickLock onto the cases above.",
       },
       {
-        name: () => "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
-        qty: (l) => l.topRowWidth * 2,
+        name: "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
+        qty: ctx.cols * 2,
         note: "Hardware store item — use anchors appropriate for your wall type.",
         hardware: true,
       },
     ],
   },
 
-  // Optional extras offered for Decor setups
+  // QuickLocks: every case takes one Left + one Right. Included with each
+  // case model, also available in the universal GEN2 Hardware download.
+  quickLock: {
+    note: "Included with each case model, or print from the universal GEN2 Hardware pack.",
+    linkName: "GEN2 Hardware",
+  },
+
+  // Optional extras for Decor drawers
   decorExtras: [
     {
       name: () => "Handle or knob (any GEN2-compatible design)",
@@ -136,42 +211,101 @@ const GEN2 = {
       optional: true,
     },
   ],
+
+  /* -----------------------------------------------------------------------
+     Part-name templates. Edit these if listing names change — link fallback
+     searches use the exact generated name.
+     `size` is e.g. "2W-1H"; `style` is a faceplate/door style label.
+     ----------------------------------------------------------------------- */
+  partNames: {
+    drawer:      (len, size, fillLabel) => `GEN2 ${len}-${size} ${fillLabel}`,
+    case:        (len, size)            => `GEN2 ${len} Case - ${size}`,
+    extender:    (len, w)               => `GEN2 ${len} Case Extender - ${w}W-1H`,
+    shelfInsert: (len, w)               => `GEN2 ${len} Shelf Insert - ${w}W`,
+    faceplate:   (len, size, style)     => `GEN2 ${len} ${style} Decor Faceplate - ${size}`,
+    door:        (len, size, style)     => `GEN2 ${len} ${style} Door - ${size}`,
+    hinge:       ()                     => "GEN2 Cabinet Hinge (1H)",
+    latch:       ()                     => "GEN2 Door Latch (1H)",
+    quickLockL:  ()                     => "GEN2 QuickLock - Left",
+    quickLockR:  ()                     => "GEN2 QuickLock - Right",
+  },
+
+  // Parts that aren't published yet — shown with a "coming soon" tag
+  // instead of download links. Remove entries as they're released.
+  unreleased: ["shelfInsert", "door", "hinge", "latch"],
 };
 
 /* ---------------------------------------------------------------------------
    Exact download links, keyed by the generated part name.
-   Anything not listed here falls back to a Printables search for the name.
-   Add entries as listings are published — names must match exactly.
+   Values: { p: printablesURL, t: thangsURL } — either may be omitted.
+   Anything not listed falls back to a search on each platform.
    --------------------------------------------------------------------------- */
 const LINK_OVERRIDES = {
   // Mount kits
-  "GEN2 Rails - 185":                 "https://www.printables.com/model/1052357-gen2-rails-185-standard",
-  "GEN2 Table Top Kit V2 - 115":      "https://www.printables.com/model/1146353-gen2-table-top-kit-v2-115-medium",
-  "GEN2 Table Top Kit V2 - 185":      "https://www.printables.com/model/1118906-gen2-table-top-kit-v2-185-standard",
-  "GEN2 Table Top Kit V2 - 270":      "https://www.printables.com/model/1163955-gen2-table-top-kit-v2-large",
-  "GEN2 Wall Mount Kit - Lite - 59":  "https://www.printables.com/model/1513322-gen2-wall-mount-kit-lite-59",
-  "GEN2 Wall Mount Kit - Lite - 165": "https://www.printables.com/model/1605963-gen2-wall-mount-kit-lite-165",
+  "GEN2 Rails - 185": {
+    p: "https://www.printables.com/model/1052357-gen2-rails-185-standard",
+  },
+  "GEN2 Table Top Kit V2 - 115": {
+    p: "https://www.printables.com/model/1146353-gen2-table-top-kit-v2-115-medium",
+  },
+  "GEN2 Table Top Kit V2 - 185": {
+    p: "https://www.printables.com/model/1118906-gen2-table-top-kit-v2-185-standard",
+    t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20STANDARD-1231757",
+  },
+  "GEN2 Table Top Kit V2 - 270": {
+    p: "https://www.printables.com/model/1163955-gen2-table-top-kit-v2-large",
+  },
+  "GEN2 Wall Mount Kit - Lite - 59": {
+    p: "https://www.printables.com/model/1513322-gen2-wall-mount-kit-lite-59",
+  },
+  "GEN2 Wall Mount Kit - Lite - 165": {
+    p: "https://www.printables.com/model/1605963-gen2-wall-mount-kit-lite-165",
+  },
 
-  // Starter kits (shown as a tip when the layout is small)
-  "GEN2 Under Table Starter Kit - 185": "https://www.printables.com/model/231288-gen2-under-table-starter-kit-185",
-  "GEN2 Under Table Starter Kit - 270": "https://www.printables.com/model/312837-gen2-under-table-starter-kit-270",
+  // Universal hardware (QuickLocks etc.)
+  "GEN2 Hardware": {
+    p: "https://www.printables.com/model/1012796-gen2-hardware",
+  },
 
-  // Drawer collections (whole-collection downloads)
-  "GEN2 59 Classic Drawers":  "https://www.printables.com/model/234780-gen2-59-classic-drawers-all",
-  "GEN2 59 Decor Drawers":    "https://www.printables.com/model/1070454-gen2-59-decor-drawers-all",
+  // Starter kits (shown as a tip)
+  "GEN2 Under Table Starter Kit - 185": {
+    p: "https://www.printables.com/model/231288-gen2-under-table-starter-kit-185",
+  },
+  "GEN2 Under Table Starter Kit - 270": {
+    p: "https://www.printables.com/model/312837-gen2-under-table-starter-kit-270",
+  },
 
   // Individual drawer SKUs with confirmed listings
-  "GEN2 185-1W-3H Classic Drawer": "https://www.printables.com/model/262035-gen2-185-1w-3h-classic-drawer",
-  "GEN2 185-2W-1H Decor Drawer":   "https://www.printables.com/model/964551-gen2-185-2w-1h-decor-drawer",
-  "GEN2 185-4W-0.5H Decor Drawer": "https://www.printables.com/model/1413275-gen2-185-4w-05h-decor-drawer",
-  "GEN2 240-2W-2H Decor Drawer":   "https://www.printables.com/model/1365853-gen2-240-2w-2h-decor-drawer",
-  "GEN2 240-2W-0.5H Classic Drawer": "https://www.printables.com/model/1324543-gen2-240-2w-05h-classic-drawer",
+  "GEN2 185-1W-3H Classic Drawer": {
+    p: "https://www.printables.com/model/262035-gen2-185-1w-3h-classic-drawer",
+  },
+  "GEN2 185-2W-1H Decor Drawer": {
+    p: "https://www.printables.com/model/964551-gen2-185-2w-1h-decor-drawer",
+  },
+  "GEN2 185-1W-1H Decor Drawer": {
+    t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185-1W-1H%20Decor%20Drawer-1116945",
+  },
+  "GEN2 185-4W-0.5H Decor Drawer": {
+    p: "https://www.printables.com/model/1413275-gen2-185-4w-05h-decor-drawer",
+  },
+  "GEN2 240-2W-2H Decor Drawer": {
+    p: "https://www.printables.com/model/1365853-gen2-240-2w-2h-decor-drawer",
+  },
+  "GEN2 240-2W-0.5H Classic Drawer": {
+    p: "https://www.printables.com/model/1324543-gen2-240-2w-05h-classic-drawer",
+  },
 };
 
-/* Fallback: a Printables search scoped to the exact part name. */
-function partLink(name) {
-  if (LINK_OVERRIDES[name]) return LINK_OVERRIDES[name];
-  return "https://www.printables.com/search/models?q=" + encodeURIComponent(name);
+/* Resolve links for a part name: exact overrides, else platform searches. */
+function partLinks(name) {
+  const o = LINK_OVERRIDES[name] || {};
+  const q = encodeURIComponent(name);
+  return {
+    printables: o.p || "https://www.printables.com/search/models?q=" + q,
+    thangs: o.t || "https://thangs.com/search/" + q,
+    exactP: !!o.p,
+    exactT: !!o.t,
+  };
 }
 
 /* Human-readable size token, e.g. (2, 0.5) -> "2W-0.5H" */

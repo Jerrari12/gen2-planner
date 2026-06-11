@@ -32,19 +32,71 @@
     <div class="card-row" id="length-cards"></div>
   </section>
 
-  <!-- STEP 3: Layout -->
+  <!-- STEP 3: Space & printer -->
+  <section class="step" id="step-space" hidden>
+    <h2><span class="step-num">3</span> Your space &amp; your printer</h2>
+    <div class="space-wrap">
+
+      <div class="space-box" id="space-inputs" hidden>
+        <h3>Workable area</h3>
+        <p class="hint" id="space-hint"></p>
+        <div class="field-row">
+          <label>Width (mm)
+            <input type="number" id="space-w" min="88" max="10000" step="1" placeholder="e.g. 480" />
+          </label>
+          <label>Height (mm)
+            <input type="number" id="space-h" min="28" max="10000" step="1" placeholder="e.g. 200" />
+          </label>
+        </div>
+        <p class="hint" id="space-readout"></p>
+      </div>
+
+      <div class="space-box">
+        <h3>Printer</h3>
+        <p class="hint">Sizes whose case won't fit your bed get marked as incompatible.</p>
+        <div class="field-row">
+          <label>Model
+            <select id="printer-select"></select>
+          </label>
+        </div>
+        <div class="field-row" id="custom-bed" hidden>
+          <label>Bed width (mm)
+            <input type="number" id="bed-x" min="50" max="1000" step="1" placeholder="250" />
+          </label>
+          <label>Bed length (mm)
+            <input type="number" id="bed-y" min="50" max="1000" step="1" placeholder="220" />
+          </label>
+        </div>
+        <p class="hint" id="printer-readout"></p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- STEP 4: Layout -->
   <section class="step" id="step-layout" hidden>
-    <h2><span class="step-num">3</span> Design your layout</h2>
-    <p class="hint">Pick a drawer size from the palette, then click the grid to place it. Click a placed drawer to remove it.</p>
+    <h2><span class="step-num">4</span> Design your layout</h2>
+    <p class="hint">Pick what to fill each case with and a size, then click the grid to place it. Click a placed unit to inspect or remove it.</p>
 
     <div class="layout-wrap">
       <aside class="palette">
-        <h3>Drawer sizes</h3>
-        <div class="palette-style">
-          <label>Drawer style</label>
-          <div class="seg" id="style-seg"></div>
+        <h3>Fill each case with</h3>
+        <div class="seg vertical" id="fill-seg"></div>
+
+        <div class="style-pick" id="faceplate-style-pick" hidden>
+          <label for="faceplate-style">Faceplate style</label>
+          <select id="faceplate-style"></select>
         </div>
+        <div class="style-pick" id="door-style-pick" hidden>
+          <label for="door-style">Door style</label>
+          <select id="door-style"></select>
+        </div>
+
+        <h3>Size</h3>
         <div id="palette-items"></div>
+
+        <div class="inspector" id="inspector" hidden></div>
+
         <div class="palette-tools">
           <h3>Grid</h3>
           <div class="grid-controls">
@@ -77,9 +129,9 @@
     </div>
   </section>
 
-  <!-- STEP 4: Parts list -->
+  <!-- STEP 5: Parts list -->
   <section class="step" id="step-parts" hidden>
-    <h2><span class="step-num">4</span> Your parts list</h2>
+    <h2><span class="step-num">5</span> Your parts list</h2>
     <div id="bom"></div>
     <div class="bom-actions">
       <button type="button" class="btn" id="copy-bom">Copy as text</button>

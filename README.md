@@ -5,10 +5,10 @@ A web tool for designing and planning a [GEN2 QuickLock Modular System](https://
 **How it works for the user:**
 
 1. **Choose a location** — Under-Table (GEN2 Rails), Tabletop (Table Top Kit V2), or Wall Mount (Kit – Lite)
-2. **Choose a length** — 59 / 115 / 165 / 185 / 240 / 270
-3. **Describe the space & printer** — under-table and wall mount ask for the workable area in mm (e.g. 480mm wide → grid capped at 5W, 88mm per 1W); tabletop is left open. Picking a printer (or custom bed size) greys out any size whose **case** won't fit the bed — Classic drawers are additionally checked with ~20mm of handle overhang.
-4. **Design the layout** — choose what fills each case (Classic Drawer, Decor Drawer, Shelf, or Cabinet), pick a size (1W–4W × 0.5H–3H), and click it onto the 2D grid. Decor faceplate and cabinet door styles (EdgeLabel / Classic / Essential) have their own selectors. The mount surface and required mount parts are illustrated around the layout; floating units and printer misfits are flagged. Clicking a placed unit opens an inspector — cabinets can add internal shelves there (each swaps a case extender for a full case + insert).
-5. **Get the parts list** — drawers, cases & extenders, QuickLocks (1 Left + 1 Right per case, linked to the universal GEN2 Hardware pack), shelf inserts, doors, hinges, latches, faceplates, and mount kits with quantities and **Printables + Thangs** links. Under-table rails are computed as an optimal section mix for the user's printer (e.g. 5W on a Core One → 2× 2W + 1× 1W) with screw counts (4/6/8/10 per 1W/2W/3W/4W section). Export as text, CSV, or print.
+2. **Choose a printer** — preset or custom bed size. Lengths whose narrowest (1W) case can't fit the bed are greyed out immediately.
+3. **Choose a length** — 59 / 115 / 165 / 185 / 240 / 270
+4. **Design the layout** — under-table and wall mount ask for the workable area in mm (e.g. 480mm wide → grid capped at 5W, 88mm per 1W); tabletop is left open. Choose what fills each case (Classic Drawer, Decor Drawer, Shelf, or Cabinet), pick a size (1W–4W × 0.5H–3H), and click it onto the 2D grid; sizes whose **case** won't fit the bed are greyed out (Classic drawers are additionally checked with ~20mm of handle overhang). Drag placed units to move them; click one to open the inspector (remove, or add internal cabinet shelves — each swaps a case extender for a full case + insert). Decor faceplate and cabinet door styles (EdgeLabel / Classic / Essential) have their own selectors. The mount surface and required mount parts are illustrated around the layout — rail bars span their real section widths — and floating units and printer misfits are flagged.
+5. **Get the parts list** — drawers, cases & extenders, QuickLocks (1 Left + 1 Right per case, linked to the universal GEN2 Hardware pack), shelf inserts, doors, hinges, latches, optional side covers for the outermost cases, faceplates, and mount kits with quantities and **Printables + Thangs** links. Under-table rails are computed as an optimal section mix for the user's printer (e.g. 5W on a Core One → 2× 2W + 1× 1W) with screw counts (4/6/8/10 per 1W/2W/3W/4W section). Export as text, CSV, or print.
 
 ## Running it
 
@@ -50,3 +50,4 @@ Part names are generated from `GEN2.partNames` (e.g. `GEN2 185-2W-1H Decor Drawe
 - **Wall Mount:** 1 Kit – Lite + 2 screws per 1W of the top row (kit widths/sectioning unconfirmed)
 - **Tabletop:** 1 Table Top Kit V2 per 1W
 - **Case extenders:** assumed to need no QuickLocks of their own; internal cabinet shelves assumed to need a shelf insert each
+- **Side covers:** assumed one per exposed side of each outermost unit, sized by the unit's height (`GEN2 {len} Side Cover - {h}H`)

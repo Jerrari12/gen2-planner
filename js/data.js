@@ -224,6 +224,7 @@ const GEN2 = {
     shelfInsert: (len, w)               => `GEN2 ${len} Shelf Insert - ${w}W`,
     faceplate:   (len, size, style)     => `GEN2 ${len} ${style} Decor Faceplate - ${size}`,
     door:        (len, size, style)     => `GEN2 ${len} ${style} Door - ${size}`,
+    sideCover:   (len, h)               => `GEN2 ${len} Side Cover - ${h}H`,
     hinge:       ()                     => "GEN2 Cabinet Hinge (1H)",
     latch:       ()                     => "GEN2 Door Latch (1H)",
     quickLockL:  ()                     => "GEN2 QuickLock - Left",
@@ -232,7 +233,7 @@ const GEN2 = {
 
   // Parts that aren't published yet — shown with a "coming soon" tag
   // instead of download links. Remove entries as they're released.
-  unreleased: ["shelfInsert", "door", "hinge", "latch"],
+  unreleased: ["shelfInsert", "door", "hinge", "latch", "sideCover"],
 };
 
 /* ---------------------------------------------------------------------------

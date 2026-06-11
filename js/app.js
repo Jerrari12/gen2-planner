@@ -57,6 +57,11 @@
     return fitsBed(w * GEN2.units.widthMM, state.length || 0);
   }
 
+  // Can this length be printed at all (narrowest 1W case)?
+  function lengthFits(len) {
+    return fitsBed(GEN2.units.widthMM, len);
+  }
+
   // Can `fill` be printed at width w? The case is the limiting part, except
   // Classic drawers whose print-in-place handle overhangs the front.
   function fillFits(w, fill) {
@@ -155,17 +160,25 @@
     GEN2.lengths.forEach((l) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "card slim" + (state.length === l.id ? " active" : "");
+      const ok = lengthFits(l.id);
+      btn.className = "card slim" + (state.length === l.id ? " active" : "") + (ok ? "" : " disabled");
       btn.innerHTML =
         `<div class="card-title">${l.label}<span class="mm">mm</span>` +
         (l.recommended ? `<span class="badge">recommended</span>` : "") +
+        (ok ? "" : `<span class="badge nofit">won't fit</span>`) +
         `</div>` +
         `<div class="card-blurb">${l.tagline}</div>`;
-      btn.addEventListener("click", () => {
-        state.length = l.id;
-        renderLengthCards();
-        refresh();
-      });
+      if (ok) {
+        btn.addEventListener("click", () => {
+          state.length = l.id;
+          ensureValidSelection();
+          renderLengthCards();
+          refresh();
+        });
+      } else {
+        const bed = bedSize();
+        btn.title = `Even a 1W case (${GEN2.units.widthMM}×${l.id}mm) won't fit your ${bed.x}×${bed.y}mm bed`;
+      }
       wrap.appendChild(btn);
     });
   }
@@ -214,11 +227,16 @@
 
     $("#custom-bed").hidden = state.printer !== "custom";
     const bed = bedSize();
-    $("#printer-readout").textContent = bed && state.length
-      ? `Bed ${bed.x}×${bed.y}mm · max case width for ${state.length}: ` +
+    if (!bed) {
+      $("#printer-readout").textContent = "";
+    } else if (state.length) {
+      $("#printer-readout").textContent =
+        `Bed ${bed.x}×${bed.y}mm · max case width for ${state.length}: ` +
         `${[...GEN2.drawerWidths].reverse().find((w) => caseFits(w)) || "none"}W · ` +
-        `max rail section: ${maxRailW()}W`
-      : "";
+        `max rail section: ${maxRailW()}W`;
+    } else {
+      $("#printer-readout").textContent = `Bed ${bed.x}×${bed.y}mm`;
+    }
   }
 
   function buildPrinterSelect() {
@@ -230,16 +248,19 @@
       sel.appendChild(opt);
     });
     sel.value = state.printer;
-    sel.addEventListener("change", () => {
-      state.printer = sel.value;
+    const onBedChange = () => {
+      if (state.length && !lengthFits(state.length)) state.length = null;
       ensureValidSelection();
       refresh();
+    };
+    sel.addEventListener("change", () => {
+      state.printer = sel.value;
+      onBedChange();
     });
     ["bed-x", "bed-y"].forEach((id, i) => {
       $("#" + id).addEventListener("input", (e) => {
         state.customBed[i === 0 ? "x" : "y"] = parseInt(e.target.value, 10) || null;
-        ensureValidSelection();
-        refresh();
+        onBedChange();
       });
     });
     $("#space-w").addEventListener("input", (e) => {
@@ -361,9 +382,9 @@
     return occ;
   }
 
-  function canPlace(x, y, w, hh) {
+  function canPlace(x, y, w, hh, excludeId) {
     if (x < 0 || y < 0 || x + w > state.gridW || y + hh > rows()) return false;
-    const occ = occupancy();
+    const occ = occupancy(excludeId);
     for (let dx = 0; dx < w; dx++)
       for (let dy = 0; dy < hh; dy++)
         if (occ.has((x + dx) + "," + (y + dy))) return false;
@@ -376,6 +397,8 @@
   }
 
   let hover = null; // {x,y} of hovered cell
+  let drag = null;  // {id, dx, dy, tx, ty, moved} while dragging a placed unit
+  let suppressClick = false; // swallow the click that follows a drag-drop
 
   function renderBoard() {
     const svg = $("#board");
@@ -397,7 +420,18 @@
 
     state.placed.forEach((p) => drawUnit(svg, p));
 
-    if (hover && state.selected) {
+    if (drag && drag.moved) {
+      // moving an existing unit: ghost it at the drop target
+      const p = state.placed.find((u) => u.id === drag.id);
+      if (p) {
+        const ok = canPlace(drag.tx, drag.ty, p.w, p.hh, p.id);
+        el("rect", {
+          x: gx + drag.tx * CW + 2, y: gy + drag.ty * (CH / 2) + 2,
+          width: p.w * CW - 4, height: p.hh * (CH / 2) - 4, rx: 6,
+          class: ok ? "ghost ok" : "ghost bad",
+        }, svg);
+      }
+    } else if (hover && state.selected && !drag) {
       const { w, h } = state.selected;
       const hh = h * 2;
       const ok = canPlace(hover.x, hover.y, w, hh);
@@ -418,7 +452,11 @@
     const x = PAD.left + p.x * CW, y = PAD.top + p.y * (CH / 2);
     const w = p.w * CW, h = p.hh * (CH / 2);
     const sel = state.selectedUnit === p.id;
-    const g = el("g", { class: "drawer" + (sel ? " selected" : ""), "data-id": p.id }, svg);
+    const dragging = drag && drag.moved && drag.id === p.id;
+    const g = el("g", {
+      class: "drawer" + (sel ? " selected" : "") + (dragging ? " dragging" : ""),
+      "data-id": p.id,
+    }, svg);
     el("rect", { x: x + 2, y: y + 2, width: w - 4, height: h - 4, rx: 6, class: "d-case" }, g);
 
     if (p.fill === "shelf") {
@@ -456,8 +494,9 @@
       el("rect", { x: 0, y: gy - 26, width: W, height: 18, class: "s-wood" }, svg);
       el("text", { x: W / 2, y: gy - 32, class: "s-label", "text-anchor": "middle" }, svg)
         .textContent = "table / desk underside" + (state.spaceW ? ` — ${state.spaceW}mm available` : "");
-      cols.forEach((c) => {
-        el("rect", { x: PAD.left + c * CW + 8, y: gy - 8, width: CW - 16, height: 8, rx: 2, class: "s-part" }, svg);
+      // one bar per rail section, spanning the section's full width
+      railSections().forEach((s) => {
+        el("rect", { x: PAD.left + s.start * CW + 8, y: gy - 8, width: s.w * CW - 16, height: 8, rx: 2, class: "s-part s-rail" }, svg);
       });
       if (cols.length) {
         el("text", { x: PAD.left, y: gridBottom + 24, class: "s-part-label" }, svg)
@@ -500,32 +539,45 @@
     return [...set].sort((a, b) => a - b);
   }
 
-  /* Contiguous runs of occupied columns, e.g. cols 0,1,3,4,5 → [2, 3] */
+  /* Contiguous runs of occupied columns, e.g. cols 0,1,3,4,5 →
+     [{start: 0, len: 2}, {start: 3, len: 3}] */
   function columnRuns() {
     const cols = occupiedColumns();
     const runs = [];
-    let run = 0, prev = null;
+    let start = null, prev = null;
     cols.forEach((c) => {
-      if (prev !== null && c === prev + 1) run++;
-      else { if (run) runs.push(run); run = 1; }
+      if (prev === null || c !== prev + 1) {
+        if (prev !== null) runs.push({ start, len: prev - start + 1 });
+        start = c;
+      }
       prev = c;
     });
-    if (run) runs.push(run);
+    if (prev !== null) runs.push({ start, len: prev - start + 1 });
     return runs;
   }
 
-  /* Pick rail sections for each contiguous run, biggest-first within the
-     printer's limit. 5W with a 2W max → {2: 2, 1: 1}. */
-  function railMix() {
+  /* Lay rail sections over each contiguous run, biggest-first within the
+     printer's limit. 5W with a 2W max → 2W@0, 2W@2, 1W@4. */
+  function railSections() {
     const max = maxRailW();
-    const mix = {};
+    const sections = [];
     columnRuns().forEach((run) => {
-      let left = run;
+      let pos = run.start, left = run.len;
       for (const w of [...GEN2.railWidths].sort((a, b) => b - a)) {
         if (w > max) continue;
-        while (left >= w) { mix[w] = (mix[w] || 0) + 1; left -= w; }
+        while (left >= w) {
+          sections.push({ start: pos, w });
+          pos += w;
+          left -= w;
+        }
       }
     });
+    return sections;
+  }
+
+  function railMix() {
+    const mix = {};
+    railSections().forEach((s) => { mix[s.w] = (mix[s.w] || 0) + 1; });
     return mix;
   }
 
@@ -714,6 +766,20 @@
         { name: P.quickLockL(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
         { name: P.quickLockR(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
       );
+      // optional side covers for units on the outer edges of the layout
+      const minX = Math.min(...state.placed.map((p) => p.x));
+      const maxX = Math.max(...state.placed.map((p) => p.x + p.w));
+      const sideCovers = new Map(); // height -> qty
+      state.placed.forEach((p) => {
+        if (p.x === minX) count(sideCovers, p.hh / 2);
+        if (p.x + p.w === maxX) count(sideCovers, p.hh / 2);
+      });
+      [...sideCovers.entries()].sort().forEach(([h, qty]) => items.push({
+        name: P.sideCover(len, h), qty,
+        note: "Optional — covers the exposed sides of the outermost cases. Most popular with Table Top Kits.",
+        optional: true,
+        unreleased: GEN2.unreleased.includes("sideCover"),
+      }));
       sections.push({ title: "Cases, Extenders & QuickLocks", items });
     }
 
@@ -845,14 +911,55 @@
   function bindBoard() {
     const svg = $("#board");
 
+    svg.addEventListener("mousedown", (e) => {
+      const pt = svgPoint(svg, e);
+      const { x, y } = cellAt(pt.x, pt.y);
+      const hit = unitAt(x, y);
+      if (hit) {
+        drag = { id: hit.id, dx: x - hit.x, dy: y - hit.y, tx: hit.x, ty: hit.y, moved: false };
+        e.preventDefault();
+      }
+    });
+
     svg.addEventListener("mousemove", (e) => {
       const pt = svgPoint(svg, e);
       hover = cellAt(pt.x, pt.y);
+      if (drag) {
+        const p = state.placed.find((u) => u.id === drag.id);
+        if (p) {
+          const tx = hover.x - drag.dx, ty = hover.y - drag.dy;
+          if (tx !== p.x || ty !== p.y || drag.moved) {
+            drag.moved = true;
+            drag.tx = tx;
+            drag.ty = ty;
+          }
+        }
+      }
       renderBoard();
     });
-    svg.addEventListener("mouseleave", () => { hover = null; renderBoard(); });
+
+    svg.addEventListener("mouseup", () => {
+      if (!drag) return;
+      if (drag.moved) {
+        const p = state.placed.find((u) => u.id === drag.id);
+        if (p && canPlace(drag.tx, drag.ty, p.w, p.hh, p.id)) {
+          p.x = drag.tx;
+          p.y = drag.ty;
+        }
+        suppressClick = true; // the click that follows a drop is not a select
+      }
+      drag = null;
+      refresh();
+    });
+
+    svg.addEventListener("mouseleave", () => {
+      hover = null;
+      drag = null;
+      renderBoard();
+    });
 
     svg.addEventListener("click", (e) => {
+      if (suppressClick) { suppressClick = false; return; }
       const pt = svgPoint(svg, e);
       const { x, y } = cellAt(pt.x, pt.y);
       const hit = unitAt(x, y);
@@ -908,11 +1015,11 @@
 
   function refresh() {
     const ready = state.mount && state.length;
-    $("#step-space").hidden = !ready;
     $("#step-layout").hidden = !ready;
     $("#step-parts").hidden = !ready;
     $("#grid-w-label").textContent = state.gridW + "W";
     $("#grid-h-label").textContent = state.gridH + "H";
+    renderLengthCards();
     renderSpaceStep();
     renderFillSeg();
     renderStylePicks();

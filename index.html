@@ -25,35 +25,12 @@
     <div class="card-row" id="mount-cards"></div>
   </section>
 
-  <!-- STEP 2: Length -->
-  <section class="step" id="step-length">
-    <h2><span class="step-num">2</span> Choose your drawer length</h2>
-    <p class="hint">Length is the drawer depth in millimeters. All parts in one setup share the same length.</p>
-    <div class="card-row" id="length-cards"></div>
-  </section>
-
-  <!-- STEP 3: Space & printer -->
-  <section class="step" id="step-space" hidden>
-    <h2><span class="step-num">3</span> Your space &amp; your printer</h2>
+  <!-- STEP 2: Printer -->
+  <section class="step" id="step-printer">
+    <h2><span class="step-num">2</span> Your printer</h2>
+    <p class="hint">Lengths and sizes whose case won't fit your bed get marked as incompatible.</p>
     <div class="space-wrap">
-
-      <div class="space-box" id="space-inputs" hidden>
-        <h3>Workable area</h3>
-        <p class="hint" id="space-hint"></p>
-        <div class="field-row">
-          <label>Width (mm)
-            <input type="number" id="space-w" min="88" max="10000" step="1" placeholder="e.g. 480" />
-          </label>
-          <label>Height (mm)
-            <input type="number" id="space-h" min="28" max="10000" step="1" placeholder="e.g. 200" />
-          </label>
-        </div>
-        <p class="hint" id="space-readout"></p>
-      </div>
-
       <div class="space-box">
-        <h3>Printer</h3>
-        <p class="hint">Sizes whose case won't fit your bed get marked as incompatible.</p>
         <div class="field-row">
           <label>Model
             <select id="printer-select"></select>
@@ -69,14 +46,35 @@
         </div>
         <p class="hint" id="printer-readout"></p>
       </div>
-
     </div>
+  </section>
+
+  <!-- STEP 3: Length -->
+  <section class="step" id="step-length">
+    <h2><span class="step-num">3</span> Choose your drawer length</h2>
+    <p class="hint">Length is the drawer depth in millimeters. All parts in one setup share the same length.</p>
+    <div class="card-row" id="length-cards"></div>
   </section>
 
   <!-- STEP 4: Layout -->
   <section class="step" id="step-layout" hidden>
     <h2><span class="step-num">4</span> Design your layout</h2>
-    <p class="hint">Pick what to fill each case with and a size, then click the grid to place it. Click a placed unit to inspect or remove it.</p>
+
+    <div class="space-box inline" id="space-inputs" hidden>
+      <h3>Workable area</h3>
+      <p class="hint" id="space-hint"></p>
+      <div class="field-row">
+        <label>Width (mm)
+          <input type="number" id="space-w" min="88" max="10000" step="1" placeholder="e.g. 480" />
+        </label>
+        <label>Height (mm)
+          <input type="number" id="space-h" min="28" max="10000" step="1" placeholder="e.g. 200" />
+        </label>
+      </div>
+      <p class="hint" id="space-readout"></p>
+    </div>
+
+    <p class="hint">Pick what to fill each case with and a size, then click the grid to place it. Drag a placed unit to move it; click it to inspect or remove.</p>
 
     <div class="layout-wrap">
       <aside class="palette">

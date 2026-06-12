@@ -336,11 +336,21 @@ function partLinks(name) {
   };
 }
 
+/* Parts that share one render, or whose file doesn't follow the naming rule.
+   Exact part name → path. Checked before the automatic slug below.
+   NOTE: filenames are case-sensitive once hosted (GitHub Pages), even though
+   Windows doesn't care locally. */
+const IMAGE_OVERRIDES = {
+  "GEN2 QuickLock - Left": "img/parts/Quicklock.png",
+  "GEN2 QuickLock - Right": "img/parts/Quicklock.png",
+};
+
 /* Thumbnail path for a part: the part name lowercased with non-alphanumerics
    collapsed to "-", e.g. "GEN2 185-2W-1H Decor Drawer" →
    img/parts/gen2-185-2w-1h-decor-drawer.png
    Missing files fall back to img/parts/placeholder.svg automatically. */
 function partImage(name) {
+  if (IMAGE_OVERRIDES[name]) return IMAGE_OVERRIDES[name];
   const slug = name.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
   return "img/parts/" + slug + ".png";
 }

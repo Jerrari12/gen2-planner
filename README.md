@@ -21,6 +21,31 @@ It's a zero-dependency static site — no build step.
 - Host on GitHub Pages (Settings → Pages → deploy from branch), or
 - Embed in jerrari3d.com via an `<iframe>` pointing at the hosted page.
 
+## Working on it locally
+
+The whole tool is just this folder — copy it anywhere and it works.
+
+**Get it onto your computer:**
+
+1. On GitHub, switch to the branch you want (branch dropdown, top-left of the file list)
+2. Green **Code** button → **Download ZIP**
+3. Unzip anywhere (e.g. `Documents/gen2-planner`)
+
+(Or, if you have git: `git clone https://github.com/Jerrari12/gen2-planner.git`)
+
+**Use it locally:**
+
+- Double-click `index.html` — no server or install needed
+- Drop your part renders straight into `img/parts/` (see `ASSETS-TODO.md`
+  for filenames) and refresh the browser to see them in the parts list
+- Edit `js/data.js` for catalog changes, refresh to see the result
+
+**Get changes back to GitHub later:**
+
+- Easiest (no git): on GitHub open the branch → **Add file → Upload files**
+  → drag the changed files/folders in → Commit. Same-named files are replaced.
+- With git: `git add -A && git commit -m "..." && git push`
+
 ## Maintaining the catalog — `js/data.js`
 
 Everything the planner knows about GEN2 lives in **`js/data.js`**. No other file needs editing for catalog changes:

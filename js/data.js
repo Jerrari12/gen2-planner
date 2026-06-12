@@ -341,8 +341,9 @@ function partLinks(name) {
    NOTE: filenames are case-sensitive once hosted (GitHub Pages), even though
    Windows doesn't care locally. */
 const IMAGE_OVERRIDES = {
-  "GEN2 QuickLock - Left": "img/parts/Quicklock.png",
-  "GEN2 QuickLock - Right": "img/parts/Quicklock.png",
+  "GEN2 QuickLock - Left": "img/parts/QuickLock.png",
+  "GEN2 QuickLock - Right": "img/parts/QuickLock.png",
+  "GEN2 185-1W-1H Decor Drawer": "img/parts/185-1W-1H Decor Drawer.png",
 };
 
 /* Thumbnail path for a part: the part name lowercased with non-alphanumerics

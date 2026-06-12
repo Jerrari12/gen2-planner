@@ -37,14 +37,11 @@ You don't need every variant — one render per family reads fine next to the
 size in the part name. Priority order for impact: drawers (one per style),
 cases, rails, the three mount kits, QuickLocks.
 
-> **Note:** both QuickLocks share one render via `IMAGE_OVERRIDES` in
-> `js/data.js` — upload it as **`Quicklock.png`** (exact capitalization;
-> hosting is case-sensitive even though Windows isn't).
-> `gen2-185-1w-1h-decor-drawer.png` currently contains a **generated
-> stand-in** (flat mock art) — overwrite it with the real render: GitHub →
-> this branch → `img/parts/` → *Add file → Upload files* (matching filenames
-> replace automatically). Parts that share a render or use a different
-> filename just need a line in `IMAGE_OVERRIDES`.
+> **Note:** parts that share a render or use a filename that doesn't follow
+> the naming rule get a line in `IMAGE_OVERRIDES` in `js/data.js` — that's
+> how `QuickLock.png` (both sides) and `185-1W-1H Decor Drawer.png` are
+> wired up. Either name new renders by the rule above, or add an override.
+> Filenames are case-sensitive once hosted, even though Windows isn't.
 
 ## 2. Explainer image → `img/explainer.png` (optional)
 

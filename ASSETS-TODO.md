@@ -37,6 +37,13 @@ You don't need every variant — one render per family reads fine next to the
 size in the part name. Priority order for impact: drawers (one per style),
 cases, rails, the three mount kits, QuickLocks.
 
+> **Note:** `gen2-185-1w-1h-decor-drawer.png`, `gen2-quicklock-left.png`, and
+> `gen2-quicklock-right.png` currently contain **generated stand-ins** (flat
+> mock art) to prove the pipeline — images attached in chat can't reach the
+> repository filesystem. Overwrite them with your real renders: easiest is
+> GitHub → this branch → `img/parts/` → *Add file → Upload files* (matching
+> filenames replace the stand-ins automatically).
+
 ## 2. Explainer image → `img/explainer.png` (optional)
 
 The "New to GEN2?" card currently uses a built-in schematic sketch. If you

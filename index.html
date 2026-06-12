@@ -38,10 +38,10 @@
         </div>
         <div class="field-row" id="custom-bed" hidden>
           <label>Bed width (mm)
-            <input type="number" id="bed-x" min="50" max="1000" step="1" placeholder="250" />
+            <input type="number" id="bed-x" min="50" max="1000" step="1" placeholder="e.g. 250" />
           </label>
           <label>Bed length (mm)
-            <input type="number" id="bed-y" min="50" max="1000" step="1" placeholder="220" />
+            <input type="number" id="bed-y" min="50" max="1000" step="1" placeholder="e.g. 220" />
           </label>
         </div>
         <p class="hint" id="printer-readout"></p>
@@ -84,13 +84,16 @@
     <div class="space-box inline" id="space-inputs" hidden>
       <h3>Workable area</h3>
       <p class="hint" id="space-hint"></p>
-      <div class="field-row">
-        <label>Width (mm)
-          <input type="number" id="space-w" min="88" max="10000" step="1" placeholder="e.g. 480" />
-        </label>
-        <label>Height (mm)
-          <input type="number" id="space-h" min="28" max="10000" step="1" placeholder="e.g. 200" />
-        </label>
+      <div class="space-fields">
+        <div class="field-row">
+          <label>Width (mm)
+            <input type="number" id="space-w" min="88" max="10000" step="1" placeholder="e.g. 480" />
+          </label>
+          <label>Height (mm)
+            <input type="number" id="space-h" min="28" max="10000" step="1" placeholder="e.g. 200" />
+          </label>
+        </div>
+        <div id="space-graphic" aria-hidden="true"></div>
       </div>
       <p class="hint" id="space-readout"></p>
     </div>
@@ -100,7 +103,7 @@
     <div class="layout-wrap">
       <aside class="palette">
         <h3>Fill each case with</h3>
-        <div class="seg vertical" id="fill-seg"></div>
+        <div class="fill-grid" id="fill-seg"></div>
         <p class="fill-blurb" id="fill-blurb"></p>
 
         <h3>Size</h3>

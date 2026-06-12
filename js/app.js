@@ -260,6 +260,7 @@
           : `${state.spaceH}mm tall → up to ${n}H (${n * GEN2.units.heightMM}mm used)`);
       }
       $("#space-readout").textContent = parts.join(" · ");
+      renderSpaceGraphic();
     }
 
     $("#custom-bed").hidden = state.printer !== "custom";
@@ -274,6 +275,38 @@
     } else {
       $("#printer-readout").textContent = `Bed ${bed.x}×${bed.y}mm`;
     }
+  }
+
+  /* Little to-scale sketch of the workable area: outer rect = the measured
+     space, accent cells = the 1W×1H grid that fits inside it. */
+  function renderSpaceGraphic() {
+    const box = $("#space-graphic");
+    const real = !!(state.spaceW || state.spaceH);
+    const w = state.spaceW || 480;
+    const h = state.spaceH || 168;
+    const scale = Math.min(190 / w, 96 / h);
+    const pw = w * scale, ph = h * scale;
+    const cols = Math.floor(w / GEN2.units.widthMM);
+    const rws = Math.floor(h / GEN2.units.heightMM);
+    const cw = GEN2.units.widthMM * scale, chh = GEN2.units.heightMM * scale;
+
+    let cells = "";
+    for (let c = 0; c < cols; c++)
+      for (let r = 0; r < rws; r++)
+        cells += `<rect x="${8 + c * cw + 1}" y="${8 + r * chh + 1}" width="${cw - 2}" height="${chh - 2}" rx="2" class="sg-cell"/>`;
+
+    box.innerHTML = `<svg viewBox="0 0 ${pw + 60} ${ph + 38}" class="sg ${real ? "" : "ghost"}">
+      <rect x="8" y="8" width="${pw}" height="${ph}" rx="3" class="sg-area"/>
+      ${cells}
+      <line x1="8" y1="${ph + 20}" x2="${8 + pw}" y2="${ph + 20}" class="sg-dim"/>
+      <text x="${8 + pw / 2}" y="${ph + 32}" text-anchor="middle" class="sg-label">${state.spaceW ? state.spaceW + "mm" : "width?"}</text>
+      <line x1="${pw + 20}" y1="8" x2="${pw + 20}" y2="${8 + ph}" class="sg-dim"/>
+      <text x="${pw + 28}" y="${8 + ph / 2}" class="sg-label">${state.spaceH ? state.spaceH + "mm" : "height?"}</text>
+      <text x="8" y="${ph + 32}" class="sg-fit" text-anchor="start"></text>
+    </svg>
+    <p class="sg-caption">${real
+      ? `fits ${state.spaceW ? cols + "W" : "?"} × ${state.spaceH ? rws + "H" : "?"}`
+      : "enter your measurements"}</p>`;
   }
 
   function buildPrinterSelect() {
@@ -291,7 +324,15 @@
       refresh();
     };
     sel.addEventListener("change", () => {
+      const prevBed = bedSize();
       state.printer = sel.value;
+      // switching to Custom carries over the last preset's real dims, so the
+      // boxes never show misleading example numbers next to a chosen printer
+      if (state.printer === "custom" && prevBed && !(state.customBed.x && state.customBed.y)) {
+        state.customBed = { x: prevBed.x, y: prevBed.y };
+        $("#bed-x").value = prevBed.x;
+        $("#bed-y").value = prevBed.y;
+      }
       onBedChange();
     });
     ["bed-x", "bed-y"].forEach((id, i) => {
@@ -316,14 +357,47 @@
 
   /* --------------------------- Palette --------------------------- */
 
+  /* Front-view icons matching the board art, so the fill choice reads
+     visually before the labels do. */
+  function fillIcon(id) {
+    const frame = `<rect x="2" y="2" width="60" height="40" rx="5" class="fi-case"/>`;
+    if (id === "classic") {
+      return `<svg viewBox="0 0 64 44">${frame}
+        <rect x="7" y="7" width="50" height="30" rx="3" class="fi-face"/>
+        <rect x="9" y="8" width="46" height="6" rx="2" class="fi-dark"/>
+        <polygon points="12,29 52,29 46,36 18,36" class="fi-lip"/></svg>`;
+    }
+    if (id === "decor") {
+      return `<svg viewBox="0 0 64 44">${frame}
+        <rect x="7" y="7" width="50" height="30" rx="3" class="fi-dark"/>
+        <rect x="9" y="7" width="6" height="30" rx="2" class="fi-rail"/>
+        <rect x="49" y="7" width="6" height="30" rx="2" class="fi-rail"/>
+        <line x1="15" y1="33" x2="49" y2="33" class="fi-line"/></svg>`;
+    }
+    if (id === "shelf") {
+      return `<svg viewBox="0 0 64 44">${frame}
+        <rect x="7" y="7" width="50" height="30" rx="3" class="fi-dark"/>
+        <line x1="9" y1="34" x2="55" y2="34" class="fi-line"/>
+        <rect x="14" y="24" width="10" height="10" rx="1" class="fi-item"/>
+        <rect x="28" y="19" width="8" height="15" rx="1" class="fi-item"/></svg>`;
+    }
+    return `<svg viewBox="0 0 64 44">${frame}
+      <rect x="7" y="7" width="50" height="30" rx="3" class="fi-door"/>
+      <circle cx="48" cy="22" r="3" class="fi-knob"/>
+      <rect x="5" y="10" width="4" height="8" rx="1" class="fi-hinge"/>
+      <rect x="5" y="26" width="4" height="8" rx="1" class="fi-hinge"/></svg>`;
+  }
+
   function renderFillSeg() {
     const seg = $("#fill-seg");
     seg.innerHTML = "";
     GEN2.fills.forEach((f) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = state.fill === f.id ? "active" : "";
-      btn.innerHTML = f.label + (f.soon ? ' <span class="soon">soon</span>' : "");
+      btn.className = "fill-tile" + (state.fill === f.id ? " active" : "");
+      btn.innerHTML =
+        `<span class="fill-icon">${fillIcon(f.id)}</span>` +
+        `<span class="fill-label">${f.label}${f.soon ? ' <span class="soon">soon</span>' : ""}</span>`;
       btn.title = f.blurb;
       btn.addEventListener("click", () => {
         state.fill = f.id;

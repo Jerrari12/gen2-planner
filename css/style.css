@@ -158,6 +158,16 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .field-row input:focus, .field-row select:focus { outline: none; border-color: var(--accent); }
 #space-readout, #printer-readout { color: var(--accent); min-height: 1.2em; }
 
+.space-fields { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+#space-graphic { flex: 0 0 auto; }
+#space-graphic .sg { width: 240px; height: auto; display: block; }
+#space-graphic .sg.ghost { opacity: 0.45; }
+.sg-area { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.sg-cell { fill: rgba(255, 138, 64, 0.22); stroke: var(--accent-dim); stroke-width: 0.75; }
+.sg-dim { stroke: var(--muted); stroke-width: 1; }
+.sg-label { fill: var(--muted); font-size: 10px; }
+.sg-caption { margin: 2px 0 0; font-size: 0.72rem; color: var(--accent); text-align: center; max-width: 240px; }
+
 /* ---------- explainer ---------- */
 
 .explainer {
@@ -286,6 +296,44 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 }
 .palette-item.active .palette-box { background: var(--accent-dim); border-color: var(--accent); }
 .palette-label { font-size: 0.62rem; }
+
+.fill-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.fill-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  aspect-ratio: 1 / 0.92;
+  justify-content: center;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 8px 4px;
+  text-align: center;
+}
+.fill-tile:hover { border-color: var(--accent-dim); }
+.fill-tile.active { border-color: var(--accent); color: var(--text); background: rgba(255, 138, 64, 0.07); }
+.fill-icon svg { width: 56px; height: 40px; display: block; }
+.fi-case { fill: #46474b; }
+.fi-face { fill: #55565b; }
+.fi-dark { fill: #26272a; }
+.fi-lip { fill: #6a6b70; }
+.fi-rail { fill: #6a6b70; }
+.fi-line { stroke: #5e5f64; stroke-width: 2; }
+.fi-item { fill: #5e5f64; }
+.fi-door { fill: #55565b; stroke: #6a6b70; stroke-width: 1; }
+.fi-knob { fill: var(--text); opacity: 0.8; }
+.fi-hinge { fill: var(--accent-dim); }
+.fill-tile.active .fi-rail, .fill-tile.active .fi-lip, .fill-tile.active .fi-hinge { fill: var(--accent); }
 
 .fill-blurb {
   font-size: 0.76rem;

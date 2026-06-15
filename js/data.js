@@ -26,9 +26,16 @@ const GEN2 = {
 
   // Footprints offered in the palette (width units × height units)
   drawerWidths: [1, 2, 3, 4],
-  drawerHeights: [0.5, 1, 1.5, 2, 3],
+  drawerHeights: [0.5, 1, 1.5, 2, 3],   // Classic & Decor drawers
 
-  // Size combos that don't exist in the GEN2 lineup
+  // Shelves and Cabinets are built from a case plus 1H case extenders, so they
+  // stack to whole-unit heights well beyond the drawer sizes. Capped at 6H so
+  // the door/insert catalog stays finite (1W-1H up to 4W-6H).
+  caseHeights: [1, 2, 3, 4, 5, 6],
+  maxCaseHeight: 6,
+
+  // Size combos that don't exist in the GEN2 lineup. These are hidden from the
+  // palette entirely (rendered as blank gaps) rather than greyed out.
   unavailableSizes: ["3W-3H", "4W-3H"],
 
   // What a case can be filled with
@@ -48,6 +55,8 @@ const GEN2 = {
       label: "Shelf",
       blurb: "Open shelf — case + shelf insert.",
       soon: true,
+      integerHeightsOnly: true,
+      minHeight: 1,
     },
     {
       id: "cabinet",

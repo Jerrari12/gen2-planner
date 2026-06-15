@@ -53,6 +53,7 @@ Everything the planner knows about GEN2 lives in **`js/data.js`**. No other file
 | What | Where |
 | --- | --- |
 | Drawer widths/heights in the palette | `GEN2.drawerWidths` / `GEN2.drawerHeights` |
+| Shelf/cabinet heights (stack via extenders) | `GEN2.caseHeights` / `GEN2.maxCaseHeight` (capped at 6H) |
 | Fill types (drawers, shelves, cabinets) | `GEN2.fills` — drop the `soon` flag when shelves/cabinets launch |
 | Faceplate / door styles | `GEN2.faceplateStyles` / `GEN2.doorStyles` |
 | Printer presets (bed sizes) | `GEN2.printers` |

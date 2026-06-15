@@ -102,6 +102,21 @@
     return !GEN2.unavailableSizes.includes(sizeToken(w, h));
   }
 
+  // Heights offered for a given fill. Drawers use the physical drawer sizes;
+  // Shelves and Cabinets stack 1H extenders, so they get the taller case range.
+  function heightsForFill(id) {
+    const f = id || state.fill;
+    return (f === "shelf" || f === "cabinet") ? GEN2.caseHeights : GEN2.drawerHeights;
+  }
+
+  // Make sure the grid is tall enough to place a unit of the selected height
+  // (skipped for tabletop, whose height is managed automatically).
+  function growGridForHeight(h) {
+    if (state.mount === "tabletop") return;
+    const need = Math.ceil(h);
+    if (need > state.gridH) state.gridH = Math.min(capH(), need);
+  }
+
   function selectable(w, h) {
     if (!sizeExists(w, h)) return false;
     if (!fillFits(w, state.fill)) return false;
@@ -114,7 +129,7 @@
   function ensureValidSelection() {
     const s = state.selected;
     if (s && selectable(s.w, s.h)) return;
-    for (const h of GEN2.drawerHeights)
+    for (const h of heightsForFill())
       for (const w of GEN2.drawerWidths)
         if (selectable(w, h)) { state.selected = { w, h }; return; }
     state.selected = null;
@@ -433,10 +448,18 @@
       `1W = ${GEN2.units.widthMM}mm wide · 1H = ${GEN2.units.heightMM}mm tall`;
     const wrap = $("#palette-items");
     wrap.innerHTML = "";
-    GEN2.drawerHeights.forEach((h) => {
+    heightsForFill().forEach((h) => {
       const row = document.createElement("div");
       row.className = "palette-row";
       GEN2.drawerWidths.forEach((w) => {
+        // Sizes that don't exist in the lineup are rendered as a blank gap so
+        // the grid alignment holds without offering a dead, greyed tile.
+        if (!sizeExists(w, h)) {
+          const blank = document.createElement("span");
+          blank.className = "palette-blank";
+          row.appendChild(blank);
+          return;
+        }
         const item = document.createElement("button");
         item.type = "button";
         const ok = selectable(w, h);
@@ -447,15 +470,14 @@
         item.innerHTML = `<span class="palette-box"></span><span class="palette-label">${sizeToken(w, h)}</span>`;
         if (!ok) {
           const f = fillDef();
-          item.title = !sizeExists(w, h)
-            ? `${sizeToken(w, h)} is not part of the GEN2 lineup`
-            : fitProblem(w, state.fill) ||
-              (f.integerHeightsOnly && !Number.isInteger(h)
-                ? `${f.label}s come in whole heights only`
-                : `Not available as a ${f.label}`);
+          item.title = fitProblem(w, state.fill) ||
+            (f.integerHeightsOnly && !Number.isInteger(h)
+              ? `${f.label}s come in whole heights only`
+              : `Not available as a ${f.label}`);
         } else {
           item.addEventListener("click", () => {
             state.selected = { w, h };
+            growGridForHeight(h);
             refresh();
           });
         }
@@ -863,29 +885,71 @@
     box.appendChild(div);
   }
 
-  /* --------------------------- Inspector --------------------------- */
+  /* ---------------------- Unit popover (on-grid) ---------------------- */
 
-  function renderInspector() {
-    const box = $("#inspector");
+  /* The representative published part for a placed unit — the piece a user
+     thinks of as "the thing" in that case — plus its thumbnail. */
+  function unitPartInfo(p) {
+    const len = state.length;
+    const size = sizeToken(p.w, p.hh / 2);
+    const f = fillDef(p.fill);
+    let name;
+    if (p.fill === "classic" || p.fill === "decor") {
+      name = GEN2.partNames.drawer(len, size, f.label);
+    } else if (p.fill === "shelf") {
+      name = GEN2.partNames.case(len, size);
+    } else {
+      const doorStyle = GEN2.doorStyles.find((s) => s.id === state.doorStyle).label;
+      name = GEN2.partNames.door(len, size, doorStyle);
+    }
+    return { size, label: f.label, blurb: f.blurb, img: partImage(name) };
+  }
+
+  function renderPopover() {
+    const pop = $("#unit-popover");
     const p = state.placed.find((u) => u.id === state.selectedUnit);
-    if (!p) { box.hidden = true; state.selectedUnit = null; return; }
-    box.hidden = false;
+    if (!p) { pop.hidden = true; pop.innerHTML = ""; state.selectedUnit = null; return; }
     const h = p.hh / 2;
-    let html = `<h3>Selected unit</h3>
-      <div class="insp-title">${fillDef(p.fill).label} · ${sizeToken(p.w, h)}</div>`;
+    const info = unitPartInfo(p);
+    const wmm = p.w * GEN2.units.widthMM;
+    const hmm = h * GEN2.units.heightMM;
+
+    let html = `<div class="pop-card">
+      <button type="button" class="pop-close" id="pop-close" aria-label="Close">×</button>
+      <div class="pop-head">
+        <img class="pop-thumb" src="${info.img}" alt="" loading="lazy"
+          onerror="this.onerror=null;this.src='img/parts/placeholder.svg'">
+        <div class="pop-headtext">
+          <div class="pop-title">${info.label}</div>
+          <div class="pop-sub">${info.size} · ${wmm} × ${hmm} × ${state.length}mm</div>
+        </div>
+      </div>
+      <p class="pop-blurb">${info.blurb}</p>`;
     if (p.fill === "cabinet" && h >= 2) {
-      html += `<label class="insp-row">Internal shelves
+      html += `<div class="pop-row"><span>Internal shelves</span>
         <span class="stepper">
           <button type="button" data-shelf="-">−</button>
           <b>${p.shelves || 0}</b>
           <button type="button" data-shelf="+">+</button>
-        </span></label>
-        <p class="hint">Each internal shelf swaps a case extender for a full case + shelf insert.</p>`;
+        </span></div>
+        <p class="pop-hint">Each internal shelf swaps a case extender for a full case + shelf insert.</p>`;
     }
-    html += `<button type="button" class="btn ghost" id="remove-unit">Remove unit</button>`;
-    box.innerHTML = html;
+    html += `<button type="button" class="btn ghost pop-remove" id="pop-remove">Remove this unit</button>
+      </div>`;
+    pop.innerHTML = html;
+    pop.hidden = false;
+    positionPopover(p);
 
-    box.querySelectorAll("[data-shelf]").forEach((btn) => {
+    $("#pop-close").addEventListener("click", () => {
+      state.selectedUnit = null;
+      refresh();
+    });
+    $("#pop-remove").addEventListener("click", () => {
+      state.placed = state.placed.filter((u) => u.id !== p.id);
+      state.selectedUnit = null;
+      refresh();
+    });
+    pop.querySelectorAll("[data-shelf]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const maxShelves = p.hh / 2 - 1;
         p.shelves = Math.max(0, Math.min(maxShelves,
@@ -893,11 +957,41 @@
         refresh();
       });
     });
-    box.querySelector("#remove-unit").addEventListener("click", () => {
-      state.placed = state.placed.filter((u) => u.id !== p.id);
-      state.selectedUnit = null;
-      refresh();
-    });
+  }
+
+  /* Place the popover over its unit, preferring above the unit and flipping
+     below when there isn't room. Horizontal position is clamped to the board
+     area so it never spills off the edge. */
+  function positionPopover(p) {
+    const pop = $("#unit-popover");
+    if (pop.hidden) return;
+    const svg = $("#board");
+    const area = $(".board-area");
+    const r = svg.getBoundingClientRect();
+    const vb = svg.viewBox.baseVal;
+    if (!vb || !vb.width) return;
+    const sx = r.width / vb.width, sy = r.height / vb.height;
+    const ux = PAD.left + (p.x + p.w / 2) * CW;
+    const uyTop = PAD.top + p.y * (CH / 2);
+    const uyBot = PAD.top + (p.y + p.hh) * (CH / 2);
+    const ar = area.getBoundingClientRect();
+    const cx = r.left + ux * sx - ar.left;
+    const cyTop = r.top + uyTop * sy - ar.top;
+    const cyBot = r.top + uyBot * sy - ar.top;
+
+    const halfW = (pop.offsetWidth || 240) / 2;
+    pop.style.left = Math.max(halfW + 4, Math.min(ar.width - halfW - 4, cx)) + "px";
+
+    const popH = pop.offsetHeight || 170;
+    if (cyTop - popH - 14 < 0) {
+      pop.classList.remove("above");
+      pop.classList.add("below");
+      pop.style.top = cyBot + "px";
+    } else {
+      pop.classList.remove("below");
+      pop.classList.add("above");
+      pop.style.top = cyTop + "px";
+    }
   }
 
   /* ------------------------------- BOM ------------------------------- */
@@ -1209,15 +1303,100 @@
       }
       refresh();
     });
+
+    /* Touch: mirror the mouse flow so phones/tablets can place, move, and
+       inspect. A drag that starts on a unit moves it (and blocks page scroll);
+       a tap on a unit opens its popover; a tap on empty space places the
+       selected size. Touches that don't start on a unit stay scrollable. */
+    let touchMode = null;     // "unit" | "empty"
+    let touchStartCell = null;
+
+    svg.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const pt = boardPoint(t.clientX, t.clientY);
+      const cell = cellAt(pt.x, pt.y);
+      const hit = unitAt(cell.x, cell.y);
+      touchStartCell = cell;
+      if (hit) {
+        drag = { id: hit.id, dx: cell.x - hit.x, dy: cell.y - hit.y, tx: hit.x, ty: hit.y, moved: false };
+        touchMode = "unit";
+        e.preventDefault(); // claim the gesture: move the unit, don't scroll
+      } else {
+        touchMode = "empty";
+      }
+    }, { passive: false });
+
+    svg.addEventListener("touchmove", (e) => {
+      if (touchMode !== "unit" || !drag || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const pt = boardPoint(t.clientX, t.clientY);
+      const cell = cellAt(pt.x, pt.y);
+      const p = state.placed.find((u) => u.id === drag.id);
+      if (!p) return;
+      const tx = cell.x - drag.dx, ty = cell.y - drag.dy;
+      if (tx !== p.x || ty !== p.y) drag.moved = true;
+      drag.tx = tx;
+      drag.ty = ty;
+      e.preventDefault();
+      renderBoard();
+    }, { passive: false });
+
+    svg.addEventListener("touchend", (e) => {
+      if (touchMode === "unit" && drag) {
+        if (drag.moved) {
+          const p = state.placed.find((u) => u.id === drag.id);
+          if (p && canPlace(drag.tx, drag.ty, p.w, p.hh, p.id)) {
+            p.x = drag.tx;
+            p.y = drag.ty;
+          }
+        } else {
+          // a tap (no move) toggles the unit's popover
+          state.selectedUnit = state.selectedUnit === drag.id ? null : drag.id;
+        }
+        drag = null;
+        touchMode = null;
+        e.preventDefault(); // suppress the synthetic mouse click that follows
+        refresh();
+        return;
+      }
+      if (touchMode === "empty" && touchStartCell && e.changedTouches.length) {
+        const t = e.changedTouches[0];
+        const pt = boardPoint(t.clientX, t.clientY);
+        const cell = cellAt(pt.x, pt.y);
+        // only place on a clean tap — if the finger slid to another cell the
+        // user was probably scrolling, so leave the layout alone
+        if (cell.x === touchStartCell.x && cell.y === touchStartCell.y &&
+            state.selected && selectable(state.selected.w, state.selected.h)) {
+          const { w, h } = state.selected;
+          if (canPlace(cell.x, cell.y, w, h * 2)) {
+            state.placed.push({
+              id: state.nextId++, x: cell.x, y: cell.y, w, hh: h * 2,
+              fill: state.fill,
+              shelves: 0,
+            });
+            state.selectedUnit = null;
+            e.preventDefault();
+            refresh();
+          }
+        }
+      }
+      touchMode = null;
+    }, { passive: false });
   }
 
-  function svgPoint(svg, evt) {
+  function boardPoint(clientX, clientY) {
+    const svg = $("#board");
     const r = svg.getBoundingClientRect();
     const vb = svg.viewBox.baseVal;
     return {
-      x: (evt.clientX - r.left) * (vb.width / r.width),
-      y: (evt.clientY - r.top) * (vb.height / r.height),
+      x: (clientX - r.left) * (vb.width / r.width),
+      y: (clientY - r.top) * (vb.height / r.height),
     };
+  }
+
+  function svgPoint(svg, evt) {
+    return boardPoint(evt.clientX, evt.clientY);
   }
 
   function bindControls() {
@@ -1246,6 +1425,27 @@
     $("#copy-bom").addEventListener("click", copyBom);
     $("#csv-bom").addEventListener("click", downloadCsv);
     $("#print-bom").addEventListener("click", () => window.print());
+
+    // Close the unit popover when clicking/tapping away from the board.
+    const dismiss = (e) => {
+      if (!state.selectedUnit) return;
+      const board = $("#board"), pop = $("#unit-popover");
+      if ((board && board.contains(e.target)) || (pop && pop.contains(e.target))) return;
+      state.selectedUnit = null;
+      refresh();
+    };
+    document.addEventListener("mousedown", dismiss);
+    document.addEventListener("touchstart", dismiss, { passive: true });
+
+    // Keep the popover pinned to its unit as the board scrolls or the page
+    // reflows.
+    const reposition = () => {
+      const p = state.placed.find((u) => u.id === state.selectedUnit);
+      if (p) positionPopover(p);
+    };
+    const scroller = document.querySelector(".board-scroll");
+    if (scroller) scroller.addEventListener("scroll", reposition, { passive: true });
+    window.addEventListener("resize", reposition);
   }
 
   /* ----------------------------- Refresh ----------------------------- */
@@ -1265,9 +1465,9 @@
     renderFillSeg();
     renderStyleSegs();
     renderPalette();
-    renderInspector();
     renderBoardHelper();
     if (ready) renderBoard();
+    renderPopover();
     renderBom();
   }
 

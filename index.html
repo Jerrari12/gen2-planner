@@ -98,7 +98,7 @@
       <p class="hint" id="space-readout"></p>
     </div>
 
-    <p class="hint">Pick what to fill each case with and a size, then click the grid to place it. Drag a placed unit to move it; click it to inspect or remove.</p>
+    <p class="hint">Pick what to fill each case with and a size, then click the grid to place it. Click a placed unit to select it, then use the arrow pad below the grid to nudge it (or drag it) — and remove it from there too.</p>
 
     <div class="layout-wrap">
       <aside class="palette">
@@ -140,7 +140,34 @@
         <div class="board-scroll">
           <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>
-        <div class="unit-popover" id="unit-popover" hidden></div>
+
+        <div class="unit-toolbar" id="unit-toolbar">
+          <div class="ut-info">
+            <img class="ut-thumb empty" id="ut-thumb" alt="" />
+            <div class="ut-text">
+              <div class="ut-title" id="ut-title">No unit selected</div>
+              <div class="ut-sub" id="ut-sub">Click a part on the grid to move or remove it.</div>
+            </div>
+          </div>
+          <div class="ut-pad" role="group" aria-label="Move selected unit">
+            <button type="button" class="ut-arrow up"    data-move="up"    aria-label="Move up"    disabled>▲</button>
+            <button type="button" class="ut-arrow left"  data-move="left"  aria-label="Move left"  disabled>◄</button>
+            <button type="button" class="ut-arrow down"  data-move="down"  aria-label="Move down"  disabled>▼</button>
+            <button type="button" class="ut-arrow right" data-move="right" aria-label="Move right" disabled>►</button>
+          </div>
+          <div class="ut-actions">
+            <div class="ut-shelves" id="ut-shelves" hidden>
+              <span>Internal shelves</span>
+              <span class="stepper">
+                <button type="button" data-shelf="-">−</button>
+                <b id="ut-shelf-count">0</b>
+                <button type="button" data-shelf="+">+</button>
+              </span>
+            </div>
+            <button type="button" class="btn ghost" id="ut-remove" disabled>Remove unit</button>
+          </div>
+        </div>
+
         <div class="board-meta" id="board-meta"></div>
         <div class="board-warnings" id="board-warnings"></div>
       </div>

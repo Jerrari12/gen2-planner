@@ -435,62 +435,63 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .ghost.ok { fill: rgba(76, 195, 138, 0.25); stroke: var(--good); stroke-dasharray: 5 4; }
 .ghost.bad { fill: rgba(229, 83, 75, 0.18); stroke: var(--bad); stroke-dasharray: 5 4; }
 
-/* ---------- unit popover ---------- */
+/* ---------- selected-unit toolbar ---------- */
 
-.unit-popover {
-  position: absolute;
-  z-index: 40;
-  width: 240px;
-  max-width: calc(100% - 16px);
-}
-.unit-popover.above { transform: translate(-50%, calc(-100% - 12px)); }
-.unit-popover.below { transform: translate(-50%, 12px); }
-.pop-card {
-  position: relative;
+.unit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 10px 14px;
   background: var(--panel);
-  border: 1px solid var(--accent);
-  border-radius: 10px;
-  padding: 12px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  opacity: 0.65;
+  transition: opacity 0.15s, border-color 0.15s;
 }
-/* little pointer toward the unit */
-.pop-card::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 7px solid transparent;
-}
-.unit-popover.above .pop-card::after { top: 100%; border-top-color: var(--accent); }
-.unit-popover.below .pop-card::after { bottom: 100%; border-bottom-color: var(--accent); }
-.pop-close {
-  position: absolute;
-  top: 5px; right: 8px;
-  background: none; border: 0;
-  color: var(--muted);
-  font-size: 1.2rem;
-  line-height: 1;
-  cursor: pointer;
-}
-.pop-close:hover { color: var(--text); }
-.pop-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; padding-right: 14px; }
-.pop-thumb {
-  width: 52px; height: 52px;
+.unit-toolbar.active { opacity: 1; border-color: var(--accent-dim); }
+.ut-info { display: flex; align-items: center; gap: 10px; flex: 1 1 200px; min-width: 0; }
+.ut-thumb {
+  width: 46px; height: 46px;
   flex: 0 0 auto;
   object-fit: contain;
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
-.pop-title { font-weight: 700; font-size: 0.95rem; }
-.pop-sub { font-size: 0.72rem; color: var(--muted); }
-.pop-blurb { font-size: 0.76rem; color: var(--muted); margin: 0 0 10px; }
-.pop-row {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 0.8rem; color: var(--muted); margin-bottom: 6px;
+.ut-thumb.empty { visibility: hidden; }
+.ut-title { font-weight: 700; font-size: 0.9rem; }
+.ut-sub { font-size: 0.75rem; color: var(--muted); }
+
+.ut-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 36px);
+  grid-template-rows: repeat(2, 36px);
+  gap: 5px;
+  flex: 0 0 auto;
 }
-.pop-hint { font-size: 0.7rem; color: var(--muted); margin: 0 0 10px; }
-.pop-remove { width: 100%; }
+.ut-arrow {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s, color 0.1s;
+}
+.ut-arrow.up    { grid-area: 1 / 2; }
+.ut-arrow.left  { grid-area: 2 / 1; }
+.ut-arrow.down  { grid-area: 2 / 2; }
+.ut-arrow.right { grid-area: 2 / 3; }
+.unit-toolbar.active .ut-arrow:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.unit-toolbar.active .ut-arrow:not(:disabled):hover { background: var(--accent); color: var(--on-accent); }
+.ut-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.ut-actions { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+.ut-shelves { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
+.ut-actions .btn { font-size: 0.78rem; padding: 7px 12px; }
 
 /* ---------- BOM ---------- */
 
@@ -576,7 +577,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 @media print {
   body { background: #fff; color: #000; }
   .topbar, .palette, .board-warnings, .bom-actions, .footer, .explainer,
-  .board-helper, .unit-popover, #step-mount, #step-length, #step-printer { display: none !important; }
+  .board-helper, .unit-toolbar, #step-mount, #step-length, #step-printer { display: none !important; }
   .bom-table, .bom-table td { border-color: #ccc; background: #fff; color: #000; }
   #bom h3 { color: #000; }
   a { color: #000; }

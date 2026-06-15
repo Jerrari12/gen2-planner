@@ -7,7 +7,7 @@ A web tool for designing and planning a [GEN2 QuickLock Modular System](https://
 1. **Choose a location** — Under-Table (GEN2 Rails), Tabletop (Table Top Kit V2), or Wall Mount (Kit – Lite)
 2. **Choose a printer** — preset or custom bed size. Lengths whose narrowest (1W) case can't fit the bed are greyed out immediately.
 3. **Choose a length** — 59 / 115 / 165 / 185 / 240 / 270, colored to match the official lineup art
-4. **Design the layout** — under-table and wall mount ask for the workable area in mm (e.g. 480mm wide → grid capped at 5W, 88mm per 1W); tabletop height is automatic (default 1H, grows/shrinks with the build) and covers require a flat top — uneven columns are flagged. Choose what fills each case (Classic Drawer, Decor Drawer, Shelf, or Cabinet), pick a size (1W–4W × 0.5H–3H; 2.5H and 3W/4W-3H don't exist and are excluded), and click it onto the 2D grid; sizes whose **case** won't fit the bed are greyed out (Classic drawers are additionally checked with ~20mm of handle overhang). Drag placed units to move them; click one to open the inspector. Classic drawers render with their integrated handle lip, Decor drawers with the open front + faceplate rails. The mount surface and required mount parts are illustrated around the layout — rail/wall-mount bars span their real section widths, wall mounts show 2 screw dots per 1W, tabletop covers sit on the stack tops.
+4. **Design the layout** — under-table and wall mount ask for the workable area in mm (e.g. 480mm wide → grid capped at 5W, 88mm per 1W); tabletop height is automatic (default 1H, grows/shrinks with the build) and covers require a flat top — uneven columns are flagged. Choose what fills each case (Classic Drawer, Decor Drawer, Shelf, or Cabinet), pick a size, and click it onto the 2D grid. Drawers come in 1W–4W × 0.5H–3H; Shelves and Cabinets stack 1H case extenders so they offer whole-unit heights up to 6H (door/insert sizes 1W-1H … 4W-6H). 3W-3H and 4W-3H don't exist and are shown as blank gaps. Sizes whose **case** won't fit the bed are greyed out (Classic drawers are additionally checked with ~20mm of handle overhang). Move a placed unit by dragging it, or click it to select and use the **arrow pad** below the grid (or the keyboard arrows) to nudge it one cell at a time; the toolbar also shows the part and a Remove button. Touch works too — drag with a finger to move, tap to select. Classic drawers render with their integrated handle lip, Decor drawers with the open front + faceplate rails. The mount surface and required mount parts are illustrated around the layout — rail/wall-mount bars span their real section widths, wall mounts show 2 screw dots per 1W, tabletop covers sit on the stack tops.
 5. **Get the parts list** — drawers, cases & extenders, QuickLocks (1 Left + 1 Right per case, linked to the universal GEN2 Hardware pack), shelf inserts, doors, hinges, latches, optional side covers (paired per case height — cabinets take 1H covers per level), faceplates, and mount kits with quantities and **Printables + Thangs** links. Decor faceplate and cabinet door styles (Essential / EdgeLabel / Classic Pro) are picked in a menu above the parts list and feed into part names/links. Under-table rails and wall mounts are computed as an optimal section mix for the user's printer (rails 1W–4W with 4/6/8/10 screws; wall mounts 1W–3W with 2 screws per 1W — the 3W section fits diagonally on beds ≥ Core One size). Export as text, CSV, or print.
 
 First-time users get a dismissible "How GEN2 works" card, a contextual helper line above the board, a **Load example layout** button, visible fill-type descriptions, a unit legend (1W = 88mm · 1H = 56mm), and part thumbnails in the list (drop renders into `img/parts/` — see **ASSETS-TODO.md** for the naming rule and everything else the planner is waiting on).
@@ -20,6 +20,21 @@ It's a zero-dependency static site — no build step.
 - Serve the folder: `python3 -m http.server 8000`, or
 - Host on GitHub Pages (Settings → Pages → deploy from branch), or
 - Embed in jerrari3d.com via an `<iframe>` pointing at the hosted page.
+
+## Tests
+
+There's a small headless test suite that loads the real `index.html` + scripts
+into [jsdom](https://github.com/jsdom/jsdom) and drives the actual code — it
+covers the size rules and the selected-unit toolbar (arrow-pad nudge, edge/
+collision blocking, remove). Node 18+ required:
+
+```
+npm install   # one-time, pulls in jsdom (dev-only)
+npm test
+```
+
+These run logic, not pixels, so they catch behaviour regressions but not visual
+ones — eyeball the layout in a browser for anything appearance-related.
 
 ## Working on it locally
 

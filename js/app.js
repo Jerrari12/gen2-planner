@@ -774,8 +774,10 @@
       elH.textContent = state.selected
         ? `Click the grid to place your ${sizeToken(state.selected.w, state.selected.h)} ${fillDef().label} — or load an example layout from the panel.`
         : "Pick a size from the palette to begin.";
+    } else if (state.selectedUnit) {
+      elH.textContent = "Unit selected · use the arrow pad below to move it one step, or Remove it · click an empty cell to add more.";
     } else {
-      elH.textContent = "Click the grid to add more · drag a unit to move it · click a unit to edit or remove.";
+      elH.textContent = "Click the grid to add more · drag a unit to move it · click a unit to select, then move or remove it below.";
     }
   }
 
@@ -885,7 +887,73 @@
     box.appendChild(div);
   }
 
-  /* ---------------------- Unit popover (on-grid) ---------------------- */
+  /* ------------------- Selected-unit toolbar (below grid) ------------------- */
+
+  /* The four nudge directions, in grid steps: ←/→ move a whole 1W column,
+     ▲/▼ move one half-row (the grid's native vertical resolution, matching
+     how dragging snaps), so any reachable position is reachable by arrows. */
+  const NUDGE = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+
+  function selectedUnit() {
+    return state.placed.find((u) => u.id === state.selectedUnit) || null;
+  }
+
+  /* Try to move the selected unit one step; no-op if blocked by an edge or a
+     neighbour. Returns whether it moved (used by tests). */
+  function nudgeSelected(dir) {
+    const p = selectedUnit();
+    const d = NUDGE[dir];
+    if (!p || !d) return false;
+    const nx = p.x + d[0], ny = p.y + d[1];
+    if (!canPlace(nx, ny, p.w, p.hh, p.id)) return false;
+    p.x = nx;
+    p.y = ny;
+    refresh();
+    return true;
+  }
+
+  function renderToolbar() {
+    const bar = $("#unit-toolbar");
+    const p = selectedUnit();
+    const thumb = $("#ut-thumb");
+    const remove = $("#ut-remove");
+    const shelves = $("#ut-shelves");
+
+    // arrows light up only in directions the unit can actually move
+    document.querySelectorAll(".ut-arrow").forEach((btn) => {
+      const d = NUDGE[btn.dataset.move];
+      btn.disabled = !p || !canPlace(p.x + d[0], p.y + d[1], p.w, p.hh, p.id);
+    });
+
+    if (!p) {
+      bar.classList.remove("active");
+      thumb.classList.add("empty");
+      thumb.removeAttribute("src");
+      $("#ut-title").textContent = "No unit selected";
+      $("#ut-sub").textContent = "Click a part on the grid to move or remove it.";
+      remove.disabled = true;
+      shelves.hidden = true;
+      return;
+    }
+
+    const h = p.hh / 2;
+    const info = unitPartInfo(p);
+    bar.classList.add("active");
+    thumb.classList.remove("empty");
+    thumb.onerror = function () { this.onerror = null; this.src = "img/parts/placeholder.svg"; };
+    thumb.src = info.img;
+    $("#ut-title").textContent = `${info.label} · ${info.size}`;
+    $("#ut-sub").textContent =
+      `${p.w * GEN2.units.widthMM} × ${h * GEN2.units.heightMM} × ${state.length}mm`;
+    remove.disabled = false;
+
+    if (p.fill === "cabinet" && h >= 2) {
+      shelves.hidden = false;
+      $("#ut-shelf-count").textContent = p.shelves || 0;
+    } else {
+      shelves.hidden = true;
+    }
+  }
 
   /* The representative published part for a placed unit — the piece a user
      thinks of as "the thing" in that case — plus its thumbnail. */
@@ -903,95 +971,6 @@
       name = GEN2.partNames.door(len, size, doorStyle);
     }
     return { size, label: f.label, blurb: f.blurb, img: partImage(name) };
-  }
-
-  function renderPopover() {
-    const pop = $("#unit-popover");
-    const p = state.placed.find((u) => u.id === state.selectedUnit);
-    if (!p) { pop.hidden = true; pop.innerHTML = ""; state.selectedUnit = null; return; }
-    const h = p.hh / 2;
-    const info = unitPartInfo(p);
-    const wmm = p.w * GEN2.units.widthMM;
-    const hmm = h * GEN2.units.heightMM;
-
-    let html = `<div class="pop-card">
-      <button type="button" class="pop-close" id="pop-close" aria-label="Close">×</button>
-      <div class="pop-head">
-        <img class="pop-thumb" src="${info.img}" alt="" loading="lazy"
-          onerror="this.onerror=null;this.src='img/parts/placeholder.svg'">
-        <div class="pop-headtext">
-          <div class="pop-title">${info.label}</div>
-          <div class="pop-sub">${info.size} · ${wmm} × ${hmm} × ${state.length}mm</div>
-        </div>
-      </div>
-      <p class="pop-blurb">${info.blurb}</p>`;
-    if (p.fill === "cabinet" && h >= 2) {
-      html += `<div class="pop-row"><span>Internal shelves</span>
-        <span class="stepper">
-          <button type="button" data-shelf="-">−</button>
-          <b>${p.shelves || 0}</b>
-          <button type="button" data-shelf="+">+</button>
-        </span></div>
-        <p class="pop-hint">Each internal shelf swaps a case extender for a full case + shelf insert.</p>`;
-    }
-    html += `<button type="button" class="btn ghost pop-remove" id="pop-remove">Remove this unit</button>
-      </div>`;
-    pop.innerHTML = html;
-    pop.hidden = false;
-    positionPopover(p);
-
-    $("#pop-close").addEventListener("click", () => {
-      state.selectedUnit = null;
-      refresh();
-    });
-    $("#pop-remove").addEventListener("click", () => {
-      state.placed = state.placed.filter((u) => u.id !== p.id);
-      state.selectedUnit = null;
-      refresh();
-    });
-    pop.querySelectorAll("[data-shelf]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const maxShelves = p.hh / 2 - 1;
-        p.shelves = Math.max(0, Math.min(maxShelves,
-          (p.shelves || 0) + (btn.dataset.shelf === "+" ? 1 : -1)));
-        refresh();
-      });
-    });
-  }
-
-  /* Place the popover over its unit, preferring above the unit and flipping
-     below when there isn't room. Horizontal position is clamped to the board
-     area so it never spills off the edge. */
-  function positionPopover(p) {
-    const pop = $("#unit-popover");
-    if (pop.hidden) return;
-    const svg = $("#board");
-    const area = $(".board-area");
-    const r = svg.getBoundingClientRect();
-    const vb = svg.viewBox.baseVal;
-    if (!vb || !vb.width) return;
-    const sx = r.width / vb.width, sy = r.height / vb.height;
-    const ux = PAD.left + (p.x + p.w / 2) * CW;
-    const uyTop = PAD.top + p.y * (CH / 2);
-    const uyBot = PAD.top + (p.y + p.hh) * (CH / 2);
-    const ar = area.getBoundingClientRect();
-    const cx = r.left + ux * sx - ar.left;
-    const cyTop = r.top + uyTop * sy - ar.top;
-    const cyBot = r.top + uyBot * sy - ar.top;
-
-    const halfW = (pop.offsetWidth || 240) / 2;
-    pop.style.left = Math.max(halfW + 4, Math.min(ar.width - halfW - 4, cx)) + "px";
-
-    const popH = pop.offsetHeight || 170;
-    if (cyTop - popH - 14 < 0) {
-      pop.classList.remove("above");
-      pop.classList.add("below");
-      pop.style.top = cyBot + "px";
-    } else {
-      pop.classList.remove("below");
-      pop.classList.add("above");
-      pop.style.top = cyTop + "px";
-    }
   }
 
   /* ------------------------------- BOM ------------------------------- */
@@ -1426,26 +1405,36 @@
     $("#csv-bom").addEventListener("click", downloadCsv);
     $("#print-bom").addEventListener("click", () => window.print());
 
-    // Close the unit popover when clicking/tapping away from the board.
-    const dismiss = (e) => {
+    // Selected-unit toolbar: arrow pad nudges, remove deletes, stepper edits
+    // cabinet shelves. The markup is static, so these bind once.
+    document.querySelectorAll(".ut-arrow").forEach((btn) => {
+      btn.addEventListener("click", () => nudgeSelected(btn.dataset.move));
+    });
+    $("#ut-remove").addEventListener("click", () => {
       if (!state.selectedUnit) return;
-      const board = $("#board"), pop = $("#unit-popover");
-      if ((board && board.contains(e.target)) || (pop && pop.contains(e.target))) return;
+      state.placed = state.placed.filter((u) => u.id !== state.selectedUnit);
       state.selectedUnit = null;
       refresh();
-    };
-    document.addEventListener("mousedown", dismiss);
-    document.addEventListener("touchstart", dismiss, { passive: true });
+    });
+    $("#ut-shelves").querySelectorAll("[data-shelf]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const p = selectedUnit();
+        if (!p) return;
+        const maxShelves = p.hh / 2 - 1;
+        p.shelves = Math.max(0, Math.min(maxShelves,
+          (p.shelves || 0) + (btn.dataset.shelf === "+" ? 1 : -1)));
+        refresh();
+      });
+    });
 
-    // Keep the popover pinned to its unit as the board scrolls or the page
-    // reflows.
-    const reposition = () => {
-      const p = state.placed.find((u) => u.id === state.selectedUnit);
-      if (p) positionPopover(p);
-    };
-    const scroller = document.querySelector(".board-scroll");
-    if (scroller) scroller.addEventListener("scroll", reposition, { passive: true });
-    window.addEventListener("resize", reposition);
+    // Keyboard arrows nudge the selected unit (ignored while typing in a field).
+    document.addEventListener("keydown", (e) => {
+      if (!state.selectedUnit) return;
+      const tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "select" || tag === "textarea") return;
+      const dir = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
+      if (dir) { e.preventDefault(); nudgeSelected(dir); }
+    });
   }
 
   /* ----------------------------- Refresh ----------------------------- */
@@ -1467,7 +1456,7 @@
     renderPalette();
     renderBoardHelper();
     if (ready) renderBoard();
-    renderPopover();
+    renderToolbar();
     renderBom();
   }
 
@@ -1479,4 +1468,13 @@
   bindBoard();
   bindControls();
   refresh();
+
+  /* Headless test hook. Attaches the live state and a few pure helpers to the
+     window ONLY when a harness opts in by setting this flag truthy before the
+     script runs (see test/planner.test.mjs). It is absent in normal use. */
+  if (typeof window !== "undefined" && window.__GEN2_PLANNER_TEST__) {
+    window.__GEN2_PLANNER_TEST__ = {
+      state, refresh, nudgeSelected, canPlace, selectable, heightsForFill,
+    };
+  }
 })();

@@ -38,7 +38,8 @@ function boot() {
 
 /* Drop a unit straight into state (bypassing board clicks, which need layout). */
 function place(app, o) {
-  const u = { id: o.id, x: o.x, y: o.y, w: o.w, hh: o.hh, fill: o.fill || "decor", shelves: 0 };
+  const u = { id: o.id, x: o.x, y: o.y, w: o.w, hh: o.hh, fill: o.fill || "decor", shelves: o.shelves || 0 };
+  if (o.interior) u.interior = o.interior;   // advanced cabinet compartments
   app.state.placed.push(u);
   return u;
 }
@@ -49,6 +50,18 @@ function select(app, id) {
 }
 
 const $arrow = (doc, dir) => doc.querySelector(`.ut-arrow.${dir}`);
+
+/* Total quantity of every BOM line whose name contains `sub`. Names are stable
+   substrings like "Case - 1W-1H" / "Case Extender - 1W-1H" / "Shelf Insert - 1W". */
+const bomQty = (app, sub) => {
+  let q = 0;
+  for (const s of (app.computeBom() || []))
+    for (const it of s.items) if (it.name.includes(sub)) q += it.qty;
+  return q;
+};
+
+/* Dispatch a real click — works for SVG elements too (which lack .click()). */
+const fireClick = (window, el) => el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
 
 test("arrow nudges the selected unit one step in each direction", () => {
   const { app } = boot();
@@ -126,11 +139,21 @@ test("Remove button deletes the selected unit and resets the toolbar", () => {
   assert.equal(doc.querySelector("#unit-toolbar").classList.contains("active"), false);
 });
 
-test("3W-3H and 4W-3H are not offered as sizes", () => {
+test("3W-3H and 4W-3H exist for shelves and cabinets but not drawers", () => {
   const { app } = boot();
-  assert.equal(app.selectable(3, 3), false);
+  app.state.fill = "decor";
+  assert.equal(app.selectable(3, 3), false);  // no such single drawer
   assert.equal(app.selectable(4, 3), false);
-  // neighbours that DO exist still work
+  app.state.fill = "classic";
+  assert.equal(app.selectable(3, 3), false);
+  // shelves & cabinets build from 1H cases + extenders, so any footprint works
+  app.state.fill = "shelf";
+  assert.equal(app.selectable(3, 3), true);
+  assert.equal(app.selectable(4, 3), true);
+  app.state.fill = "cabinet";
+  assert.equal(app.selectable(3, 3), true);
+  assert.equal(app.selectable(4, 3), true);
+  // neighbours that exist for everyone still work
   assert.equal(app.selectable(2, 3), true);
   assert.equal(app.selectable(3, 2), true);
 });
@@ -144,5 +167,213 @@ test("shelves and cabinets offer whole-unit heights up to 6H", () => {
 
   app.state.fill = "cabinet";
   assert.equal(app.selectable(4, 6), true);   // tallest/widest cabinet
-  assert.equal(app.selectable(4, 3), false);  // still excluded everywhere
+  assert.equal(app.selectable(4, 3), true);   // now allowed for cabinets (case + extenders)
+});
+
+/* ---------------- advanced cabinet interior ---------------- */
+
+test("advanced cabinet BOM bills per compartment and batches with shelf SKUs", () => {
+  const { app } = boot();
+  // 2W-2H cabinet tiled as two 1W-2H columns (fills it)
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [
+    { x: 0, y: 0, w: 1, h: 2 }, { x: 1, y: 0, w: 1, h: 2 },
+  ] });
+  // a separate 1W-2H shelf — same case/extender/insert SKUs, must merge
+  place(app, { id: 2, x: 3, y: 0, w: 1, hh: 4, fill: "shelf" });
+
+  assert.equal(bomQty(app, "Case - 1W-1H"), 3);          // 2 compartments + 1 shelf
+  assert.equal(bomQty(app, "Case Extender - 1W-1H"), 3); // each 2H piece adds 1 extender
+  assert.equal(bomQty(app, "Shelf Insert - 1W"), 3);
+  assert.equal(bomQty(app, "Door - 2W-2H"), 1);          // one door at the full shell size
+  assert.equal(bomQty(app, "Hinge"), 2);
+  assert.equal(bomQty(app, "Latch"), 2);
+});
+
+test("advanced cabinet supports mixed-width compartments", () => {
+  const { app } = boot();
+  // a 2W-1H band on top, two 1W-1H below
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [
+    { x: 0, y: 0, w: 2, h: 1 }, { x: 0, y: 1, w: 1, h: 1 }, { x: 1, y: 1, w: 1, h: 1 },
+  ] });
+  assert.equal(bomQty(app, "Case - 2W-1H"), 1);
+  assert.equal(bomQty(app, "Case - 1W-1H"), 2);
+  assert.equal(bomQty(app, "Case Extender"), 0);   // all 1H ⇒ no extenders
+  assert.equal(bomQty(app, "Shelf Insert - 2W"), 1);
+  assert.equal(bomQty(app, "Shelf Insert - 1W"), 2);
+  assert.equal(bomQty(app, "Door - 2W-2H"), 1);
+});
+
+test("interior completeness and cells-left track the fill", () => {
+  const { app } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [
+    { x: 0, y: 0, w: 2, h: 1 }, { x: 0, y: 1, w: 1, h: 1 },
+  ] });                                            // 3 of 4 cells
+  assert.equal(app.interiorComplete(u), false);
+  assert.equal(app.interiorCellsLeft(u), 1);
+  u.interior.push({ x: 1, y: 1, w: 1, h: 1 });     // fill the last cell
+  assert.equal(app.interiorComplete(u), true);
+  assert.equal(app.interiorCellsLeft(u), 0);
+});
+
+test("an unfinished cabinet interior raises a board warning", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [
+    { x: 0, y: 0, w: 1, h: 1 },
+  ] });                                            // 1 of 4 cells
+  app.refresh();
+  const warns = [...doc.querySelectorAll("#board-warnings .warn")].map((d) => d.textContent).join(" ");
+  assert.match(warns, /cells? left/i);
+});
+
+test("a cabinet without an interior still uses the simple shelves model", () => {
+  const { app } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 1, hh: 4, fill: "cabinet", shelves: 1 });
+  assert.equal("interior" in u, false);
+  assert.equal(bomQty(app, "Case - 1W-1H"), 2);    // 1 base + 1 shelf
+  assert.equal(bomQty(app, "Case Extender"), 0);   // h(2) - 1 - shelves(1) = 0
+  assert.equal(bomQty(app, "Shelf Insert - 1W"), 2);
+  assert.equal(bomQty(app, "Door - 1W-2H"), 1);
+  assert.equal(bomQty(app, "Hinge"), 2);
+});
+
+test("simple cabinet shows the shelves stepper, not the editor", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 4, fill: "cabinet", shelves: 1 });
+  select(app, 1);
+  assert.equal(doc.querySelector("#ut-shelves").hidden, false);
+  assert.equal(doc.querySelector("#ut-shelf-count").textContent, "1");
+  assert.equal(doc.querySelector("#ut-interior").hidden, true);
+});
+
+test("the Advanced toggle adds an empty interior; Simple removes it", () => {
+  const { app, doc } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet" });
+  select(app, 1);
+  doc.querySelector('#ut-mode [data-mode="advanced"]').click();
+  assert.equal(Array.isArray(u.interior), true);
+  assert.equal(u.interior.length, 0);
+  doc.querySelector('#ut-mode [data-mode="simple"]').click();
+  assert.equal("interior" in u, false);
+});
+
+test("placeCompartment enforces bounds and overlap", () => {
+  const { app } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [] });
+  assert.equal(app.placeCompartment(u, 0, 0, 2, 1), true);   // fits
+  assert.equal(u.interior.length, 1);
+  assert.equal(app.placeCompartment(u, 0, 0, 1, 1), false);  // overlaps
+  assert.equal(app.placeCompartment(u, 0, 1, 3, 1), false);  // out of bounds (width)
+  assert.equal(app.placeCompartment(u, 1, 1, 1, 1), true);   // fits the gap
+  assert.equal(u.interior.length, 2);
+});
+
+test("editor: arm a size chip and click the grid to place; click the chip again to disarm", () => {
+  const { app, doc, window } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [] });
+  select(app, 1);
+  const chip = () => [...doc.querySelectorAll("#ut-int-pal .ut-int-chip")].find((c) => c.textContent === "1W-1H");
+  const firstEmpty = () => doc.querySelector("#ut-int-grid .ic-empty");
+  fireClick(window, chip());        // arm 1W-1H
+  fireClick(window, firstEmpty());  // place into the first empty cell
+  assert.equal(u.interior.length, 1);
+  assert.deepEqual({ w: u.interior[0].w, h: u.interior[0].h }, { w: 1, h: 1 });
+  fireClick(window, chip());        // armed ⇒ toggles off (disarm)
+  fireClick(window, firstEmpty());  // nothing armed ⇒ no placement
+  assert.equal(u.interior.length, 1);
+});
+
+test("editor: clicking a placed compartment removes it", () => {
+  const { app, doc, window } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [
+    { x: 0, y: 0, w: 2, h: 1 }, { x: 0, y: 1, w: 1, h: 1 },
+  ] });
+  select(app, 1);
+  assert.equal(doc.querySelectorAll("#ut-int-grid .ic-comp").length, 2);
+  fireClick(window, doc.querySelector("#ut-int-grid .ic-comp"));
+  assert.equal(u.interior.length, 1);
+});
+
+test("Clear interior empties the array but keeps Advanced mode", () => {
+  const { app, doc, window } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [
+    { x: 0, y: 0, w: 2, h: 1 },
+  ] });
+  select(app, 1);
+  fireClick(window, doc.querySelector("#ut-int-clear"));
+  assert.equal(Array.isArray(u.interior), true);
+  assert.equal(u.interior.length, 0);
+});
+
+test("re-toggling Advanced after tiling discards the interior and starts fresh", () => {
+  const { app, doc, window } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet" });
+  select(app, 1);
+  const adv = doc.querySelector('#ut-mode [data-mode="advanced"]');
+  const sim = doc.querySelector('#ut-mode [data-mode="simple"]');
+  fireClick(window, adv);
+  app.placeCompartment(u, 0, 0, 2, 1);
+  assert.equal(u.interior.length, 1);
+  fireClick(window, sim);
+  assert.equal("interior" in u, false);            // discarded going back to Simple
+  fireClick(window, adv);
+  assert.equal(Array.isArray(u.interior), true);
+  assert.equal(u.interior.length, 0);              // fresh empty interior
+});
+
+test("an advanced cabinet keeps faint door hardware (knob + hinges) over the x-rayed interior", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [{ x: 0, y: 0, w: 2, h: 2 }] });
+  app.refresh();
+  const g = doc.querySelector('#board g[data-id="1"]');
+  assert.ok(g.querySelector(".d-hardware-ghost"));              // the faint hardware group
+  assert.equal(g.querySelectorAll(".d-knob").length, 1);        // knob still drawn
+  assert.equal(g.querySelectorAll(".d-hinge").length, 2);       // both hinges still drawn
+  assert.ok(g.querySelector(".d-compartment"));                 // and the interior x-ray shows through
+});
+
+test("board reflects interior validity via tiled-ok / tiled-bad", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "cabinet", interior: [{ x: 0, y: 0, w: 2, h: 1 }] }); // complete 2W-1H
+  place(app, { id: 2, x: 0, y: 2, w: 2, hh: 4, fill: "cabinet", interior: [{ x: 0, y: 0, w: 1, h: 1 }] }); // incomplete 2W-2H
+  app.refresh();
+  const cls = (id) => doc.querySelector(`#board g[data-id="${id}"] .d-case`).getAttribute("class");
+  assert.match(cls(1), /tiled-ok/);
+  assert.match(cls(2), /tiled-bad/);
+});
+
+test("a 2W-1H (H=1) cabinet is advanced-eligible and bills 1H hinge/latch", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "cabinet", interior: [
+    { x: 0, y: 0, w: 1, h: 1 }, { x: 1, y: 0, w: 1, h: 1 },
+  ] });
+  select(app, 1);
+  assert.equal(doc.querySelector("#ut-mode").hidden, false);    // eligible (W*H = 2 > 1)
+  assert.equal(doc.querySelector("#ut-shelves").hidden, true);  // H < 2 ⇒ no shelf stepper
+  assert.equal(bomQty(app, "Case - 1W-1H"), 2);
+  assert.equal(bomQty(app, "Door - 2W-1H"), 1);
+  assert.equal(bomQty(app, "Hinge"), 1);   // h < 2 ⇒ 1
+  assert.equal(bomQty(app, "Latch"), 1);
+});
+
+test("editor labels the case (with size) and the extenders inside a compartment", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [
+    { x: 0, y: 0, w: 2, h: 2 },  // 2W-2H compartment = a 2W-1H case + one 2W extender
+  ] });
+  select(app, 1);
+  const labels = [...doc.querySelectorAll("#ut-int-grid .ic-comp .ic-slice")].map((t) => t.textContent);
+  assert.ok(labels.includes("2W-1H"));     // the case shows its size
+  assert.ok(labels.includes("extender"));  // the slice above it is an extender
+});
+
+test("a case overhanging on one end is flagged unsupported; filling the other end clears it", () => {
+  const { app, doc } = boot();                       // under-table: support is the row above
+  place(app, { id: 1, x: 0, y: 0, w: 3, hh: 2 });    // top row, cols 0-2
+  place(app, { id: 2, x: 1, y: 2, w: 3, hh: 2 });    // 2nd row, cols 1-3 — right end (col 3) overhangs
+  app.refresh();
+  const warns = () => [...doc.querySelectorAll("#board-warnings .warn")].map((d) => d.textContent).join(" ");
+  assert.match(warns(), /supported on both ends/i);
+  place(app, { id: 3, x: 3, y: 0, w: 1, hh: 2 });    // support the open right end from above
+  app.refresh();
+  assert.doesNotMatch(warns(), /supported on both ends/i);
 });

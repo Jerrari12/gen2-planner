@@ -355,14 +355,16 @@ const IMAGE_OVERRIDES = {
   "GEN2 185-1W-1H Decor Drawer": "img/parts/185-1W-1H Decor Drawer.png",
 };
 
-/* Thumbnail path for a part: the part name lowercased with non-alphanumerics
-   collapsed to "-", e.g. "GEN2 185-2W-1H Decor Drawer" →
-   img/parts/gen2-185-2w-1h-decor-drawer.png
-   Missing files fall back to img/parts/placeholder.svg automatically. */
+/* Thumbnail path for a part. Render files mirror the part name with "GEN2 " →
+   "GEN2_", every "." dropped (we avoid dots mid-filename, so 0.5H → 05H and
+   1.5H → 15H), and a resolution suffix — e.g. "GEN2 185-2W-0.5H Classic Drawer"
+   → img/parts/GEN2_185-2W-05H Classic Drawer_256p.png. Off-pattern or shared art
+   goes in IMAGE_OVERRIDES above; anything missing falls back to placeholder.svg. */
+const RENDER_SUFFIX = "_256p";
 function partImage(name) {
   if (IMAGE_OVERRIDES[name]) return IMAGE_OVERRIDES[name];
-  const slug = name.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
-  return "img/parts/" + slug + ".png";
+  const file = name.replace(/^GEN2 /, "GEN2_").replace(/\./g, "") + RENDER_SUFFIX + ".png";
+  return "img/parts/" + file;
 }
 
 /* Human-readable size token, e.g. (2, 0.5) -> "2W-0.5H" */

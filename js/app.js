@@ -98,8 +98,14 @@
     return max;
   }
 
-  function sizeExists(w, h) {
-    return !GEN2.unavailableSizes.includes(sizeToken(w, h));
+  // GEN2.unavailableSizes (3W-3H, 4W-3H) don't exist as a single DRAWER, but
+  // shelves and cabinets build from 1H cases + extenders, so any footprint is
+  // buildable for them — the restriction is drawer-only.
+  function sizeExists(w, h, fill) {
+    const f = fill || state.fill;
+    if (f === "classic" || f === "decor")
+      return !GEN2.unavailableSizes.includes(sizeToken(w, h));
+    return true;
   }
 
   // Heights offered for a given fill. Drawers use the physical drawer sizes;
@@ -530,9 +536,57 @@
       x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.hh);
   }
 
+  /* ---------------- Cabinet interior (advanced) ---------------- */
+
+  /* p.interior, when present, is the cabinet's internal layout: an array of
+     compartments {x,y,w,h} in whole 1W/1H units inside the cabinet (x:0..W-1,
+     y:0..H-1, y=0 at top). A compartment = 1 floor case + (h-1) same-width
+     extenders. ABSENT => the simple p.shelves model (backward compatible). The
+     click-to-place editor keeps compartments non-overlapping, so a plain area
+     sum is the filled-cell count. */
+  function interiorFill(p) {
+    if (!Array.isArray(p.interior)) return null;
+    const W = p.w, H = p.hh / 2;
+    let filled = 0;
+    p.interior.forEach((c) => { filled += c.w * c.h; });
+    return { W, H, total: W * H, filled, complete: filled === W * H };
+  }
+  // true for ANY unit without an interior (no interior => no interior problem).
+  const interiorComplete = (p) => { const f = interiorFill(p); return f ? f.complete : true; };
+  const interiorCellsLeft = (p) => { const f = interiorFill(p); return f ? f.total - f.filled : 0; };
+
+  /* Add a compartment if it fits in-bounds and overlaps nothing. Returns success.
+     Pure (no render) so the editor and the tests share one code path. */
+  function placeCompartment(p, x, y, w, h) {
+    const W = p.w, H = p.hh / 2;
+    if (x < 0 || y < 0 || x + w > W || y + h > H) return false;
+    for (const c of p.interior)
+      if (x < c.x + c.w && x + w > c.x && y < c.y + c.h && y + h > c.y) return false;
+    p.interior.push({ x, y, w, h });
+    return true;
+  }
+
   let hover = null; // {x,y} of hovered cell
-  let drag = null;  // {id, dx, dy, tx, ty, moved} while dragging a placed unit
-  let suppressClick = false; // swallow the click that follows a drag-drop
+  let drag = null;  // {id, dx, dy, tx, ty, moved, sx, sy} while pressing a placed unit
+  let pressCell = null; // {x,y} where a press on empty space began (placement decided on release)
+  // A touch tap emits emulated mouse events (mousedown/mouseup/click) right
+  // after touchend. We handle touches ourselves, so ignore any mouse event that
+  // lands within this window of a touchend — otherwise those emulated events
+  // re-run the mouse handlers and undo the tap we just processed.
+  let lastTouchEnd = 0;
+  const GHOST_CLICK_MS = 700;
+  // A press that moves less than this many CSS pixels counts as a tap/click
+  // (which selects the unit), not a drag. Grid cells are tiny on phones, so
+  // without a pixel dead-zone the small finger drift in an ordinary tap reads as
+  // a one-cell drag and the unit never gets selected. Desktop cells are large,
+  // so deliberate drags still clear this easily.
+  const DRAG_SLOP = 18;
+
+  // Advanced cabinet interior editor — transient UI state (never persisted on a unit).
+  let interiorArmed = null; // {w,h} armed compartment size for click-to-place, or null
+  let interiorOpen = false; // mobile bottom-sheet open flag (desktop shows the editor inline)
+  let interiorHover = null; // {x,y} cell under the cursor in the editor, for the placement ghost
+  let toolbarSel = null;    // last unit id rendered in the toolbar; resets the above on change
 
   function renderBoard() {
     const svg = $("#board");
@@ -591,19 +645,42 @@
       class: "drawer" + (sel ? " selected" : "") + (dragging ? " dragging" : ""),
       "data-id": p.id,
     }, svg);
-    el("rect", { x: x + 2, y: y + 2, width: w - 4, height: h - 4, rx: 6, class: "d-case" }, g);
+    // an advanced cabinet whose interior isn't fully tiled flags red on the board
+    const cabFill = interiorFill(p);
+    const caseCls = "d-case" + (cabFill ? (cabFill.complete ? " tiled-ok" : " tiled-bad") : "");
+    el("rect", { x: x + 2, y: y + 2, width: w - 4, height: h - 4, rx: 6, class: caseCls }, g);
 
     if (p.fill === "shelf") {
       el("rect", { x: x + 7, y: y + 7, width: w - 14, height: h - 14, rx: 4, class: "d-interior" }, g);
       el("line", { x1: x + 9, y1: y + h - 11, x2: x + w - 9, y2: y + h - 11, class: "d-shelf-line" }, g);
     } else if (p.fill === "cabinet") {
       el("rect", { x: x + 7, y: y + 7, width: w - 14, height: h - 14, rx: 4, class: "d-door" }, g);
-      el("circle", { cx: x + w - 16, cy: y + h / 2, r: 3.5, class: "d-knob" }, g);
-      el("rect", { x: x + 5, y: y + 11, width: 4, height: 9, rx: 1, class: "d-hinge" }, g);
-      el("rect", { x: x + 5, y: y + h - 20, width: 4, height: 9, rx: 1, class: "d-hinge" }, g);
-      for (let s = 1; s <= (p.shelves || 0); s++) {
-        const sy = y + (h * s) / ((p.shelves || 0) + 1);
-        el("line", { x1: x + 9, y1: sy, x2: x + w - 9, y2: sy, class: "d-shelf-line dashed" }, g);
+      if (Array.isArray(p.interior)) {
+        // ADVANCED: draw the compartment tiling. Interior y/h are FULL 1H rows (× CH);
+        // the board's own y/hh are half-rows (× CH/2) — don't confuse the two.
+        p.interior.forEach((c) => {
+          const cx = x + c.x * CW, cy = y + c.y * CH, cw = c.w * CW, chh = c.h * CH;
+          el("rect", { x: cx + 5, y: cy + 5, width: cw - 10, height: chh - 10, rx: 3, class: "d-compartment" }, g);
+          for (let s = 1; s < c.h; s++) { // (h-1) extender seams, one per internal 1H boundary
+            const sy = cy + s * CH;
+            el("line", { x1: cx + 9, y1: sy, x2: cx + cw - 9, y2: sy, class: "d-shelf-line dashed" }, g);
+          }
+        });
+        // keep the door's hardware faint over the compartments — x-ray look, but
+        // it still reads as a cabinet
+        const hw = el("g", { class: "d-hardware-ghost" }, g);
+        el("circle", { cx: x + w - 16, cy: y + h / 2, r: 3.5, class: "d-knob" }, hw);
+        el("rect", { x: x + 5, y: y + 11, width: 4, height: 9, rx: 1, class: "d-hinge" }, hw);
+        el("rect", { x: x + 5, y: y + h - 20, width: 4, height: 9, rx: 1, class: "d-hinge" }, hw);
+      } else {
+        // SIMPLE (unchanged): knob, hinges, evenly-spaced shelf seams
+        el("circle", { cx: x + w - 16, cy: y + h / 2, r: 3.5, class: "d-knob" }, g);
+        el("rect", { x: x + 5, y: y + 11, width: 4, height: 9, rx: 1, class: "d-hinge" }, g);
+        el("rect", { x: x + 5, y: y + h - 20, width: 4, height: 9, rx: 1, class: "d-hinge" }, g);
+        for (let s = 1; s <= (p.shelves || 0); s++) {
+          const sy = y + (h * s) / ((p.shelves || 0) + 1);
+          el("line", { x1: x + 9, y1: sy, x2: x + w - 9, y2: sy, class: "d-shelf-line dashed" }, g);
+        }
       }
     } else if (p.fill === "decor") {
       // open front with the two vertical faceplate rails
@@ -847,21 +924,23 @@
     box.innerHTML = "";
     if (!state.placed.length) return;
 
-    // support toward the mount surface (top for under-table & wall, bottom for tabletop)
+    // Support toward the mount surface (top for under-table & wall, bottom for
+    // tabletop). A case QuickLocks to whatever sits in the adjacent row and must
+    // be held on BOTH its left and right ends — one-sided support cantilevers
+    // and isn't buildable.
     const occ = occupancy();
     const fromTop = state.mount !== "tabletop";
-    const floating = state.placed.filter((p) => {
-      if (fromTop ? p.y === 0 : p.y + p.hh === rows()) return false;
-      for (let dx = 0; dx < p.w; dx++) {
-        const key = fromTop ? (p.x + dx) + "," + (p.y - 1) : (p.x + dx) + "," + (p.y + p.hh);
-        if (occ.has(key)) return false;
-      }
-      return true;
+    const unsupported = state.placed.filter((p) => {
+      if (fromTop ? p.y === 0 : p.y + p.hh === rows()) return false; // sits on the mount surface
+      const supRow = fromTop ? p.y - 1 : p.y + p.hh;                 // adjacent row toward the mount
+      const left = occ.has(p.x + "," + supRow);
+      const right = occ.has((p.x + p.w - 1) + "," + supRow);
+      return !(left && right);
     });
-    if (floating.length) {
+    if (unsupported.length) {
       warn(box, fromTop
-        ? `${floating.length} unit(s) aren't connected to the ${state.mount === "wall" ? "wall mounts" : "rails"} above — cases QuickLock to the row above them. Move them up or fill the gap.`
-        : `${floating.length} unit(s) are floating — tabletop stacks build up from the surface. Move them down or fill the gap.`);
+        ? `${unsupported.length} unit(s) aren't supported on both ends — a case QuickLocks to the row above and needs a unit above its left and right edges. Move it to the top row, or fill the gap above the open end.`
+        : `${unsupported.length} unit(s) aren't supported on both ends — tabletop stacks build from the surface, so each case needs a unit below its left and right edges. Move it down, or fill the gap under the open end.`);
     }
 
     // placed units that no longer fit the selected printer
@@ -869,6 +948,13 @@
     if (misfits.length) {
       const sizes = [...new Set(misfits.map((p) => `${sizeToken(p.w, p.hh / 2)} ${fillDef(p.fill).label}`))];
       warn(box, `${misfits.length} placed unit(s) won't print on the selected printer: ${sizes.join(", ")}.`);
+    }
+
+    // advanced cabinets whose interior isn't fully tiled can't be built yet
+    const untiled = state.placed.filter((p) => { const f = interiorFill(p); return f && !f.complete; });
+    if (untiled.length) {
+      const cells = untiled.reduce((n, p) => n + interiorCellsLeft(p), 0);
+      warn(box, `${untiled.length} cabinet(s) have an unfinished interior — fill the whole cabinet (${cells} cell${cells > 1 ? "s" : ""} left).`);
     }
 
     // tabletop covers need every column to stack to the same height
@@ -919,6 +1005,12 @@
     const remove = $("#ut-remove");
     const shelves = $("#ut-shelves");
 
+    // reset transient interior UI whenever the selected unit changes (one chokepoint
+    // for every selection path: board click, Remove, Clear, deselect)
+    if (state.selectedUnit !== toolbarSel) {
+      interiorArmed = null; interiorOpen = false; interiorHover = null; toolbarSel = state.selectedUnit;
+    }
+
     // arrows light up only in directions the unit can actually move
     document.querySelectorAll(".ut-arrow").forEach((btn) => {
       const d = NUDGE[btn.dataset.move];
@@ -933,6 +1025,10 @@
       $("#ut-sub").textContent = "Click a part on the grid to move or remove it.";
       remove.disabled = true;
       shelves.hidden = true;
+      $("#ut-mode").hidden = true;
+      $("#ut-edit").hidden = true;
+      const iw = $("#ut-interior"); iw.hidden = true; iw.classList.remove("open");
+      document.body.classList.remove("sheet-open");
       return;
     }
 
@@ -947,12 +1043,119 @@
       `${p.w * GEN2.units.widthMM} × ${h * GEN2.units.heightMM} × ${state.length}mm`;
     remove.disabled = false;
 
-    if (p.fill === "cabinet" && h >= 2) {
+    // Cabinet interior controls: Simple shelf count vs Advanced compartment editor
+    const W = p.w, H = p.hh / 2;
+    const isCab = p.fill === "cabinet";
+    const advancedEligible = isCab && W * H > 1;       // something worth subdividing
+    const advanced = isCab && Array.isArray(p.interior);
+
+    $("#ut-mode").hidden = !advancedEligible;
+    if (advancedEligible) {
+      $("#ut-mode").querySelectorAll("[data-mode]").forEach((b) =>
+        b.classList.toggle("active", (b.dataset.mode === "advanced") === advanced));
+    }
+    // Simple shelf stepper: cabinet, not advanced, tall enough to hold a shelf
+    if (isCab && !advanced && H >= 2) {
       shelves.hidden = false;
       $("#ut-shelf-count").textContent = p.shelves || 0;
     } else {
       shelves.hidden = true;
     }
+    // Advanced interior editor (inline on desktop; a bottom sheet on mobile)
+    $("#ut-edit").hidden = !advanced;
+    const iw = $("#ut-interior");
+    if (advanced) {
+      renderInterior(p, W, H);
+    } else {
+      iw.hidden = true;
+      iw.classList.remove("open");
+      interiorOpen = false;
+    }
+    document.body.classList.toggle("sheet-open", advanced && interiorOpen);
+  }
+
+  /* The advanced cabinet interior editor: a compact size palette + a mini grid
+     you click to tile with compartments. Rebuilt each refresh; per-cell click
+     listeners are discarded with the old SVG, so no stale handlers accumulate. */
+  function renderInterior(p, W, H) {
+    const wrap = $("#ut-interior");
+    wrap.hidden = false;
+    wrap.classList.toggle("open", interiorOpen); // mobile sheet visibility (desktop ignores)
+
+    // drop a stale armed size that can't fit this cabinet
+    if (interiorArmed && (interiorArmed.w > W || interiorArmed.h > H || !sizeExists(interiorArmed.w, interiorArmed.h, "cabinet")))
+      interiorArmed = null;
+
+    // size-only palette: every w×h that fits W×H and exists in the lineup
+    const pal = $("#ut-int-pal");
+    pal.innerHTML = "";
+    for (let hh = 1; hh <= H; hh++) for (let ww = 1; ww <= W; ww++) {
+      if (!sizeExists(ww, hh, "cabinet")) continue; // cabinet interiors allow every footprint
+      const on = interiorArmed && interiorArmed.w === ww && interiorArmed.h === hh;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "ut-int-chip" + (on ? " active" : "");
+      chip.textContent = sizeToken(ww, hh);
+      chip.addEventListener("click", () => { interiorArmed = on ? null : { w: ww, h: hh }; renderToolbar(); });
+      pal.appendChild(chip);
+    }
+
+    // occupancy + validity
+    const filled = new Set();
+    p.interior.forEach((c) => {
+      for (let dy = 0; dy < c.h; dy++) for (let dx = 0; dx < c.w; dx++)
+        filled.add((c.x + dx) + "," + (c.y + dy));
+    });
+    const left = W * H - filled.size, valid = left === 0;
+
+    // mini-grid: reuse the board's own cell size (CW×CH) so the editor renders at
+    // the same scale and aspect ratio as the cabinet on the main grid. (CSS caps
+    // it at the container width and scales it down on narrow screens.)
+    const svg = $("#ut-int-grid");
+    svg.innerHTML = "";
+    svg.setAttribute("viewBox", `0 0 ${W * CW} ${H * CH}`);
+    svg.setAttribute("width", W * CW);
+    svg.setAttribute("height", H * CH);
+    for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+      if (filled.has(xx + "," + yy)) continue;
+      const r = el("rect", { x: xx * CW + 1, y: yy * CH + 1, width: CW - 2, height: CH - 2, class: "ic-empty" }, svg);
+      r.addEventListener("click", () => {
+        if (interiorArmed && placeCompartment(p, xx, yy, interiorArmed.w, interiorArmed.h)) { interiorHover = null; refresh(); }
+      });
+    }
+    p.interior.forEach((c) => {
+      const grp = el("g", { class: "ic-comp" }, svg);
+      el("rect", { x: c.x * CW + 2, y: c.y * CH + 2, width: c.w * CW - 4, height: c.h * CH - 4, rx: 4, class: "ic-block" }, grp);
+      for (let s = 1; s < c.h; s++)
+        el("line", { x1: c.x * CW + 6, y1: (c.y + s) * CH, x2: (c.x + c.w) * CW - 6, y2: (c.y + s) * CH, class: "ic-seam" }, grp);
+      // label each 1H slice so the build reads at a glance: the bottom 1H is the
+      // case (shown with its size); every slice above it is a same-width extender
+      for (let row = 0; row < c.h; row++) {
+        const isCase = row === c.h - 1;
+        el("text", {
+          x: c.x * CW + (c.w * CW) / 2, y: (c.y + row) * CH + CH / 2,
+          class: "ic-slice" + (isCase ? " case" : ""),
+        }, grp).textContent = isCase ? sizeToken(c.w, 1) : "extender";
+      }
+      // remove on click; refresh() runs last so we never touch the wiped node after
+      grp.addEventListener("click", () => { p.interior = p.interior.filter((o) => o !== c); refresh(); });
+    });
+    el("rect", { x: 1, y: 1, width: W * CW - 2, height: H * CH - 2, rx: 5, class: "ic-outline " + (valid ? "ok" : "bad") }, svg);
+
+    // placement ghost: highlight the armed size's full footprint under the cursor
+    // (green = fits, red = off-grid or overlaps), mirroring the main grid.
+    if (interiorArmed && interiorHover) {
+      const hx = interiorHover.x, hy = interiorHover.y, aw = interiorArmed.w, ah = interiorArmed.h;
+      let ok = hx + aw <= W && hy + ah <= H;
+      if (ok) for (const cc of p.interior)
+        if (hx < cc.x + cc.w && hx + aw > cc.x && hy < cc.y + cc.h && hy + ah > cc.y) { ok = false; break; }
+      const gw = (Math.min(hx + aw, W) - hx) * CW - 2, gh = (Math.min(hy + ah, H) - hy) * CH - 2;
+      el("rect", { x: hx * CW + 1, y: hy * CH + 1, width: gw, height: gh, rx: 4, class: "ic-ghost " + (ok ? "ok" : "bad") }, svg);
+    }
+
+    const warnEl = $("#ut-int-warn");
+    warnEl.hidden = valid;
+    if (!valid) warnEl.textContent = `Fill the whole cabinet — ${left} cell${left > 1 ? "s" : ""} left`;
   }
 
   /* The representative published part for a placed unit — the piece a user
@@ -999,14 +1202,33 @@
         count(cases, size);
         if (p.fill === "decor") decorCount++;
       } else if (p.fill === "shelf") {
-        count(cases, size);
+        // Build from a 1H case + extenders, not one tall case: tall cases warp/
+        // fail more in print, and splitting the parts lets them batch across
+        // machines (and share SKUs with cabinet cases/extenders).
+        count(cases, sizeToken(p.w, 1));
+        const shelfExt = h - 1;
+        if (shelfExt > 0) count(extenders, p.w, shelfExt);
         count(inserts, p.w);
       } else if (p.fill === "cabinet") {
-        const shelves = p.shelves || 0;
-        count(cases, sizeToken(p.w, 1), 1 + shelves);
-        const ext = h - 1 - shelves;
-        if (ext > 0) count(extenders, p.w, ext);
-        count(inserts, p.w, 1 + shelves);
+        if (Array.isArray(p.interior)) {
+          // ADVANCED: bill each compartment as 1 case + (h-1) extenders + 1 insert.
+          // Keys match the shelf/cabinet SKUs so they batch: cases by sizeToken(w,1)
+          // (string), extenders/inserts by width w (number).
+          p.interior.forEach((c) => {
+            count(cases, sizeToken(c.w, 1));
+            if (c.h > 1) count(extenders, c.w, c.h - 1);
+            count(inserts, c.w);
+          });
+        } else {
+          const shelves = p.shelves || 0; // SIMPLE shelves model (unchanged)
+          count(cases, sizeToken(p.w, 1), 1 + shelves);
+          const ext = h - 1 - shelves;
+          if (ext > 0) count(extenders, p.w, ext);
+          count(inserts, p.w, 1 + shelves);
+        }
+        // shell (both modes): one door at full W×H + hinges/latches by height.
+        // size === sizeToken(p.w, h); the shell size is guaranteed available because
+        // selectable() gates placement and the interior editor never resizes the shell.
         count(doors, size);
         hinges += h >= 2 ? 2 : 1;
         latches += h >= 2 ? 2 : 1;
@@ -1132,7 +1354,7 @@
     }
     sections.forEach((sec) => {
       html += `<h3>${sec.title}</h3><table class="bom-table"><tbody>`;
-      sec.items.forEach((it) => {
+      sec.items.filter((it) => it.qty > 0).forEach((it) => { // never show 0× rows (e.g. QuickLocks for an untiled cabinet)
         const img = it.hardware ? "img/parts/hardware.svg" : partImage(it.name);
         html += `<tr class="${it.optional ? "optional" : ""}">
           <td class="thumb"><img src="${img}" alt="" loading="lazy"
@@ -1162,7 +1384,7 @@
     const sections = computeBom() || [];
     const out = [];
     sections.forEach((sec) =>
-      sec.items.forEach((it) => {
+      sec.items.filter((it) => it.qty > 0).forEach((it) => { // skip 0× rows in copy/CSV too
         const links = it.hardware || it.unreleased ? null : partLinks(it.linkAs || it.name);
         out.push({
           section: sec.title,
@@ -1216,13 +1438,16 @@
     const svg = $("#board");
 
     svg.addEventListener("mousedown", (e) => {
+      if (Date.now() - lastTouchEnd < GHOST_CLICK_MS) return; // ignore touch-emulated mouse
       const pt = svgPoint(svg, e);
       const { x, y } = cellAt(pt.x, pt.y);
       const hit = unitAt(x, y);
       if (hit) {
-        drag = { id: hit.id, dx: x - hit.x, dy: y - hit.y, tx: hit.x, ty: hit.y, moved: false };
-        e.preventDefault();
+        drag = { id: hit.id, dx: x - hit.x, dy: y - hit.y, tx: hit.x, ty: hit.y, moved: false, sx: e.clientX, sy: e.clientY };
+      } else {
+        pressCell = { x, y }; // empty press — placement decided on release
       }
+      e.preventDefault();
     });
 
     svg.addEventListener("mousemove", (e) => {
@@ -1231,62 +1456,64 @@
       if (drag) {
         const p = state.placed.find((u) => u.id === drag.id);
         if (p) {
-          const tx = hover.x - drag.dx, ty = hover.y - drag.dy;
-          if (tx !== p.x || ty !== p.y || drag.moved) {
-            drag.moved = true;
-            drag.tx = tx;
-            drag.ty = ty;
+          if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > DRAG_SLOP) drag.moved = true;
+          if (drag.moved) {
+            drag.tx = hover.x - drag.dx;
+            drag.ty = hover.y - drag.dy;
           }
         }
       }
       renderBoard();
     });
 
-    svg.addEventListener("mouseup", () => {
-      if (!drag) return;
-      if (drag.moved) {
+    /* Selection and placement resolve on mouseup, NOT on "click". The board
+       redraws (renderBoard wipes the SVG) during a press, so the element that
+       received mousedown is gone by release and the browser often never fires a
+       real click — clicking a placed unit would silently do nothing. mouseup
+       always fires on the persistent <svg>, so it's reliable. This mirrors the
+       touch flow, where touchend does the same job. */
+    svg.addEventListener("mouseup", (e) => {
+      if (Date.now() - lastTouchEnd < GHOST_CLICK_MS) { drag = null; pressCell = null; return; }
+      if (drag) {
         const p = state.placed.find((u) => u.id === drag.id);
-        if (p && canPlace(drag.tx, drag.ty, p.w, p.hh, p.id)) {
-          p.x = drag.tx;
-          p.y = drag.ty;
+        if (drag.moved) {
+          if (p && canPlace(drag.tx, drag.ty, p.w, p.hh, p.id)) { p.x = drag.tx; p.y = drag.ty; }
+        } else if (p) {
+          state.selectedUnit = state.selectedUnit === p.id ? null : p.id; // press+release on a unit = select
         }
-        suppressClick = true; // the click that follows a drop is not a select
+      } else if (pressCell) {
+        const pt = svgPoint(svg, e);
+        const { x, y } = cellAt(pt.x, pt.y);
+        // place only on a clean press-release on the same empty cell
+        if (x === pressCell.x && y === pressCell.y &&
+            state.selected && selectable(state.selected.w, state.selected.h) &&
+            canPlace(x, y, state.selected.w, state.selected.h * 2)) {
+          const id = state.nextId++;
+          state.placed.push({
+            id, x, y, w: state.selected.w, hh: state.selected.h * 2,
+            fill: state.fill, shelves: 0,
+          });
+          state.selectedUnit = id; // auto-select the new unit so the options menu is ready
+        }
       }
       drag = null;
+      pressCell = null;
       refresh();
     });
 
     svg.addEventListener("mouseleave", () => {
       hover = null;
       drag = null;
+      pressCell = null;
       renderBoard();
-    });
-
-    svg.addEventListener("click", (e) => {
-      if (suppressClick) { suppressClick = false; return; }
-      const pt = svgPoint(svg, e);
-      const { x, y } = cellAt(pt.x, pt.y);
-      const hit = unitAt(x, y);
-      if (hit) {
-        state.selectedUnit = state.selectedUnit === hit.id ? null : hit.id;
-      } else if (state.selected && selectable(state.selected.w, state.selected.h)) {
-        const { w, h } = state.selected;
-        if (canPlace(x, y, w, h * 2)) {
-          state.placed.push({
-            id: state.nextId++, x, y, w, hh: h * 2,
-            fill: state.fill,
-            shelves: 0,
-          });
-          state.selectedUnit = null;
-        }
-      }
-      refresh();
     });
 
     /* Touch: mirror the mouse flow so phones/tablets can place, move, and
        inspect. A drag that starts on a unit moves it (and blocks page scroll);
-       a tap on a unit opens its popover; a tap on empty space places the
-       selected size. Touches that don't start on a unit stay scrollable. */
+       a tap on a unit selects it (shown in the toolbar below); a tap on empty
+       space places the selected size. Touches that don't start on a unit stay
+       scrollable. touchend stamps lastTouchEnd so the emulated mouse events this
+       tap spawns are ignored by the mouse handlers above. */
     let touchMode = null;     // "unit" | "empty"
     let touchStartCell = null;
 
@@ -1298,7 +1525,7 @@
       const hit = unitAt(cell.x, cell.y);
       touchStartCell = cell;
       if (hit) {
-        drag = { id: hit.id, dx: cell.x - hit.x, dy: cell.y - hit.y, tx: hit.x, ty: hit.y, moved: false };
+        drag = { id: hit.id, dx: cell.x - hit.x, dy: cell.y - hit.y, tx: hit.x, ty: hit.y, moved: false, sx: t.clientX, sy: t.clientY };
         touchMode = "unit";
         e.preventDefault(); // claim the gesture: move the unit, don't scroll
       } else {
@@ -1313,15 +1540,17 @@
       const cell = cellAt(pt.x, pt.y);
       const p = state.placed.find((u) => u.id === drag.id);
       if (!p) return;
-      const tx = cell.x - drag.dx, ty = cell.y - drag.dy;
-      if (tx !== p.x || ty !== p.y) drag.moved = true;
-      drag.tx = tx;
-      drag.ty = ty;
+      if (Math.hypot(t.clientX - drag.sx, t.clientY - drag.sy) > DRAG_SLOP) drag.moved = true;
+      if (drag.moved) {
+        drag.tx = cell.x - drag.dx;
+        drag.ty = cell.y - drag.dy;
+      }
       e.preventDefault();
       renderBoard();
     }, { passive: false });
 
     svg.addEventListener("touchend", (e) => {
+      lastTouchEnd = Date.now(); // suppress the emulated mouse events this tap will spawn
       if (touchMode === "unit" && drag) {
         if (drag.moved) {
           const p = state.placed.find((u) => u.id === drag.id);
@@ -1330,7 +1559,7 @@
             p.y = drag.ty;
           }
         } else {
-          // a tap (no move) toggles the unit's popover
+          // a tap (no move) toggles the unit's selection / toolbar
           state.selectedUnit = state.selectedUnit === drag.id ? null : drag.id;
         }
         drag = null;
@@ -1349,12 +1578,13 @@
             state.selected && selectable(state.selected.w, state.selected.h)) {
           const { w, h } = state.selected;
           if (canPlace(cell.x, cell.y, w, h * 2)) {
+            const id = state.nextId++;
             state.placed.push({
-              id: state.nextId++, x: cell.x, y: cell.y, w, hh: h * 2,
+              id, x: cell.x, y: cell.y, w, hh: h * 2,
               fill: state.fill,
               shelves: 0,
             });
-            state.selectedUnit = null;
+            state.selectedUnit = id; // auto-select the new unit so the options menu is ready
             e.preventDefault();
             refresh();
           }
@@ -1427,6 +1657,52 @@
       });
     });
 
+    // Cabinet interior: Simple/Advanced toggle, edit/close (mobile sheet), clear.
+    $("#ut-mode").querySelectorAll("[data-mode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const p = selectedUnit();
+        if (!p || p.fill !== "cabinet") return;
+        if (btn.dataset.mode === "advanced") {
+          if (!Array.isArray(p.interior)) p.interior = []; // opt-in: empty (invalid) until tiled
+          interiorOpen = true;                              // open the mobile sheet
+        } else {
+          delete p.interior; interiorArmed = null; interiorOpen = false; // back to the shelves model
+        }
+        refresh();
+      });
+    });
+    $("#ut-edit").addEventListener("click", () => { interiorOpen = true; renderToolbar(); });
+    $("#ut-interior-close").addEventListener("click", () => { interiorOpen = false; renderToolbar(); });
+    $("#ut-sheet-backdrop").addEventListener("click", () => { interiorOpen = false; renderToolbar(); });
+    $("#ut-int-clear").addEventListener("click", () => {
+      const p = selectedUnit();
+      if (!p || !Array.isArray(p.interior)) return;
+      p.interior = []; refresh();
+    });
+    // Placement ghost: track the hovered cell and re-draw the editor so the armed
+    // footprint previews under the cursor (mirrors the main grid). Bound once — the
+    // #ut-int-grid element persists across re-renders.
+    const intGrid = $("#ut-int-grid");
+    intGrid.addEventListener("mousemove", (e) => {
+      const p = selectedUnit();
+      if (!p || !Array.isArray(p.interior) || !interiorArmed) return;
+      const W = p.w, H = p.hh / 2, rect = intGrid.getBoundingClientRect();
+      if (!rect.width) return;
+      const cx = Math.floor((e.clientX - rect.left) / rect.width * W);
+      const cy = Math.floor((e.clientY - rect.top) / rect.height * H);
+      const nh = (cx >= 0 && cx < W && cy >= 0 && cy < H) ? { x: cx, y: cy } : null;
+      const same = (nh && interiorHover && nh.x === interiorHover.x && nh.y === interiorHover.y) || (!nh && !interiorHover);
+      if (same) return;
+      interiorHover = nh;
+      renderInterior(p, W, H);
+    });
+    intGrid.addEventListener("mouseleave", () => {
+      if (!interiorHover) return;
+      interiorHover = null;
+      const p = selectedUnit();
+      if (p && Array.isArray(p.interior)) renderInterior(p, p.w, p.hh / 2);
+    });
+
     // Keyboard arrows nudge the selected unit (ignored while typing in a field).
     document.addEventListener("keydown", (e) => {
       if (!state.selectedUnit) return;
@@ -1475,6 +1751,7 @@
   if (typeof window !== "undefined" && window.__GEN2_PLANNER_TEST__) {
     window.__GEN2_PLANNER_TEST__ = {
       state, refresh, nudgeSelected, canPlace, selectable, heightsForFill,
+      computeBom, selectedUnit, interiorFill, interiorComplete, interiorCellsLeft, placeCompartment,
     };
   }
 })();

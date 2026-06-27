@@ -37,7 +37,18 @@
       <div class="space-box">
         <div class="field-row">
           <label>Model
-            <select id="printer-select"></select>
+            <span class="printer-pick">
+              <span class="printer-icon" aria-hidden="true">
+                <svg viewBox="0 0 28 28" fill="none">
+                  <rect x="4" y="3.5" width="20" height="21" rx="2.5" stroke="currentColor" stroke-width="1.7"/>
+                  <line x1="4" y1="10" x2="24" y2="10" stroke="currentColor" stroke-width="1.7"/>
+                  <rect x="12.4" y="10" width="3.2" height="3.4" rx="0.6" fill="currentColor"/>
+                  <line x1="8.5" y1="20" x2="19.5" y2="20" stroke="currentColor" stroke-width="1.7"/>
+                  <rect class="pi-print" x="11.4" y="15.8" width="5.2" height="4.2" rx="0.6"/>
+                </svg>
+              </span>
+              <select id="printer-select"></select>
+            </span>
           </label>
         </div>
         <div class="field-row" id="custom-bed" hidden>
@@ -55,7 +66,7 @@
 
   <!-- STEP 3: Length -->
   <section class="step" id="step-length">
-    <h2><span class="step-num">3</span> Choose your GEN2 length</h2>
+    <h2><span class="step-num">3</span> Choose your GEN2 length<button type="button" class="info-tip" data-tip="Length is the front-to-back depth, in mm. For the simplest, sturdiest build, stick to one length per setup — pick the deepest your printer bed and space allow. Mixing lengths is possible with the right hardware, but it's best avoided."></button></h2>
     <p class="hint">Length is how deep the system is, in millimeters. Every component in one setup — drawers, shelves, cabinets, and mounts — shares the same length.</p>
     <div class="card-row" id="length-cards"></div>
   </section>
@@ -65,28 +76,33 @@
     <h2><span class="step-num">4</span> Design your layout</h2>
 
     <div class="explainer" id="explainer">
-      <button type="button" class="explainer-close" id="explainer-close" aria-label="Dismiss">×</button>
-      <h3>New to GEN2? Three things to know</h3>
-      <div class="explainer-body">
-        <svg class="explainer-art" viewBox="0 0 150 110" aria-hidden="true">
-          <rect x="10" y="8" width="130" height="10" rx="2" class="e-mount"/>
-          <rect x="25" y="22" width="100" height="74" rx="6" class="e-case"/>
-          <rect x="33" y="30" width="84" height="58" rx="4" class="e-case-in"/>
-          <rect x="46" y="40" width="84" height="38" rx="4" class="e-drawer"/>
-          <rect x="50" y="44" width="10" height="30" rx="2" class="e-rail"/>
-          <rect x="116" y="44" width="10" height="30" rx="2" class="e-rail"/>
-          <path d="M40 59 l-14 0 m0 0 l6 -5 m-6 5 l6 5" class="e-arrow"/>
-        </svg>
-        <ol>
-          <li><b>Cases are the frame.</b> Every spot you fill in the grid is a case — cases QuickLock together into one structure.</li>
-          <li><b>You choose what goes in each case</b> — a Classic or Decor drawer, a shelf, or a cabinet. Swap them anytime.</li>
-          <li><b>The mount holds it all</b> — rails under a table, a Table Top Kit on a surface, or wall mounts.</li>
-        </ol>
-      </div>
+      <p class="explainer-tip" id="explainer-tip"></p>
+      <details class="explainer-primer" id="explainer-primer">
+        <summary>New to GEN2? Three things to know</summary>
+        <div class="explainer-body">
+          <svg class="explainer-art" viewBox="0 0 150 110" aria-hidden="true">
+            <rect x="10" y="8" width="130" height="10" rx="2" class="e-mount"/>
+            <rect x="25" y="22" width="100" height="74" rx="6" class="e-case"/>
+            <rect x="33" y="30" width="84" height="58" rx="4" class="e-case-in"/>
+            <rect x="46" y="40" width="84" height="38" rx="4" class="e-drawer"/>
+            <rect x="50" y="44" width="10" height="30" rx="2" class="e-rail"/>
+            <rect x="116" y="44" width="10" height="30" rx="2" class="e-rail"/>
+            <path d="M40 59 l-14 0 m0 0 l6 -5 m-6 5 l6 5" class="e-arrow"/>
+          </svg>
+          <ol>
+            <li><b>Cases are the frame.</b> Every spot you fill in the grid is a case — cases QuickLock together into one structure.</li>
+            <li><b>You choose what goes in each case</b> — a Classic or Decor drawer, a shelf, or a cabinet. Swap them anytime.</li>
+            <li><b>The mount holds it all</b> — rails under a table, a Table Top Kit on a surface, or wall mounts.</li>
+          </ol>
+        </div>
+      </details>
     </div>
 
-    <div class="space-box inline" id="space-inputs" hidden>
-      <h3>Workable area</h3>
+    <details class="space-box inline" id="space-inputs" hidden>
+      <summary>
+        <span class="sb-sum-title">Workable area</span>
+        <span class="sb-sum-status" id="space-summary-status"></span>
+      </summary>
       <p class="hint" id="space-hint"></p>
       <div class="space-fields">
         <div class="field-row">
@@ -100,13 +116,13 @@
         <div id="space-graphic" aria-hidden="true"></div>
       </div>
       <p class="hint" id="space-readout"></p>
-    </div>
+    </details>
 
     <p class="hint">Pick what to fill each case with and a size, then click the grid to place it. Click a placed unit to select it, then use the arrow pad below the grid to nudge it (or drag it) — and remove it from there too.</p>
 
     <div class="layout-wrap">
       <aside class="palette">
-        <h3>Fill each case with</h3>
+        <h3>Fill each case with<button type="button" class="info-tip" data-tip="Classic = print-in-place drawer, no assembly. Decor = drawer with a swappable faceplate. Shelf = open shelf insert. Cabinet = enclosed case with a door. Every case can be swapped anytime."></button></h3>
         <div class="fill-grid" id="fill-seg"></div>
         <p class="fill-blurb" id="fill-blurb"></p>
 
@@ -134,8 +150,24 @@
             </label>
             <p class="hint" id="grid-h-auto" hidden>Height adjusts automatically as you build.</p>
           </div>
-          <button type="button" class="btn ghost" id="load-example">Load example layout</button>
-          <button type="button" class="btn ghost" id="clear-layout">Clear layout</button>
+          <button type="button" class="btn" id="surprise-me">🎲 Surprise me</button>
+          <div class="tool-row">
+            <button type="button" class="btn ghost small" id="load-example">Load example</button>
+            <button type="button" class="btn ghost small" id="clear-layout">Clear</button>
+          </div>
+
+          <details class="builds">
+            <summary>💾 Save &amp; share builds</summary>
+            <div class="builds-body">
+              <button type="button" class="btn ghost small" id="build-save">Save this build</button>
+              <div class="build-list" id="build-list"></div>
+              <button type="button" class="btn ghost small" id="build-share">🔗 Copy share link</button>
+              <input type="text" class="share-url" id="share-url" readonly hidden aria-label="Shareable build link" />
+              <label class="btn ghost small build-import">⭱ Import a build file
+                <input type="file" id="build-import" accept="application/json,.json" hidden />
+              </label>
+            </div>
+          </details>
         </div>
       </aside>
 
@@ -175,6 +207,11 @@
             <button type="button" class="btn ghost ut-edit-btn" id="ut-edit" hidden>Edit interior</button>
             <button type="button" class="btn ghost" id="ut-remove" disabled>Remove unit</button>
           </div>
+          <label class="ut-label" id="ut-label-wrap" hidden>
+            <span>Label</span>
+            <input type="text" id="ut-label" maxlength="40" autocomplete="off"
+              placeholder="What's in this drawer? (e.g. M3 screws)" />
+          </label>
           <div class="ut-interior" id="ut-interior" hidden>
             <div class="ut-sheet-backdrop" id="ut-sheet-backdrop"></div>
             <div class="ut-sheet" role="dialog" aria-label="Cabinet interior editor">
@@ -193,6 +230,41 @@
 
         <div class="board-meta" id="board-meta"></div>
         <div class="board-warnings" id="board-warnings"></div>
+
+        <div class="cover-panel" id="cover-panel" hidden>
+          <div class="wall-opt" id="wall-stagger" hidden>
+            <span class="wall-opt-label">Cover layout</span>
+            <div class="seg" id="wall-stagger-seg" role="group" aria-label="Wall cover layout">
+              <button type="button" data-stagger="on">Staggered</button>
+              <button type="button" data-stagger="off">Per-column</button>
+            </div>
+            <span class="wall-opt-hint" id="wall-stagger-hint"></span>
+          </div>
+        <details class="cover-guide" id="cover-guide">
+          <summary>How do the covers stack? <span class="cg-tag">staggered like brick</span></summary>
+          <div class="cg-body">
+            <svg viewBox="0 0 460 150" class="cg-svg" aria-hidden="true">
+              <!-- upper layer: 2W + 1W -->
+              <rect class="cg-cu" x="40"  y="34" width="150" height="30" rx="3"/>
+              <rect class="cg-cu" x="196" y="34" width="74"  height="30" rx="3"/>
+              <text class="cg-pcs" x="115" y="53">2W</text>
+              <text class="cg-pcs" x="233" y="53">1W</text>
+              <text class="cg-lab" x="284" y="53">CU · upper</text>
+              <!-- lower layer: 1W + 2W (offset by 1W) -->
+              <rect class="cg-cl" x="40"  y="78" width="74"  height="30" rx="3"/>
+              <rect class="cg-cl" x="120" y="78" width="150" height="30" rx="3"/>
+              <text class="cg-pcs" x="77"  y="97">1W</text>
+              <text class="cg-pcs" x="195" y="97">2W</text>
+              <text class="cg-lab" x="284" y="97">CL · lower</text>
+              <!-- seam guides: CU seam over CL middle, CL seam under CU middle -->
+              <line class="cg-seam" x1="193" y1="28" x2="193" y2="114"/>
+              <line class="cg-seam" x1="117" y1="28" x2="117" y2="114"/>
+              <text class="cg-note" x="40" y="134">The two layers' seams never line up — that's what makes a wide cover one rigid piece.</text>
+            </svg>
+            <p class="cg-cap">Every cover is two layers — <b>CU (upper)</b> over <b>CL (lower)</b>, each in 1W and 2W. Offset their seams like brickwork so no joint runs all the way through. <b class="cg-blue">Foot rails (FR-U / FR-L)</b> — shown in <b class="cg-blue">blue</b> on the layout — stack the same way.</p>
+          </div>
+        </details>
+        </div>
       </div>
     </div>
   </section>
@@ -204,6 +276,7 @@
       <div class="style-pick" id="faceplate-style-pick" hidden>
         <label>Decor faceplate style</label>
         <div class="seg" id="faceplate-style-seg"></div>
+        <a class="label-gen" id="label-gen-link" target="_blank" rel="noopener" hidden></a>
       </div>
       <div class="style-pick" id="door-style-pick" hidden>
         <label>Cabinet door style</label>

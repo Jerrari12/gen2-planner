@@ -22,7 +22,7 @@
     selected: { w: 1, h: 1 },
     selectedUnit: null,     // id of placed unit shown in the inspector
     nextId: 1,
-    wallStagger: true,      // wall covers: true = staggered top, false = per-column
+    wallStagger: false,     // wall covers: false = per-column (default), true = staggered top
   };
 
   const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 10 };
@@ -86,7 +86,7 @@
       return `Case (${w * GEN2.units.widthMM}×${state.length}mm) won't fit your ${bedTxt}`;
     }
     if (fill === "classic" && !fillFits(w, fill)) {
-      return `Classic drawer handle adds ~${GEN2.classicHandleExtraMM}mm — won't fit your ${bedTxt}`;
+      return `Classic drawer handle adds ~${GEN2.classicHandleExtraMM}mm · won't fit your ${bedTxt}`;
     }
     return null;
   }
@@ -272,7 +272,7 @@
       if (state.spaceW) {
         const n = Math.floor(state.spaceW / GEN2.units.widthMM);
         parts.push(n < 1
-          ? `${state.spaceW}mm is narrower than 1W (${GEN2.units.widthMM}mm) — nothing fits`
+          ? `${state.spaceW}mm is narrower than 1W (${GEN2.units.widthMM}mm) · nothing fits`
           : `${state.spaceW}mm wide → up to ${n}W (${n * GEN2.units.widthMM}mm used, ${state.spaceW - n * GEN2.units.widthMM}mm spare)`);
       }
       if (state.spaceH) {
@@ -284,7 +284,7 @@
       $("#space-readout").textContent = parts.join(" · ");
       $("#space-summary-status").textContent = (state.spaceW || state.spaceH)
         ? `${state.spaceW || "—"} × ${state.spaceH || "—"} mm`
-        : "optional — caps the grid to your space";
+        : "optional · caps the grid to your space";
       renderSpaceGraphic();
     }
 
@@ -471,6 +471,39 @@
     } else {
       link.hidden = true;
     }
+  }
+
+  /* Mobile: collapse the chosen setup steps (location / printer / length) into a
+     one-line summary once the build is ready, so the design board is reachable
+     without scrolling past them. Desktop ignores the collapse (CSS-gated). */
+  let stepsAutoCollapsed = false;
+
+  function renderStepSummaries() {
+    const printer = GEN2.printers.find((p) => p.id === state.printer);
+    const m = mountDef();
+    const set = (id, v) => { const el = $(id); if (el) el.textContent = v || ""; };
+    set("#mount-pick", m ? m.label : "");
+    set("#printer-pick", state.printer === "custom" ? "Custom bed" : (printer ? printer.label : ""));
+    set("#length-pick", state.length ? state.length + "mm" : "");
+  }
+
+  function syncStepCollapse(ready) {
+    if (ready && !stepsAutoCollapsed) {
+      document.querySelectorAll(".step.collapsible").forEach((s) => s.classList.add("collapsed"));
+      stepsAutoCollapsed = true;
+    } else if (!ready && stepsAutoCollapsed) {
+      document.querySelectorAll(".step.collapsible").forEach((s) => s.classList.remove("collapsed"));
+      stepsAutoCollapsed = false;
+    }
+  }
+
+  function bindStepCollapse() {
+    document.querySelectorAll(".step.collapsible > h2").forEach((h) => {
+      h.addEventListener("click", (e) => {
+        if (e.target.closest(".info-tip")) return;   // tapping the (i) shouldn't toggle
+        h.parentElement.classList.toggle("collapsed");
+      });
+    });
   }
 
   function renderPalette() {
@@ -746,7 +779,7 @@
     if (state.mount === "under-table") {
       el("rect", { x: 0, y: gy - 26, width: W, height: 18, class: "s-wood" }, svg);
       el("text", { x: W / 2, y: gy - 32, class: "s-label", "text-anchor": "middle" }, svg)
-        .textContent = "table / desk underside" + (state.spaceW ? ` — ${state.spaceW}mm available` : "");
+        .textContent = "table / desk underside" + (state.spaceW ? ` · ${state.spaceW}mm available` : "");
       // one bar per rail section, spanning the section's full width
       railSections().forEach((s) => {
         el("rect", { x: PAD.left + s.start * CW + 8, y: gy - 8, width: s.w * CW - 16, height: 8, rx: 2, class: "s-part s-rail" }, svg);
@@ -794,14 +827,14 @@
         el("text", { x: PAD.left, y: gy - 48, class: "s-part-label" }, svg)
           .textContent = `▮ Table Top Kit V2 - ${state.length ?? ""}`;
         el("text", { x: PAD.left, y: gy - 36, class: "s-hint-label" }, svg)
-          .textContent = "Covers (CU over CL) stagger like brick — seams offset for strength";
+          .textContent = "Covers (CU over CL) stagger like brick · seams offset for strength";
       }
     } else if (state.mount === "wall") {
       el("rect", { x: 0, y: 0, width: 16, height: H, class: "s-wood" }, svg);
       for (let yy = 10; yy < H; yy += 26)
         el("line", { x1: 4, y1: yy, x2: 12, y2: yy + 8, class: "s-wood-grain" }, svg);
       el("text", { x: 26, y: 16, class: "s-label" }, svg)
-        .textContent = "wall" + (state.spaceW ? ` — ${state.spaceW}mm available` : "");
+        .textContent = "wall" + (state.spaceW ? ` · ${state.spaceW}mm available` : "");
       // The bracket goes on first (mount is behind the cases), so draw it at the
       // very top; the covers (the lid, on top of the cases) sit just below it —
       // reads more naturally than sandwiching the covers between bracket & case.
@@ -935,7 +968,7 @@
     const elH = $("#board-helper");
     if (!state.placed.length) {
       elH.textContent = state.selected
-        ? `Click the grid to place your ${sizeToken(state.selected.w, state.selected.h)} ${fillDef().label} — or load an example layout from the panel.`
+        ? `Click the grid to place your ${sizeToken(state.selected.w, state.selected.h)} ${fillDef().label} · or load an example layout from the panel.`
         : "Pick a size from the palette to begin.";
     } else if (state.selectedUnit) {
       elH.textContent = "Unit selected · use the arrow pad below to move it one step, or Remove it · click an empty cell to add more.";
@@ -996,14 +1029,15 @@
     const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
     const pick = (arr) => arr[randInt(0, arr.length - 1)];
     const FILLS = ["classic", "decor"];
-
-    // widest case width that prints on the current bed at this length
-    let maxFitW = 0;
-    for (let w = 1; w <= 4; w++) if (FILLS.some((f) => fillFits(w, f))) maxFitW = w;
+    // One drawer type for the whole build — nobody mixes Classic and Decor.
+    const widestFor = (f) => { let m = 0; for (let w = 1; w <= 4; w++) if (fillFits(w, f)) m = w; return m; };
+    let buildFill = pick(FILLS);
+    let maxFitW = widestFor(buildFill);
+    if (!maxFitW) { buildFill = buildFill === "classic" ? "decor" : "classic"; maxFitW = widestFor(buildFill); }
     if (!maxFitW) {
       const box = $("#board-warnings");
       box.innerHTML = "";
-      warn(box, "No case size fits the selected printer at this length — pick a smaller length or a larger printer, then try again.");
+      warn(box, "No case size fits the selected printer at this length · pick a smaller length or a larger printer, then try again.");
       return;
     }
 
@@ -1011,19 +1045,16 @@
     const maxW = Math.max(1, Math.min(capW(), 5));
     const W = randInt(Math.min(2, maxW), maxW);
 
-    // Tile one row of height hh (half-rows) across the full width W.
+    // Tile one row of height hh across width W, all of the chosen drawer type.
     const tileRow = (hh) => {
       const cases = [];
       for (let x = 0; x < W; ) {
-        const opts = [];
-        for (let w = 1; w <= Math.min(maxFitW, W - x); w++) {
-          if (!sizeExists(w, hh / 2)) continue;
-          const ff = FILLS.filter((f) => fillFits(w, f));
-          if (ff.length) opts.push({ w, fills: ff });
-        }
-        const o = opts.length ? pick(opts) : { w: 1, fills: [FILLS[0]] };
-        cases.push({ x, w: o.w, fill: pick(o.fills) });
-        x += o.w;
+        const widths = [];
+        for (let w = 1; w <= Math.min(maxFitW, W - x); w++)
+          if (sizeExists(w, hh / 2) && fillFits(w, buildFill)) widths.push(w);
+        const w = widths.length ? pick(widths) : 1;
+        cases.push({ x, w, fill: buildFill });
+        x += w;
       }
       return { hh, cases };
     };
@@ -1188,7 +1219,7 @@
   function renderBoardMeta() {
     const meta = $("#board-meta");
     if (!state.placed.length) {
-      meta.textContent = "Layout is empty — place your first unit.";
+      meta.textContent = "Layout is empty · place your first unit.";
       return;
     }
     const minX = Math.min(...state.placed.map((p) => p.x));
@@ -1306,8 +1337,8 @@
     });
     if (unsupported.length) {
       const div = warn(box, fromTop
-        ? `${unsupported.length} unit(s) aren't supported on both ends — a case QuickLocks to the row above and needs a unit above its left and right edges. Move it to the top row, or fill the gap above the open end.`
-        : `${unsupported.length} unit(s) aren't supported on both ends — tabletop stacks build from the surface, so each case needs a unit below its left and right edges. Move it down, or fill the gap under the open end.`);
+        ? `${unsupported.length} unit(s) aren't supported on both ends · a case QuickLocks to the row above and needs a unit above its left and right edges. Move it to the top row, or fill the gap above the open end.`
+        : `${unsupported.length} unit(s) aren't supported on both ends · tabletop stacks build from the surface, so each case needs a unit below its left and right edges. Move it down, or fill the gap under the open end.`);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn small warn-fix";
@@ -1317,7 +1348,7 @@
         refresh();
         const note = document.createElement("div");
         note.className = "fix-note";
-        note.textContent = `✓ Structure fixed — ${r.moved} unit${r.moved === 1 ? "" : "s"} moved`
+        note.textContent = `✓ Structure fixed · ${r.moved} unit${r.moved === 1 ? "" : "s"} moved`
           + (r.added ? `, ${r.added} support case${r.added === 1 ? "" : "s"} added` : "") + ".";
         $("#board-warnings").prepend(note);
       });
@@ -1334,7 +1365,7 @@
     // soft bow/stress advisory — never blocks, just a heads-up
     const bows = bowRisks();
     if (bows.size) {
-      warn(box, `${bows.size} wide case(s) may bow under load — a narrower case loads the interior of a wider one, away from its end walls. To stiffen it: match widths, align the narrower case to an end, or support the full span.`)
+      warn(box, `${bows.size} wide case(s) may bow under load · a narrower case loads the interior of a wider one, away from its end walls. To stiffen it: match widths, align the narrower case to an end, or support the full span.`)
         .classList.add("warn-soft");
     }
 
@@ -1342,14 +1373,14 @@
     const untiled = state.placed.filter((p) => { const f = interiorFill(p); return f && !f.complete; });
     if (untiled.length) {
       const cells = untiled.reduce((n, p) => n + interiorCellsLeft(p), 0);
-      warn(box, `${untiled.length} cabinet(s) have an unfinished interior — fill the whole cabinet (${cells} cell${cells > 1 ? "s" : ""} left).`);
+      warn(box, `${untiled.length} cabinet(s) have an unfinished interior · fill the whole cabinet (${cells} cell${cells > 1 ? "s" : ""} left).`);
     }
 
     // tabletop covers need every column to stack to the same height
     if (state.mount === "tabletop") {
       const tops = Object.values(columnTops());
       if (new Set(tops).size > 1) {
-        warn(box, "Table Top covers need a flat top — every column must stack to the same height before the cover can attach.");
+        warn(box, "Table Top covers need a flat top · every column must stack to the same height before the cover can attach.");
       }
     }
   }
@@ -1548,7 +1579,7 @@
 
     const warnEl = $("#ut-int-warn");
     warnEl.hidden = valid;
-    if (!valid) warnEl.textContent = `Fill the whole cabinet — ${left} cell${left > 1 ? "s" : ""} left`;
+    if (!valid) warnEl.textContent = `Fill the whole cabinet · ${left} cell${left > 1 ? "s" : ""} left`;
   }
 
   /* The representative published part for a placed unit — the piece a user
@@ -1652,12 +1683,12 @@
       }));
       if (hinges) items.push({
         name: P.hinge(), qty: hinges,
-        note: "Hinges are 1H — 1H cabinets take 1 hinge, taller cabinets take 2.",
+        note: "Hinges are 1H · 1H cabinets take 1 hinge, taller cabinets take 2.",
         unreleased: GEN2.unreleased.includes("hinge"),
       });
       if (latches) items.push({
         name: P.latch(), qty: latches,
-        note: "Latches are 1H — 1H cabinets take 1 latch, taller cabinets take 2.",
+        note: "Latches are 1H · 1H cabinets take 1 latch, taller cabinets take 2.",
         unreleased: GEN2.unreleased.includes("latch"),
       });
       sections.push({ title: "Shelves & Cabinets", items });
@@ -1670,7 +1701,7 @@
       }));
       [...extenders.entries()].sort().forEach(([w, qty]) => items.push({
         name: P.extender(len, w), qty,
-        note: "Stacks above a case to add cabinet height — interchangeable with full cases.",
+        note: "Stacks above a case to add cabinet height · interchangeable with full cases.",
       }));
       const totalCases = [...cases.values()].reduce((a, b) => a + b, 0);
       items.push(
@@ -1691,7 +1722,7 @@
       });
       [...sideCovers.entries()].sort().forEach(([h, qty]) => items.push({
         name: P.sideCover(len, h), qty,
-        note: "Optional — covers the exposed sides of the outermost cases (pairs to each case's height via the side dovetails). Most popular with Table Top Kits.",
+        note: "Optional · covers the exposed sides of the outermost cases (pairs to each case's height via the side dovetails). Most popular with Table Top Kits.",
         optional: true,
         unreleased: GEN2.unreleased.includes("sideCover"),
       }));
@@ -1751,7 +1782,7 @@
     const wrap = $("#bom");
     const sections = computeBom();
     if (!sections) {
-      wrap.innerHTML = `<p class="hint">Choose a location and length, then place units in the layout — your parts list builds itself here.</p>`;
+      wrap.innerHTML = `<p class="hint">Choose a location and length, then place units in the layout · your parts list builds itself here.</p>`;
       return;
     }
     // starter-kit tip leads the list for first-build-sized layouts
@@ -1797,7 +1828,7 @@
         out.push({
           section: sec.title,
           qty: it.qty,
-          name: it.name + (it.variant ? ` — ${it.variant}` : "") +
+          name: it.name + (it.variant ? ` · ${it.variant}` : "") +
             (it.optional ? " (optional)" : "") + (it.unreleased ? " (coming soon)" : ""),
           printables: links ? links.printables : "",
           thangs: links ? links.thangs : "",
@@ -1808,7 +1839,7 @@
 
   function copyBom() {
     const m = mountDef();
-    let txt = `GEN2 ${state.length} — ${m ? m.label : ""} setup\n`;
+    let txt = `GEN2 ${state.length} · ${m ? m.label : ""} setup\n`;
     txt += `Planned with the GEN2 Planner · jerrari3d.com\n\n`;
     let lastSection = "";
     bomAsRows().forEach((r) => {
@@ -2042,7 +2073,9 @@
     // "New to GEN2" primer: collapsible, remembers its open/closed state.
     const primer = $("#explainer-primer");
     if (primer) {
-      primer.open = store.get("gen2-primer-collapsed") !== "1";
+      // Collapsed by default (it's a one-time "new to GEN2" primer) — open only
+      // if the user has explicitly expanded it before.
+      primer.open = store.get("gen2-primer-collapsed") === "0";
       primer.addEventListener("toggle", () => {
         store.set("gen2-primer-collapsed", primer.open ? "0" : "1");
       });
@@ -2153,6 +2186,8 @@
     const ready = state.mount && state.length;
     $("#step-layout").hidden = !ready;
     $("#step-parts").hidden = !ready;
+    renderStepSummaries();
+    syncStepCollapse(ready);
     syncTabletopGrid();
     const autoH = state.mount === "tabletop";
     $("#grid-h-control").hidden = autoH;
@@ -2173,7 +2208,7 @@
       $("#wall-stagger-seg").querySelectorAll("[data-stagger]").forEach((b) =>
         b.classList.toggle("active", (b.dataset.stagger === "on") === state.wallStagger));
       $("#wall-stagger-hint").textContent = state.wallStagger
-        ? "One connected top — most rigid."
+        ? "One connected top · most rigid."
         : "Each column lifts off on its own (3W/4W cases still stagger internally).";
     }
     if (ready) renderBoard();
@@ -2188,6 +2223,7 @@
   buildPrinterSelect();
   bindBoard();
   bindControls();
+  bindStepCollapse();
   refresh();
   loadBuildFromHash();   // open a shared #build=… link, if present
 

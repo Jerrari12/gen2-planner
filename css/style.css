@@ -99,6 +99,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 
 .step { margin-top: 36px; }
 .step h2 { font-size: 1.15rem; font-weight: 600; }
+.step-pick { display: none; }   /* collapsed-step summary — shown on mobile only */
 .step-num {
   display: inline-flex;
   width: 26px; height: 26px;
@@ -605,7 +606,10 @@ details.builds > summary:hover { color: var(--text); }
   overflow: auto;
   padding: 8px;
 }
-#board { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+/* touch-action:none — the board owns tap/drag gestures, so the browser can't
+   hijack a near-miss tap as a scroll/zoom (which made units hard to select on
+   touch devices). */
+#board { display: block; margin: 0 auto; max-width: 100%; height: auto; touch-action: none; }
 .board-meta { margin-top: 8px; font-size: 0.85rem; color: var(--muted); }
 .warn {
   margin-top: 8px;
@@ -643,10 +647,10 @@ details.builds > summary:hover { color: var(--text); }
 .s-hint-label { fill: var(--muted); font-size: 10px; }
 /* Staggered cover (CU/CL) + foot-rail (FR-U/FR-L) layers: two tones so the
    brick offset reads. Upper = bright accent, lower = dim, both outlined. */
-.s-cover-u { fill: var(--accent); stroke: #1b1c1f; stroke-width: 0.75; }
-.s-cover-l { fill: var(--accent-dim); stroke: #1b1c1f; stroke-width: 0.75; }
-.s-fr-u { fill: var(--blue); stroke: #1b1c1f; stroke-width: 0.75; }
-.s-fr-l { fill: var(--blue-dim); stroke: #1b1c1f; stroke-width: 0.75; }
+.s-cover-u { fill: var(--accent); }
+.s-cover-l { fill: var(--accent-dim); }
+.s-fr-u { fill: var(--blue); }
+.s-fr-l { fill: var(--blue-dim); }
 .s-foot { fill: var(--blue-dim); }
 .s-wallmount { fill: var(--blue); }      /* wall brackets share the blue mounting-hardware coding */
 .s-tag { fill: var(--muted); font-size: 9px; font-weight: 600; }
@@ -891,8 +895,22 @@ details.builds > summary:hover { color: var(--text); }
 /* ---------- responsive ---------- */
 
 @media (max-width: 860px) {
+  main { padding-left: 14px; padding-right: 14px; }   /* reclaim width → bigger, easier-to-tap cells */
   .layout-wrap { flex-direction: column; }
   .palette { flex: none; width: 100%; }
+
+  /* Collapse the chosen setup steps (location / printer / length) to a one-line
+     summary so the design board is reachable without a long scroll. */
+  .step.collapsible > h2 { cursor: pointer; }
+  .step.collapsible > h2::after {
+    content: "\25BE"; float: right; margin-top: 3px;
+    color: var(--accent); font-size: 0.8rem; transition: transform 0.15s ease;
+  }
+  .step.collapsed > h2::after { content: "\25B8"; }
+  .step.collapsed { margin-top: 16px; }
+  .step.collapsed > *:not(h2) { display: none; }
+  .step.collapsed .step-pick { display: inline; color: var(--accent); font-weight: 600; }
+  .step.collapsed .step-pick::before { content: " · "; color: var(--muted); font-weight: 400; }
   .palette-row { flex-wrap: wrap; }
   /* the advanced interior becomes a bottom sheet, opened by the Edit interior button */
   .btn.ut-edit-btn { display: inline-block; }

@@ -576,6 +576,18 @@ test("Surprise me always yields a supported build within the printer's limits", 
   }
 });
 
+test("Surprise me uses a single drawer type per build (never mixes Classic + Decor)", () => {
+  const { app } = boot();
+  app.state.mount = "tabletop";
+  app.state.length = 185;
+  for (let i = 0; i < 30; i++) {
+    app.surpriseMe();
+    const fills = new Set(app.state.placed.map((p) => p.fill));
+    assert.equal(fills.size, 1, `mixed fills: ${[...fills].join(",")}`);
+    assert.ok(["classic", "decor"].includes([...fills][0]));
+  }
+});
+
 test("Fix structure drops a floating tabletop unit without adding parts", () => {
   const { app, doc } = boot();
   app.state.mount = "tabletop";

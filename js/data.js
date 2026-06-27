@@ -22,7 +22,7 @@ const GEN2 = {
 
   // Classic drawers have a print-in-place handle that overhangs the front:
   // their print footprint is this much longer than the case. (To confirm.)
-  classicHandleExtraMM: 20,
+  classicHandleExtraMM: 10,
 
   // Footprints offered in the palette (width units × height units)
   drawerWidths: [1, 2, 3, 4],
@@ -55,7 +55,7 @@ const GEN2 = {
     {
       id: "shelf",
       label: "Shelf",
-      blurb: "Open shelf — case + shelf insert.",
+      blurb: "Open shelf · case + shelf insert.",
       soon: true,
       integerHeightsOnly: true,
       minHeight: 1,
@@ -63,7 +63,7 @@ const GEN2 = {
     {
       id: "cabinet",
       label: "Cabinet",
-      blurb: "Shelf with a door — case (+ extenders), shelf insert, hinges, latches, door.",
+      blurb: "Shelf with a door · case (+ extenders), shelf insert, hinges, latches, door.",
       soon: true,
       integerHeightsOnly: true,
       minHeight: 1,
@@ -117,7 +117,7 @@ const GEN2 = {
     {
       id: "tabletop",
       label: "Tabletop",
-      blurb: "Table Top Kit V2 — covers and foot rails create a rigid standalone unit on any surface.",
+      blurb: "Table Top Kit V2 · covers and foot rails create a rigid standalone unit on any surface.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/table-top-kit",
       askSpace: false,
       planTip: "Tabletop: this builds a free-standing unit, so size is entirely up to you. The Table Top Kit V2 adds the covers and foot rails that make it rigid.",
@@ -129,23 +129,23 @@ const GEN2 = {
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/wall-mount",
       askSpace: true,
       spaceHint: "Measure the wall area you want to fill.",
-      planTip: "Wall Mount: mounts are sectional in 1W / 2W / 3W pieces, so plan in full rows. Use wall anchors rated for your surface — drywall needs more than the screws alone.",
+      planTip: "Wall Mount: mounts are sectional in 1W / 2W / 3W pieces, so plan in full rows. Use wall anchors rated for your surface · drywall needs more than the screws alone.",
     },
   ],
 
   // Drawer lengths (depth in mm). `color` matches the official lineup art.
   lengths: [
-    { id: 59,  label: "59",  color: "#f2f2f2", tagline: "Ultra-shallow — wall storage specialist",
+    { id: 59,  label: "59",  color: "#f2f2f2", tagline: "Ultra-shallow · wall storage specialist",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 115, label: "115", color: "#9ea3a8", tagline: "Medium — fits the majority of printer beds",
+    { id: 115, label: "115", color: "#9ea3a8", tagline: "Medium · fits the majority of printer beds",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 165, label: "165", color: "#3aa0e8", tagline: "Mini Edition — for 180mm beds (A1 Mini, Prusa Mini)",
+    { id: 165, label: "165", color: "#3aa0e8", tagline: "Mini Edition · for 180mm beds (A1 Mini, Prusa Mini)",
       page: "https://www.jerrari3d.com/gen2-modular-system/mini" },
-    { id: 185, label: "185", color: "#ff8a40", tagline: "The GEN2 Standard — best all-around, start here",
+    { id: 185, label: "185", color: "#ff8a40", tagline: "The GEN2 Standard · best all-around, start here",
       page: "https://www.jerrari3d.com/gen2-modular-system/standard", recommended: true },
     { id: 240, label: "240", color: "#3ecfa0", tagline: "Deep storage for extended build plates (X1C, Core One)",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 270, label: "270", color: "#e8453c", tagline: "Large — the deepest drawer in the lineup",
+    { id: 270, label: "270", color: "#e8453c", tagline: "Large · the deepest drawer in the lineup",
       page: "https://www.jerrari3d.com/gen2-modular-system/large" },
   ],
 
@@ -194,13 +194,13 @@ const GEN2 = {
           name: `GEN2 Rails - ${ctx.len}`,
           variant: `${w}W section`,
           qty: count,
-          note: "All rail widths are in the same download — print the section sizes listed.",
+          note: "All rail widths are in the same download · print the section sizes listed.",
         });
       });
       items.push({
         name: "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
         qty: ctx.railScrews,
-        note: "Hardware store item — minimum 4 / 6 / 8 / 10 screws per 1W / 2W / 3W / 4W rail section.",
+        note: "Hardware store item · minimum 4 / 6 / 8 / 10 screws per 1W / 2W / 3W / 4W rail section.",
         hardware: true,
       });
       return items;
@@ -234,17 +234,17 @@ const GEN2 = {
 
       items.push({
         name: P.foot(), qty: feet, linkAs: kit,
-        note: "Snap into the bottom of the build — or use store-bought adhesive rubber feet instead.",
+        note: "Snap into the bottom of the build · or use store-bought adhesive rubber feet instead.",
       });
 
       // Optional M3 hardware, 1 per W. Nuts are shared by covers + foot rails.
       const nuts = cov.screws + frScrews;
       items.push({ name: "M3×6mm screw", qty: cov.screws, hardware: true, optional: true,
-        note: "Optional — secures the covers, 1 per 1W (threads into an M3 nut in the Cover Lower)." });
+        note: "Optional · secures the covers, 1 per 1W (threads into an M3 nut in the Cover Lower)." });
       if (frUsed) items.push({ name: "M3×12mm screw", qty: frScrews, hardware: true, optional: true,
-        note: "Optional — screws the foot rails into the case's M3 nut slots, 1 per 1W." });
+        note: "Optional · screws the foot rails into the case's M3 nut slots, 1 per 1W." });
       items.push({ name: "M3 hex nut", qty: nuts, hardware: true, optional: true,
-        note: "Optional — pairs with the M3 cover / foot-rail screws above." });
+        note: "Optional · pairs with the M3 cover / foot-rail screws above." });
       return items;
     },
     "wall": (ctx) => {
@@ -254,13 +254,13 @@ const GEN2 = {
           name: `GEN2 Wall Mount Kit - Lite - ${ctx.len}`,
           variant: `${w}W section`,
           qty: count,
-          note: "All widths are in the same download — sections install side by side to expand the area.",
+          note: "All widths are in the same download · sections install side by side to expand the area.",
         });
       });
       items.push({
         name: "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
         qty: ctx.cols * GEN2.wallMount.screwsPer1W,
-        note: "Hardware store item — 2 screws per 1W. Use anchors appropriate for your wall type.",
+        note: "Hardware store item · 2 screws per 1W. Use anchors appropriate for your wall type.",
         hardware: true,
       });
       // Wall builds cap the top with the same covers as the Table Top Kit (they
@@ -274,9 +274,9 @@ const GEN2 = {
       const cov = buildCoverItems(ctx.len, coverUnits, kit);
       cov.items.forEach((i) => items.push(i));
       items.push({ name: "M3×6mm screw", qty: cov.screws, hardware: true, optional: true,
-        note: "Optional — secures the covers, 1 per 1W." });
+        note: "Optional · secures the covers, 1 per 1W." });
       items.push({ name: "M3 hex nut", qty: cov.screws, hardware: true, optional: true,
-        note: "Optional — pairs with the M3 cover screws above." });
+        note: "Optional · pairs with the M3 cover screws above." });
       return items;
     },
   },
@@ -294,12 +294,12 @@ const GEN2 = {
       id: "handle",
       name: () => "Handle or knob (any GEN2-compatible design)",
       qtyPerDrawer: 1,
-      note: "Pick any style — handles and knobs are swappable.",
+      note: "Pick any style · handles and knobs are swappable.",
     },
     {
       name: () => "Magnets 10×2mm or 6×2mm (optional soft-close)",
       qtyPerDrawer: 2,
-      note: "Optional — only for soft-close configurations.",
+      note: "Optional · only for soft-close configurations.",
       hardware: true,
       optional: true,
     },

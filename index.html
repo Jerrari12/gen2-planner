@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>GEN2 Planner — JERRARI3D</title>
+<title>GEN2 Planner · JERRARI3D</title>
 <meta name="description" content="Design and plan your GEN2 QuickLock Modular System setup. Pick a mount style, lay out your drawers, and get a complete parts list with download links." />
 <link rel="stylesheet" href="css/style.css" />
 </head>
@@ -24,14 +24,14 @@
 <main>
 
   <!-- STEP 1: Mount type -->
-  <section class="step" id="step-mount">
-    <h2><span class="step-num">1</span> Choose your install location</h2>
+  <section class="step collapsible" id="step-mount">
+    <h2><span class="step-num">1</span> Choose your install location<span class="step-pick" id="mount-pick"></span></h2>
     <div class="card-row" id="mount-cards"></div>
   </section>
 
   <!-- STEP 2: Printer -->
-  <section class="step" id="step-printer">
-    <h2><span class="step-num">2</span> Your printer</h2>
+  <section class="step collapsible" id="step-printer">
+    <h2><span class="step-num">2</span> Your printer<span class="step-pick" id="printer-pick"></span></h2>
     <p class="hint">Lengths and sizes whose case won't fit your bed get marked as incompatible.</p>
     <div class="space-wrap">
       <div class="space-box">
@@ -65,9 +65,9 @@
   </section>
 
   <!-- STEP 3: Length -->
-  <section class="step" id="step-length">
-    <h2><span class="step-num">3</span> Choose your GEN2 length<button type="button" class="info-tip" data-tip="Length is the front-to-back depth, in mm. For the simplest, sturdiest build, stick to one length per setup — pick the deepest your printer bed and space allow. Mixing lengths is possible with the right hardware, but it's best avoided."></button></h2>
-    <p class="hint">Length is how deep the system is, in millimeters. Every component in one setup — drawers, shelves, cabinets, and mounts — shares the same length.</p>
+  <section class="step collapsible" id="step-length">
+    <h2><span class="step-num">3</span> Choose your GEN2 length<button type="button" class="info-tip" data-tip="Length is the front-to-back depth, in mm. For the simplest, sturdiest build, stick to one length per setup · pick the deepest your printer bed and space allow. Mixing lengths is possible with the right hardware, but it's best avoided."></button><span class="step-pick" id="length-pick"></span></h2>
+    <p class="hint">Length is how deep the system is, in millimeters. Every component in one setup (drawers, shelves, cabinets, and mounts) shares the same length.</p>
     <div class="card-row" id="length-cards"></div>
   </section>
 
@@ -90,9 +90,9 @@
             <path d="M40 59 l-14 0 m0 0 l6 -5 m-6 5 l6 5" class="e-arrow"/>
           </svg>
           <ol>
-            <li><b>Cases are the frame.</b> Every spot you fill in the grid is a case — cases QuickLock together into one structure.</li>
-            <li><b>You choose what goes in each case</b> — a Classic or Decor drawer, a shelf, or a cabinet. Swap them anytime.</li>
-            <li><b>The mount holds it all</b> — rails under a table, a Table Top Kit on a surface, or wall mounts.</li>
+            <li><b>Cases are the frame.</b> Every spot you fill in the grid is a case · cases QuickLock together into one structure.</li>
+            <li><b>You choose what goes in each case</b> · a Classic or Decor drawer, a shelf, or a cabinet. Swap them anytime.</li>
+            <li><b>The mount holds it all</b> · rails under a table, a Table Top Kit on a surface, or wall mounts.</li>
           </ol>
         </div>
       </details>
@@ -118,7 +118,7 @@
       <p class="hint" id="space-readout"></p>
     </details>
 
-    <p class="hint">Pick what to fill each case with and a size, then click the grid to place it. Click a placed unit to select it, then use the arrow pad below the grid to nudge it (or drag it) — and remove it from there too.</p>
+    <p class="hint">Pick what to fill each case with and a size, then click the grid to place it. Click a placed unit to select it, then use the arrow pad below the grid to nudge it (or drag it) · and remove it from there too.</p>
 
     <div class="layout-wrap">
       <aside class="palette">
@@ -129,7 +129,7 @@
         <h3>Size</h3>
         <p class="palette-units" id="palette-units"></p>
         <div id="palette-items"></div>
-        <p class="palette-legend"><span class="legend-swatch"></span> won't fit your printer — hover a greyed size to see why</p>
+        <p class="palette-legend"><span class="legend-swatch"></span> won't fit your printer · hover a greyed size to see why</p>
 
         <div class="palette-tools">
           <h3>Grid</h3>
@@ -235,8 +235,8 @@
           <div class="wall-opt" id="wall-stagger" hidden>
             <span class="wall-opt-label">Cover layout</span>
             <div class="seg" id="wall-stagger-seg" role="group" aria-label="Wall cover layout">
-              <button type="button" data-stagger="on">Staggered</button>
               <button type="button" data-stagger="off">Per-column</button>
+              <button type="button" data-stagger="on">Staggered</button>
             </div>
             <span class="wall-opt-hint" id="wall-stagger-hint"></span>
           </div>
@@ -259,9 +259,9 @@
               <!-- seam guides: CU seam over CL middle, CL seam under CU middle -->
               <line class="cg-seam" x1="193" y1="28" x2="193" y2="114"/>
               <line class="cg-seam" x1="117" y1="28" x2="117" y2="114"/>
-              <text class="cg-note" x="40" y="134">The two layers' seams never line up — that's what makes a wide cover one rigid piece.</text>
+              <text class="cg-note" x="40" y="134">The two layers' seams never line up · that's what makes a wide cover one rigid piece.</text>
             </svg>
-            <p class="cg-cap">Every cover is two layers — <b>CU (upper)</b> over <b>CL (lower)</b>, each in 1W and 2W. Offset their seams like brickwork so no joint runs all the way through. <b class="cg-blue">Foot rails (FR-U / FR-L)</b> — shown in <b class="cg-blue">blue</b> on the layout — stack the same way.</p>
+            <p class="cg-cap">Every cover is two layers · <b>CU (upper)</b> over <b>CL (lower)</b>, each in 1W and 2W. Offset their seams like brickwork so no joint runs all the way through. <b class="cg-blue">Foot rails (FR-U / FR-L)</b>, shown in <b class="cg-blue">blue</b> on the layout, stack the same way.</p>
           </div>
         </details>
         </div>
@@ -290,7 +290,7 @@
       <button type="button" class="btn" id="print-bom">Print</button>
     </div>
     <p class="fineprint">
-      Quantities for mount hardware are estimates — always confirm against the instructions at
+      Quantities for mount hardware are estimates · always confirm against the instructions at
       <a href="https://www.jerrari3d.com/gen2-modular-system/instructions" target="_blank" rel="noopener">the GEN2 Instruction Hub</a>.
     </p>
   </section>

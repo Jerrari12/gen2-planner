@@ -72,7 +72,7 @@ Everything the planner knows about GEN2 lives in **`js/data.js`**. No other file
 | Fill types (drawers, shelves, cabinets) | `GEN2.fills` — drop the `soon` flag when shelves/cabinets launch |
 | Faceplate / door styles | `GEN2.faceplateStyles` / `GEN2.doorStyles` |
 | Printer presets (bed sizes) | `GEN2.printers` |
-| Classic-drawer handle overhang | `GEN2.classicHandleExtraMM` (currently 20mm — to confirm) |
+| Classic-drawer handle overhang | `GEN2.classicHandleExtraMM` (10mm — confirmed via slicer edge-fit) |
 | Lengths and their jerrari3d.com pages | `GEN2.lengths` |
 | Rail widths & screw counts | `GEN2.railWidths` / `GEN2.railScrews` |
 | Wall mount sections & fit rule | `GEN2.wallMount` (incl. the 3W diagonal-fit threshold) |

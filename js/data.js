@@ -44,11 +44,13 @@ const GEN2 = {
       id: "classic",
       label: "Classic Drawer",
       blurb: "Print-in-place handle. No assembly, no extra parts.",
+      previewImg: "img/parts/GEN2_185-1W-1H Classic Drawer_256p.png",
     },
     {
       id: "decor",
       label: "Decor Drawer",
       blurb: "Swappable faceplate + handle/knob. Clips included in the drawer download (v2602).",
+      previewImg: "img/parts/185-1W-1H Decor Drawer.png",
     },
     {
       id: "shelf",
@@ -71,8 +73,8 @@ const GEN2 = {
   // Appearance styles for Decor faceplates and (future) cabinet doors
   faceplateStyles: [
     { id: "essential",  label: "Essential" },
-    { id: "edgelabel",  label: "EdgeLabel" },
-    { id: "classicpro", label: "Classic Pro" },
+    { id: "edgelabel",  label: "EdgeLabel",   integratedHandle: true, labelGen: "https://edgelabel.jerrari3d.com/" },
+    { id: "classicpro", label: "Classic Pro", integratedHandle: true, labelGen: "https://classic.jerrari3d.com/" },
   ],
   doorStyles: [
     { id: "essential",  label: "Essential" },
@@ -83,19 +85,21 @@ const GEN2 = {
   // Printer presets — usable bed size in mm (X × Y).
   // A part fits if its footprint fits the bed in either orientation.
   printers: [
-    { id: "any",       label: "Any printer / not sure", x: null, y: null },
-    { id: "a1mini",    label: "Bambu Lab A1 Mini",      x: 180, y: 180 },
-    { id: "a1",        label: "Bambu Lab A1",           x: 256, y: 256 },
-    { id: "p1s",       label: "Bambu Lab P1P / P1S",    x: 256, y: 256 },
-    { id: "x1c",       label: "Bambu Lab X1C",          x: 256, y: 256 },
-    { id: "h2d",       label: "Bambu Lab H2D",          x: 350, y: 320 },
-    { id: "prusamini", label: "Prusa MINI+",            x: 180, y: 180 },
-    { id: "mk4s",      label: "Prusa MK4S",             x: 250, y: 210 },
-    { id: "coreone",   label: "Prusa Core One",         x: 250, y: 220 },
-    { id: "xl",        label: "Prusa XL",               x: 360, y: 360 },
-    { id: "ender3v3",  label: "Creality Ender-3 V3",    x: 220, y: 220 },
-    { id: "k1max",     label: "Creality K1 Max",        x: 300, y: 300 },
-    { id: "custom",    label: "Custom…",                x: null, y: null },
+    { id: "any",        label: "Any printer / not sure", x: null, y: null },
+    { id: "coreone",    label: "Prusa Core One",         x: 250, y: 220 },
+    { id: "coreonel",   label: "Prusa Core One L",       x: 300, y: 300 },
+    { id: "mk4",        label: "Prusa MK4 / MK3.9",      x: 250, y: 210 },
+    { id: "xl",         label: "Prusa XL",               x: 360, y: 360 },
+    { id: "bambux1",    label: "Bambu X1 / P1 / A1",     x: 256, y: 256 },
+    { id: "a1mini",     label: "Bambu A1 mini",          x: 180, y: 180 },
+    { id: "h2d",        label: "Bambu H2D / H2C / H2S",  x: 325, y: 320 },
+    { id: "x2d",        label: "Bambu X2D",              x: 256, y: 256 },
+    { id: "p2s",        label: "Bambu P2S",              x: 256, y: 256 },
+    { id: "snapmakeru1",label: "Snapmaker U1",           x: 270, y: 270 },
+    { id: "ender3",     label: "Ender 3 / Neo",          x: 220, y: 220 },
+    { id: "ender5plus", label: "Ender 5 Plus",           x: 300, y: 300 },
+    { id: "voron24",    label: "Voron 2.4 / Trident",    x: 350, y: 350 },
+    { id: "custom",     label: "Custom…",                x: null, y: null },
   ],
 
   // Install locations. `askSpace` adds "available width/height in mm" inputs
@@ -108,6 +112,7 @@ const GEN2 = {
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/instructions-hanging",
       askSpace: true,
       spaceHint: "Measure the flat area on the underside of your table.",
+      planTip: "Under-Table: rails screw to the underside and drawers slide up into them. Set the Workable area to your usable underside space so the grid can't outgrow it.",
     },
     {
       id: "tabletop",
@@ -115,6 +120,7 @@ const GEN2 = {
       blurb: "Table Top Kit V2 — covers and foot rails create a rigid standalone unit on any surface.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/table-top-kit",
       askSpace: false,
+      planTip: "Tabletop: this builds a free-standing unit, so size is entirely up to you. The Table Top Kit V2 adds the covers and foot rails that make it rigid.",
     },
     {
       id: "wall",
@@ -123,6 +129,7 @@ const GEN2 = {
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/wall-mount",
       askSpace: true,
       spaceHint: "Measure the wall area you want to fill.",
+      planTip: "Wall Mount: mounts are sectional in 1W / 2W / 3W pieces, so plan in full rows. Use wall anchors rated for your surface — drywall needs more than the screws alone.",
     },
   ],
 
@@ -198,13 +205,48 @@ const GEN2 = {
       });
       return items;
     },
-    "tabletop": (ctx) => [
-      {
-        name: `GEN2 Table Top Kit V2 - ${ctx.len}`,
-        qty: ctx.cols,
-        note: "1 kit (cover + foot rail L/R + feet) per 1W of the structure.",
-      },
-    ],
+    "tabletop": (ctx) => {
+      const P = GEN2.partNames;
+      const kit = `GEN2 Table Top Kit V2 - ${ctx.len}`;
+      const cov = buildCoverItems(ctx.len, ctx.runs, kit);
+      const items = cov.items.slice();
+
+      // Foot rails only where a run's bottom row is more than one case (separate
+      // bottom cases need tying together). Both FR layers always, full run width.
+      const fru = {}, frl = {};
+      let frScrews = 0, feet = 0, frUsed = false;
+      ctx.runs.forEach((run) => {
+        feet += 2 * (run.width + 1);
+        if (run.bottomCases >= 2) {
+          frUsed = true;
+          const t = brickTiling(run.width);
+          addMix(fru, t.upper);
+          addMix(frl, t.lower);
+          frScrews += run.width;
+        }
+      });
+      if (frUsed) {
+        mixLines(fru, P.footRailUpper, ctx.len, { linkAs: kit, note: "From the Table Top Kit V2 download." })
+          .forEach((i) => items.push(i));
+        mixLines(frl, P.footRailLower, ctx.len, { linkAs: kit, note: "From the Table Top Kit V2 download. Needed when the bottom row is more than one case." })
+          .forEach((i) => items.push(i));
+      }
+
+      items.push({
+        name: P.foot(), qty: feet, linkAs: kit,
+        note: "Snap into the bottom of the build — or use store-bought adhesive rubber feet instead.",
+      });
+
+      // Optional M3 hardware, 1 per W. Nuts are shared by covers + foot rails.
+      const nuts = cov.screws + frScrews;
+      items.push({ name: "M3×6mm screw", qty: cov.screws, hardware: true, optional: true,
+        note: "Optional — secures the covers, 1 per 1W (threads into an M3 nut in the Cover Lower)." });
+      if (frUsed) items.push({ name: "M3×12mm screw", qty: frScrews, hardware: true, optional: true,
+        note: "Optional — screws the foot rails into the case's M3 nut slots, 1 per 1W." });
+      items.push({ name: "M3 hex nut", qty: nuts, hardware: true, optional: true,
+        note: "Optional — pairs with the M3 cover / foot-rail screws above." });
+      return items;
+    },
     "wall": (ctx) => {
       const items = [];
       Object.entries(ctx.wallMix).sort((a, b) => b[0] - a[0]).forEach(([w, count]) => {
@@ -221,6 +263,20 @@ const GEN2 = {
         note: "Hardware store item — 2 screws per 1W. Use anchors appropriate for your wall type.",
         hardware: true,
       });
+      // Wall builds cap the top with the same covers as the Table Top Kit (they
+      // close the exposed top and carry the top-row drawer-stopper slots). No
+      // foot rails or feet — a wall build hangs off the ground.
+      // Staggered = one connected top (tile the whole run). Per-column = each
+      // top case gets its own cover (1W/2W = a single piece; 3W/4W still tile
+      // internally to reach the width), so columns lift off independently.
+      const kit = `GEN2 Table Top Kit V2 - ${ctx.len}`;
+      const coverUnits = ctx.wallStagger ? ctx.runs : ctx.topCases.map((w) => ({ width: w }));
+      const cov = buildCoverItems(ctx.len, coverUnits, kit);
+      cov.items.forEach((i) => items.push(i));
+      items.push({ name: "M3×6mm screw", qty: cov.screws, hardware: true, optional: true,
+        note: "Optional — secures the covers, 1 per 1W." });
+      items.push({ name: "M3 hex nut", qty: cov.screws, hardware: true, optional: true,
+        note: "Optional — pairs with the M3 cover screws above." });
       return items;
     },
   },
@@ -235,6 +291,7 @@ const GEN2 = {
   // Optional extras for Decor drawers
   decorExtras: [
     {
+      id: "handle",
       name: () => "Handle or knob (any GEN2-compatible design)",
       qtyPerDrawer: 1,
       note: "Pick any style — handles and knobs are swappable.",
@@ -261,6 +318,11 @@ const GEN2 = {
     faceplate:   (len, size, style)     => `GEN2 ${len} ${style} Decor Faceplate - ${size}`,
     door:        (len, size, style)     => `GEN2 ${len} ${style} Door - ${size}`,
     sideCover:   (len, h)               => `GEN2 ${len} Side Cover - ${h}H`,
+    coverUpper:    (len, w)             => `GEN2 ${len} Cover Upper (CU) - ${w}W`,
+    coverLower:    (len, w)             => `GEN2 ${len} Cover Lower (CL) - ${w}W`,
+    footRailUpper: (len, w)             => `GEN2 ${len} Foot Rail Upper (FR-U) - ${w}W`,
+    footRailLower: (len, w)             => `GEN2 ${len} Foot Rail Lower (FR-L) - ${w}W`,
+    foot:          ()                   => "GEN2 Foot (TPU)",
     hinge:       ()                     => "GEN2 Cabinet Hinge (1H)",
     latch:       ()                     => "GEN2 Door Latch (1H)",
     quickLockL:  ()                     => "GEN2 QuickLock - Left",
@@ -271,6 +333,58 @@ const GEN2 = {
   // instead of download links. Remove entries as they're released.
   unreleased: ["shelfInsert", "door", "hinge", "latch", "sideCover"],
 };
+
+/* ---------------------------------------------------------------------------
+   Cover / foot-rail brick-stagger solver + BOM helpers.
+   Tiles a width N (W units) into 1W/2W pieces across two staggered layers
+   (upper + lower) so their seams never align. Returns piece counts per layer.
+   - 1W / 2W: single piece, lower layer optional (snaps to the case).
+   - odd ≥3 : one 1W per layer on opposite ends, rest 2W; both layers required.
+   - even ≥4: one all-2W layer, the other with a 1W cap at both ends; both req'd.
+   --------------------------------------------------------------------------- */
+function brickTiling(n) {
+  if (n <= 0) return { upper: {}, lower: {}, lowerOptional: true };
+  if (n === 1) return { upper: { 1: 1 }, lower: { 1: 1 }, lowerOptional: true };
+  if (n === 2) return { upper: { 2: 1 }, lower: { 2: 1 }, lowerOptional: true };
+  if (n % 2 === 1) {
+    const twos = (n - 1) / 2;
+    return { upper: { 1: 1, 2: twos }, lower: { 1: 1, 2: twos }, lowerOptional: false };
+  }
+  return { upper: { 2: n / 2 }, lower: { 1: 2, 2: (n - 2) / 2 }, lowerOptional: false };
+}
+
+function addMix(target, mix) {
+  for (const w in mix) target[w] = (target[w] || 0) + mix[w];
+}
+
+// One BOM line per width present (2W first, then 1W), merging `extra` fields.
+function mixLines(mix, nameFn, len, extra) {
+  const out = [];
+  [2, 1].forEach((w) => {
+    if (mix[w]) out.push(Object.assign({ name: nameFn(len, w), qty: mix[w] }, extra));
+  });
+  return out;
+}
+
+// Covers (CU + CL) tiled over each contiguous run. Shared by tabletop + wall.
+// Returns { items, screws } where screws = optional M3-6mm count (1 per W).
+function buildCoverItems(len, runs, kit) {
+  const P = GEN2.partNames;
+  const cu = {}, cl = {};
+  let screws = 0;
+  runs.forEach((run) => {
+    const t = brickTiling(run.width);
+    addMix(cu, t.upper);
+    addMix(cl, t.lower);
+    screws += run.width;
+  });
+  const items = [];
+  mixLines(cu, P.coverUpper, len, { linkAs: kit, note: "From the GEN2 Table Top Kit V2 download." })
+    .forEach((i) => items.push(i));
+  mixLines(cl, P.coverLower, len, { linkAs: kit, note: "From the Table Top Kit V2 download. Optional on 1W/2W-only builds, but needed for drawer stoppers and rigidity." })
+    .forEach((i) => items.push(i));
+  return { items, screws };
+}
 
 /* ---------------------------------------------------------------------------
    Exact download links, keyed by the generated part name.

@@ -22,6 +22,7 @@
     selected: { w: 1, h: 1 },
     selectedUnit: null,     // id of placed unit shown in the inspector
     nextId: 1,
+    wallStagger: true,      // wall covers: true = staggered top, false = per-column
   };
 
   const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 10 };
@@ -281,8 +282,14 @@
           : `${state.spaceH}mm tall → up to ${n}H (${n * GEN2.units.heightMM}mm used)`);
       }
       $("#space-readout").textContent = parts.join(" · ");
+      $("#space-summary-status").textContent = (state.spaceW || state.spaceH)
+        ? `${state.spaceW || "—"} × ${state.spaceH || "—"} mm`
+        : "optional — caps the grid to your space";
       renderSpaceGraphic();
     }
+
+    const tip = $("#explainer-tip");
+    if (tip) tip.textContent = (m && m.planTip) || "";
 
     $("#custom-bed").hidden = state.printer !== "custom";
     const bed = bedSize();
@@ -416,10 +423,17 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "fill-tile" + (state.fill === f.id ? " active" : "");
+      const card =
+        `<span class="tip-card" role="tooltip">` +
+        (f.previewImg
+          ? `<img class="tip-card-img" src="${f.previewImg}" alt="${f.label}" loading="lazy" />`
+          : "") +
+        `<span class="tip-card-text"><b>${f.label}</b>${f.blurb}</span>` +
+        `</span>`;
       btn.innerHTML =
         `<span class="fill-icon">${fillIcon(f.id)}</span>` +
-        `<span class="fill-label">${f.label}${f.soon ? ' <span class="soon">soon</span>' : ""}</span>`;
-      btn.title = f.blurb;
+        `<span class="fill-label">${f.label}${f.soon ? ' <span class="soon">soon</span>' : ""}</span>` +
+        card;
       btn.addEventListener("click", () => {
         state.fill = f.id;
         ensureValidSelection();
@@ -447,6 +461,16 @@
     build("#door-style-seg", GEN2.doorStyles, state.doorStyle, (id) => { state.doorStyle = id; });
     $("#faceplate-style-pick").hidden = !state.placed.some((p) => p.fill === "decor");
     $("#door-style-pick").hidden = !state.placed.some((p) => p.fill === "cabinet");
+    // Label-bearing faceplates (EdgeLabel / Classic Pro) link out to the label generator.
+    const fdef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    const link = $("#label-gen-link");
+    if (fdef && fdef.labelGen) {
+      link.hidden = false;
+      link.href = fdef.labelGen;
+      link.textContent = `🏷 Design your ${fdef.label} labels →`;
+    } else {
+      link.hidden = true;
+    }
   }
 
   function renderPalette() {
@@ -595,6 +619,11 @@
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     svg.setAttribute("width", W);
     svg.setAttribute("height", H);
+    // Grow a small build to fill the board area (up to 2.4×) so it isn't tiny;
+    // a large one fits the container width (and scrolls if tall) as before.
+    const avail = (svg.parentElement ? svg.parentElement.clientWidth : 0) - 18;
+    if (avail > 40) { svg.style.width = Math.min(avail, W * 2.4) + "px"; svg.style.height = "auto"; }
+    else { svg.style.width = ""; svg.style.height = ""; }
     svg.innerHTML = "";
 
     drawMountScene(svg, W, H);
@@ -606,7 +635,8 @@
     for (let r = 0; r <= rows(); r++)
       el("line", { x1: gx, y1: gy + r * (CH / 2), x2: gx + state.gridW * CW, y2: gy + r * (CH / 2), class: r % 2 ? "g-line faint" : "g-line" }, svg);
 
-    state.placed.forEach((p) => drawUnit(svg, p));
+    const bows = bowRisks();
+    state.placed.forEach((p) => drawUnit(svg, p, bows));
 
     if (drag && drag.moved) {
       // moving an existing unit: ghost it at the drop target
@@ -636,13 +666,14 @@
     renderWarnings();
   }
 
-  function drawUnit(svg, p) {
+  function drawUnit(svg, p, bows) {
     const x = PAD.left + p.x * CW, y = PAD.top + p.y * (CH / 2);
     const w = p.w * CW, h = p.hh * (CH / 2);
     const sel = state.selectedUnit === p.id;
     const dragging = drag && drag.moved && drag.id === p.id;
     const g = el("g", {
-      class: "drawer" + (sel ? " selected" : "") + (dragging ? " dragging" : ""),
+      class: "drawer" + (sel ? " selected" : "") + (dragging ? " dragging" : "")
+        + (bows && bows.has(p.id) ? " bow" : ""),
       "data-id": p.id,
     }, svg);
     // an advanced cabinet whose interior isn't fully tiled flags red on the board
@@ -700,6 +731,9 @@
     }
     el("text", { x: x + w - 8, y: y + h - 9, class: "d-label", "text-anchor": "end" }, g)
       .textContent = sizeToken(p.w, p.hh / 2);
+    if (p.label) {
+      el("text", { x: x + 9, y: y + 16, class: "d-userlabel" }, g).textContent = p.label;
+    }
   }
 
   /* Mount-specific scenery drawn around the grid, with the needed
@@ -722,33 +756,45 @@
           .textContent = `▮ GEN2 Rails - ${state.length ?? ""}: ${mixText(railMix())}`;
       }
     } else if (state.mount === "tabletop") {
-      el("rect", { x: 0, y: gridBottom + 14, width: W, height: 14, class: "s-wood" }, svg);
-      el("text", { x: W / 2, y: gridBottom + 44, class: "s-label", "text-anchor": "middle" }, svg)
+      const COV = 6, GAP = 2.5;
+      const cuY = gy - 26, clY = gy - 17;                    // cover layers, above the grid (the lid)
+      const fruY = gridBottom + 2, frlY = gridBottom + 10;   // foot-rail layers, below the grid
+      const floor = state.placed.length ? Math.max(...state.placed.map((p) => p.y + p.hh)) : 0;
+      const drawLayer = (pieces, y, cls) => pieces.forEach((pc) =>
+        el("rect", { x: PAD.left + pc.x * CW + GAP, y, width: pc.w * CW - 2 * GAP, height: COV, rx: 2, class: cls }, svg));
+
+      let anyFootRail = false;
+      columnRuns().forEach((run) => {
+        const lay = coverLayout(run.start, run.len);
+        // Covers (always): upper over lower, seams offset like brick.
+        drawLayer(lay.upper, cuY, "s-cover-u");
+        drawLayer(lay.lower, clY, "s-cover-l");
+        // Foot rails: only where the run's bottom row is more than one case.
+        const bottomCases = state.placed.filter((p) =>
+          p.y + p.hh === floor && p.x >= run.start && p.x < run.start + run.len).length;
+        if (bottomCases >= 2) {
+          anyFootRail = true;
+          drawLayer(lay.upper, fruY, "s-fr-u");
+          drawLayer(lay.lower, frlY, "s-fr-l");
+        }
+        // A foot at every W-boundary of the run.
+        for (let i = 0; i <= run.len; i++)
+          el("rect", { x: PAD.left + (run.start + i) * CW - 5, y: gridBottom + 18, width: 10, height: 7, rx: 2, class: "s-foot" }, svg);
+      });
+
+      // Left-edge tags so the look-alike layers are learnable.
+      const tag = (txt, y) => { el("text", { x: 3, y: y + COV, class: "s-tag" }, svg).textContent = txt; };
+      if (cols.length) { tag("CU", cuY); tag("CL", clY); }
+      if (anyFootRail) { tag("FR-U", fruY); tag("FR-L", frlY); }
+
+      el("rect", { x: 0, y: gridBottom + 29, width: W, height: 10, class: "s-wood" }, svg);
+      el("text", { x: W / 2, y: gridBottom + 51, class: "s-label", "text-anchor": "middle" }, svg)
         .textContent = "tabletop surface";
-      // covers sit on top of each column's stack; contiguous columns at the
-      // same height merge into one slab (uneven tops are visibly broken)
-      const tops = columnTops();
-      let slab = null;
-      const flushSlab = () => {
-        if (!slab) return;
-        el("rect", {
-          x: PAD.left + slab.start * CW + 3, y: gy + slab.top * (CH / 2) - 10,
-          width: (slab.end - slab.start + 1) * CW - 6, height: 8, rx: 2, class: "s-part s-cover",
-        }, svg);
-        slab = null;
-      };
-      cols.forEach((c) => {
-        if (slab && c === slab.end + 1 && tops[c] === slab.top) slab.end = c;
-        else { flushSlab(); slab = { start: c, end: c, top: tops[c] }; }
-      });
-      flushSlab();
-      cols.forEach((c) => {
-        el("rect", { x: PAD.left + c * CW + 6, y: gridBottom + 2, width: 14, height: 10, rx: 2, class: "s-part" }, svg);
-        el("rect", { x: PAD.left + (c + 1) * CW - 20, y: gridBottom + 2, width: 14, height: 10, rx: 2, class: "s-part" }, svg);
-      });
       if (cols.length) {
-        el("text", { x: PAD.left, y: gy - 18, class: "s-part-label" }, svg)
-          .textContent = `▮ ${cols.length}× Table Top Kit V2 (cover + foot rails)`;
+        el("text", { x: PAD.left, y: gy - 48, class: "s-part-label" }, svg)
+          .textContent = `▮ Table Top Kit V2 - ${state.length ?? ""}`;
+        el("text", { x: PAD.left, y: gy - 36, class: "s-hint-label" }, svg)
+          .textContent = "Covers (CU over CL) stagger like brick — seams offset for strength";
       }
     } else if (state.mount === "wall") {
       el("rect", { x: 0, y: 0, width: 16, height: H, class: "s-wood" }, svg);
@@ -756,18 +802,34 @@
         el("line", { x1: 4, y1: yy, x2: 12, y2: yy + 8, class: "s-wood-grain" }, svg);
       el("text", { x: 26, y: 16, class: "s-label" }, svg)
         .textContent = "wall" + (state.spaceW ? ` — ${state.spaceW}mm available` : "");
-      // one bar per wall-mount section, with 2 screw dots per 1W
+      // The bracket goes on first (mount is behind the cases), so draw it at the
+      // very top; the covers (the lid, on top of the cases) sit just below it —
+      // reads more naturally than sandwiching the covers between bracket & case.
+      const COVw = 6, GAPw = 2.5;
       wallSections().forEach((s) => {
-        el("rect", { x: PAD.left + s.start * CW + 6, y: gy - 10, width: s.w * CW - 12, height: 10, rx: 2, class: "s-part s-wallmount" }, svg);
+        el("rect", { x: PAD.left + s.start * CW + 6, y: gy - 38, width: s.w * CW - 12, height: 9, rx: 2, class: "s-part s-wallmount" }, svg);
         for (let u = 0; u < s.w; u++) {
           const cx0 = PAD.left + (s.start + u) * CW;
-          el("circle", { cx: cx0 + CW * 0.32, cy: gy - 5, r: 2, class: "s-screw" }, svg);
-          el("circle", { cx: cx0 + CW * 0.68, cy: gy - 5, r: 2, class: "s-screw" }, svg);
+          el("circle", { cx: cx0 + CW * 0.32, cy: gy - 33.5, r: 2, class: "s-screw" }, svg);
+          el("circle", { cx: cx0 + CW * 0.68, cy: gy - 33.5, r: 2, class: "s-screw" }, svg);
         }
+      });
+      const drawLayerW = (pieces, y, cls) => pieces.forEach((pc) =>
+        el("rect", { x: PAD.left + pc.x * CW + GAPw, y, width: pc.w * CW - 2 * GAPw, height: COVw, rx: 2, class: cls }, svg));
+      // staggered = tile each run; per-column = tile each top case independently
+      const coverUnits = state.wallStagger
+        ? columnRuns().map((r) => ({ start: r.start, len: r.len }))
+        : topCases().map((p) => ({ start: p.x, len: p.w }));
+      coverUnits.forEach((u) => {
+        const lay = coverLayout(u.start, u.len);
+        drawLayerW(lay.upper, gy - 24, "s-cover-u");
+        drawLayerW(lay.lower, gy - 15, "s-cover-l");
       });
       if (cols.length) {
         el("text", { x: PAD.left, y: gridBottom + 24, class: "s-part-label" }, svg)
           .textContent = `▮ Wall Mount Kit - Lite - ${state.length ?? ""}: ${mixText(mixOf(wallSections()))}`;
+        el("text", { x: PAD.left, y: gridBottom + 38, class: "s-hint-label" }, svg)
+          .textContent = `+ top covers (CU over CL, ${state.wallStagger ? "staggered" : "per-column"})`;
       }
     }
   }
@@ -792,6 +854,15 @@
     return [...set].sort((a, b) => a - b);
   }
 
+  /* Units with nothing directly above them — the exposed top row. Covers cap
+     these; in wall "per-column" mode each gets its own cover. */
+  function topCases() {
+    return state.placed.filter((p) => {
+      for (let dx = 0; dx < p.w; dx++) if (unitAt(p.x + dx, p.y - 1)) return false;
+      return true;
+    });
+  }
+
   /* Contiguous runs of occupied columns, e.g. cols 0,1,3,4,5 →
      [{start: 0, len: 2}, {start: 3, len: 3}] */
   function columnRuns() {
@@ -807,6 +878,21 @@
     });
     if (prev !== null) runs.push({ start, len: prev - start + 1 });
     return runs;
+  }
+
+  /* Two staggered cover / foot-rail layers over a run [start, start+n): the
+     upper and lower layers tile the width in 1W/2W pieces with offset seams,
+     so the brick pattern reads visually. Mirrors data.js brickTiling(). */
+  function coverLayout(start, n) {
+    const seq = (widths) => { let p = start; return widths.map((w) => { const o = { x: p, w }; p += w; return o; }); };
+    if (n <= 1) return { upper: seq([1]), lower: seq([1]) };
+    if (n === 2) return { upper: seq([2]), lower: seq([2]) };
+    if (n % 2 === 1) {                                  // odd ≥3: 1W lead vs 1W trail
+      const twos = Array((n - 1) / 2).fill(2);
+      return { upper: seq([1, ...twos]), lower: seq([...twos, 1]) };
+    }
+    const mid = Array((n - 2) / 2).fill(2);             // even ≥4: all-2W vs 1W caps
+    return { upper: seq(Array(n / 2).fill(2)), lower: seq([1, ...mid, 1]) };
   }
 
   /* Lay sections over each contiguous run, biggest-first within the
@@ -902,6 +988,203 @@
     refresh();
   }
 
+  /* "Surprise me": a random but always-valid build for the current mount /
+     length / printer. Built as solid rows (each tiles the full width, so every
+     case is fully supported by the row toward the surface) of random widths,
+     heights, and drawer fills. */
+  function surpriseMe() {
+    const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+    const pick = (arr) => arr[randInt(0, arr.length - 1)];
+    const FILLS = ["classic", "decor"];
+
+    // widest case width that prints on the current bed at this length
+    let maxFitW = 0;
+    for (let w = 1; w <= 4; w++) if (FILLS.some((f) => fillFits(w, f))) maxFitW = w;
+    if (!maxFitW) {
+      const box = $("#board-warnings");
+      box.innerHTML = "";
+      warn(box, "No case size fits the selected printer at this length — pick a smaller length or a larger printer, then try again.");
+      return;
+    }
+
+    const fromTop = state.mount !== "tabletop";
+    const maxW = Math.max(1, Math.min(capW(), 5));
+    const W = randInt(Math.min(2, maxW), maxW);
+
+    // Tile one row of height hh (half-rows) across the full width W.
+    const tileRow = (hh) => {
+      const cases = [];
+      for (let x = 0; x < W; ) {
+        const opts = [];
+        for (let w = 1; w <= Math.min(maxFitW, W - x); w++) {
+          if (!sizeExists(w, hh / 2)) continue;
+          const ff = FILLS.filter((f) => fillFits(w, f));
+          if (ff.length) opts.push({ w, fills: ff });
+        }
+        const o = opts.length ? pick(opts) : { w: 1, fills: [FILLS[0]] };
+        cases.push({ x, w: o.w, fill: pick(o.fills) });
+        x += o.w;
+      }
+      return { hh, cases };
+    };
+
+    // Stack 1–3 rows of 1H/2H, capped by the workable/grid height.
+    const maxHH = capH() * 2;
+    const rowsArr = [];
+    let totalHH = 0;
+    for (let i = 0, n = randInt(1, 3); i < n; i++) {
+      const cand = [2, 4].filter((hh) => totalHH + hh <= maxHH && sizeExists(1, hh / 2));
+      if (!cand.length) break;
+      const hh = pick(cand);
+      rowsArr.push(tileRow(hh));
+      totalHH += hh;
+    }
+    if (!rowsArr.length) rowsArr.push(tileRow(2)), (totalHH = 2);
+
+    state.placed = [];
+    state.selectedUnit = null;
+    state.nextId = 1;
+    state.gridW = Math.max(GRID_LIMITS.wMin, Math.min(capW(), W));
+    state.gridH = Math.max(GRID_LIMITS.hMin, Math.min(capH(), Math.ceil(totalHH / 2)));
+    let cursor = fromTop ? 0 : rows();        // build outward from the mount surface
+    rowsArr.forEach((row) => {
+      const y = fromTop ? cursor : cursor - row.hh;
+      row.cases.forEach((c) =>
+        state.placed.push({ id: state.nextId++, x: c.x, y, w: c.w, hh: row.hh, fill: c.fill, shelves: 0 }));
+      cursor = fromTop ? cursor + row.hh : cursor - row.hh;
+    });
+    refresh();
+  }
+
+  /* ----------------------- Save / load builds ----------------------- */
+
+  // The fields that make a build reproducible (setup + layout).
+  const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
+    "faceStyle", "doorStyle", "wallStagger", "gridW", "gridH", "placed", "nextId"];
+  const BUILDS_KEY = "gen2-builds";
+
+  const serializeBuild = () => {
+    const o = {};
+    BUILD_FIELDS.forEach((k) => { o[k] = state[k]; });
+    return JSON.parse(JSON.stringify(o));   // deep copy (placed array)
+  };
+
+  function applyBuild(data) {
+    if (!data || !Array.isArray(data.placed)) return false;
+    data = JSON.parse(JSON.stringify(data));   // isolate from the source (no shared refs)
+    BUILD_FIELDS.forEach((k) => { if (k in data) state[k] = data[k]; });
+    state.selectedUnit = null;
+    // Reflect the restored setup back into the controls.
+    $("#printer-select").value = state.printer;
+    if (state.customBed) { $("#bed-x").value = state.customBed.x ?? ""; $("#bed-y").value = state.customBed.y ?? ""; }
+    $("#space-w").value = state.spaceW ?? "";
+    $("#space-h").value = state.spaceH ?? "";
+    renderMountCards();
+    refresh();
+    return true;
+  }
+
+  const loadBuilds = () => { try { return JSON.parse(store.get(BUILDS_KEY)) || []; } catch (e) { return []; } };
+  const saveBuilds = (list) => store.set(BUILDS_KEY, JSON.stringify(list));
+
+  function saveCurrentBuild() {
+    if (!state.placed.length) return;
+    const name = (window.prompt("Name this build:", `${state.length} ${state.mount} build`) || "").trim();
+    if (!name) return;
+    const list = loadBuilds().filter((b) => b.name !== name);   // overwrite same name
+    list.push({ name, savedAt: Date.now(), data: serializeBuild() });
+    saveBuilds(list);
+    renderBuildList();
+  }
+
+  function deleteBuild(name) {
+    saveBuilds(loadBuilds().filter((b) => b.name !== name));
+    renderBuildList();
+  }
+
+  function renderBuildList() {
+    const box = $("#build-list");
+    if (!box) return;
+    const list = loadBuilds().sort((a, b) => b.savedAt - a.savedAt);
+    box.innerHTML = "";
+    if (!list.length) {
+      const p = document.createElement("p");
+      p.className = "builds-empty";
+      p.textContent = "No saved builds yet.";
+      box.appendChild(p);
+      return;
+    }
+    list.forEach((b) => {
+      const row = document.createElement("div");
+      row.className = "build-row";
+      const load = document.createElement("button");
+      load.type = "button"; load.className = "build-load"; load.textContent = b.name;
+      load.title = "Load this build";
+      load.addEventListener("click", () => applyBuild(b.data));
+      const exp = document.createElement("button");
+      exp.type = "button"; exp.className = "build-act"; exp.textContent = "⭳";
+      exp.setAttribute("aria-label", `Export ${b.name} to a file`);
+      exp.title = "Export to file";
+      exp.addEventListener("click", () => exportBuild(b.data, b.name));
+      const del = document.createElement("button");
+      del.type = "button"; del.className = "build-act build-del"; del.textContent = "✕";
+      del.setAttribute("aria-label", `Delete ${b.name}`);
+      del.title = "Delete";
+      del.addEventListener("click", () => deleteBuild(b.name));
+      row.append(load, exp, del);
+      box.appendChild(row);
+    });
+  }
+
+  // Download a saved build as a file, reusing its saved name (named once, at Save).
+  function exportBuild(data, name) {
+    const blob = new Blob([JSON.stringify({ gen2Build: 1, data }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (name ? name.replace(/[^\w.-]+/g, "-") : "gen2-build") + ".json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // base64(JSON) of the build, UTF-8 safe.
+  const encodeBuildHash = () => btoa(unescape(encodeURIComponent(JSON.stringify(serializeBuild()))));
+  function applyBuildHash(hash) {
+    try { return applyBuild(JSON.parse(decodeURIComponent(escape(atob(hash))))); } catch (e) { return false; }
+  }
+  // Load a build from a #build=… link on first open.
+  function loadBuildFromHash() {
+    const m = (location.hash || "").match(/build=([^&]+)/);
+    return m ? applyBuildHash(m[1]) : false;
+  }
+
+  function shareLink() {
+    if (!state.placed.length) return;
+    const url = location.origin + location.pathname + "#build=" + encodeBuildHash();
+    const flash = () => {
+      const b = $("#build-share"), t = b.dataset.label || b.textContent;
+      b.dataset.label = t; b.textContent = "✓ Link copied!";
+      setTimeout(() => { b.textContent = t; }, 1800);
+    };
+    const fallback = () => { const i = $("#share-url"); i.hidden = false; i.value = url; i.focus(); i.select(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(flash, fallback);
+    } else fallback();
+  }
+
+  function importBuild(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let ok = false;
+      try { const p = JSON.parse(reader.result); ok = applyBuild(p && p.data ? p.data : p); } catch (e) { ok = false; }
+      if (!ok) {
+        const box = $("#board-warnings");
+        warn(box, "That file isn't a valid GEN2 build.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
   function renderBoardMeta() {
     const meta = $("#board-meta");
     if (!state.placed.length) {
@@ -917,6 +1200,90 @@
     meta.textContent =
       `${state.placed.length} unit${state.placed.length > 1 ? "s" : ""} · ` +
       `footprint ≈ ${wmm}mm W × ${hmm}mm H × ${state.length}mm D`;
+  }
+
+  /* Auto-correct "unsupported on both ends": first settle every unit toward the
+     mount surface (free — no new parts), then fill any remaining open-end gaps
+     with the fewest 1W cases. Mirrored for hanging mounts. Returns a tally. */
+  function fixStructure() {
+    const fromTop = state.mount !== "tabletop";
+    const step = fromTop ? -1 : 1;                       // one half-row toward the surface
+    const startY = new Map(state.placed.map((p) => [p.id, p.y]));
+
+    // 1) Gravity settle, repeating until nothing moves (cases nearest the
+    //    surface settle first so the ones above land on them).
+    let changed = true, guard = 0;
+    while (changed && guard++ < 100) {
+      changed = false;
+      [...state.placed]
+        .sort((a, b) => fromTop ? a.y - b.y : (b.y + b.hh) - (a.y + a.hh))
+        .forEach((p) => {
+          while (canPlace(p.x, p.y + step, p.w, p.hh, p.id)) { p.y += step; changed = true; }
+        });
+    }
+
+    // 2) Fill remaining open ends until every unit is supported.
+    let added = 0, guard2 = 0;
+    const onSurface = (p) => fromTop ? p.y === 0 : p.y + p.hh === rows();
+    while (guard2++ < 300) {
+      const occ = occupancy();
+      const bad = state.placed.find((p) => {
+        if (onSurface(p)) return false;
+        const s = fromTop ? p.y - 1 : p.y + p.hh;
+        return !(occ.has(p.x + "," + s) && occ.has((p.x + p.w - 1) + "," + s));
+      });
+      if (!bad) break;
+      const s = fromTop ? bad.y - 1 : bad.y + bad.hh;
+      [bad.x, bad.x + bad.w - 1].forEach((c) => {
+        if (!occ.has(c + "," + s)) added += fillColumn(c, s, step);
+      });
+    }
+
+    clampGrid();
+    const moved = state.placed.filter((p) => startY.has(p.id) && startY.get(p.id) !== p.y).length;
+    return { moved, added };
+  }
+
+  /* Fill the empty run in column c from row `s` toward the surface (direction
+     `step`) with stacked 1W cases — 1H where it fits, a 0.5H for the remainder. */
+  function fillColumn(c, s, step) {
+    const occ = occupancy();
+    const cells = [];
+    for (let y = s; y >= 0 && y < rows() && !occ.has(c + "," + y); y += step) cells.push(y);
+    if (!cells.length) return 0;
+    const lo = Math.min(...cells), hi = Math.max(...cells) + 1;
+    let added = 0;
+    for (let y = lo; y < hi; ) {
+      const hh = (hi - y) >= 2 ? 2 : 1;
+      state.placed.push({ id: state.nextId++, x: c, y, w: 1, hh, fill: "classic", shelves: 0 });
+      y += hh; added++;
+    }
+    return added;
+  }
+
+  /* Soft "bow" risk: a GEN2 plate bows when a narrower case loads the INTERIOR
+     of a wider case (away from its end walls) and the wider case isn't supported
+     across its full span on that side. End-aligned, same-width, and fully-tiled
+     (distributed) joins are fine. Returns the set of wider-case ids at risk. */
+  function bowRisks() {
+    const flagged = new Set();
+    const occ = occupancy();
+    state.placed.forEach((wide) => {
+      state.placed.forEach((narrow) => {
+        if (narrow === wide || narrow.w >= wide.w) return;
+        const above = narrow.y + narrow.hh === wide.y;   // narrow rests on wide's top
+        const below = wide.y + wide.hh === narrow.y;     // narrow hangs under wide
+        if (!above && !below) return;
+        // narrow lands on wide's interior — touching neither end column
+        if (!(narrow.x > wide.x && narrow.x + narrow.w < wide.x + wide.w)) return;
+        // is wide's span fully covered on the narrow side? (distributed = no bow)
+        const adjRow = above ? wide.y - 1 : wide.y + wide.hh;
+        let covered = 0;
+        for (let c = wide.x; c < wide.x + wide.w; c++) if (occ.has(c + "," + adjRow)) covered++;
+        if (covered < wide.w) flagged.add(wide.id);
+      });
+    });
+    return flagged;
   }
 
   function renderWarnings() {
@@ -938,9 +1305,23 @@
       return !(left && right);
     });
     if (unsupported.length) {
-      warn(box, fromTop
+      const div = warn(box, fromTop
         ? `${unsupported.length} unit(s) aren't supported on both ends — a case QuickLocks to the row above and needs a unit above its left and right edges. Move it to the top row, or fill the gap above the open end.`
         : `${unsupported.length} unit(s) aren't supported on both ends — tabletop stacks build from the surface, so each case needs a unit below its left and right edges. Move it down, or fill the gap under the open end.`);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn small warn-fix";
+      btn.textContent = "Fix structure";
+      btn.addEventListener("click", () => {
+        const r = fixStructure();
+        refresh();
+        const note = document.createElement("div");
+        note.className = "fix-note";
+        note.textContent = `✓ Structure fixed — ${r.moved} unit${r.moved === 1 ? "" : "s"} moved`
+          + (r.added ? `, ${r.added} support case${r.added === 1 ? "" : "s"} added` : "") + ".";
+        $("#board-warnings").prepend(note);
+      });
+      div.appendChild(btn);
     }
 
     // placed units that no longer fit the selected printer
@@ -948,6 +1329,13 @@
     if (misfits.length) {
       const sizes = [...new Set(misfits.map((p) => `${sizeToken(p.w, p.hh / 2)} ${fillDef(p.fill).label}`))];
       warn(box, `${misfits.length} placed unit(s) won't print on the selected printer: ${sizes.join(", ")}.`);
+    }
+
+    // soft bow/stress advisory — never blocks, just a heads-up
+    const bows = bowRisks();
+    if (bows.size) {
+      warn(box, `${bows.size} wide case(s) may bow under load — a narrower case loads the interior of a wider one, away from its end walls. To stiffen it: match widths, align the narrower case to an end, or support the full span.`)
+        .classList.add("warn-soft");
     }
 
     // advanced cabinets whose interior isn't fully tiled can't be built yet
@@ -971,6 +1359,7 @@
     div.className = "warn";
     div.textContent = "⚠ " + text;
     box.appendChild(div);
+    return div;
   }
 
   /* ------------------- Selected-unit toolbar (below grid) ------------------- */
@@ -1027,10 +1416,14 @@
       shelves.hidden = true;
       $("#ut-mode").hidden = true;
       $("#ut-edit").hidden = true;
+      $("#ut-label-wrap").hidden = true;
       const iw = $("#ut-interior"); iw.hidden = true; iw.classList.remove("open");
       document.body.classList.remove("sheet-open");
       return;
     }
+
+    $("#ut-label-wrap").hidden = false;
+    $("#ut-label").value = p.label || "";
 
     const h = p.hh / 2;
     const info = unitPartInfo(p);
@@ -1314,7 +1707,10 @@
         items.push({ name: P.faceplate(len, size, faceStyle), qty });
       });
       items.sort((a, b) => a.name.localeCompare(b.name));
+      const faceDef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
       GEN2.decorExtras.forEach((x) => {
+        // EdgeLabel / Classic Pro faceplates have a built-in handle.
+        if (x.id === "handle" && faceDef && faceDef.integratedHandle) return;
         items.push({
           name: x.name(len),
           qty: x.qtyPerDrawer * decorCount,
@@ -1327,14 +1723,26 @@
     }
 
     const mix = railMix();
+    // Per contiguous run: total width + how many cases touch the floor (a split
+    // bottom row → foot rails). Covers/feet key off the run width.
+    const floor = Math.max(...state.placed.map((p) => p.y + p.hh));
+    const runs = columnRuns().map((run) => ({
+      width: run.len,
+      bottomCases: state.placed.filter((p) =>
+        p.y + p.hh === floor && p.x >= run.start && p.x < run.start + run.len).length,
+    }));
     const ctx = {
       len,
       cols: occupiedColumns().length,
+      runs,
+      wallStagger: state.wallStagger,
+      topCases: topCases().map((p) => p.w),   // top-row case widths (per-column covers)
       railMix: mix,
       railScrews: Object.entries(mix).reduce((sum, [w, n]) => sum + n * GEN2.railScrews(+w), 0),
       wallMix: mixOf(wallSections()),
     };
-    sections.push({ title: "Mounting", items: GEN2.mountBom[state.mount](ctx) });
+    const mountTitle = { tabletop: "Table Top Kit", wall: "Wall Mount", "under-table": "Mounting" };
+    sections.push({ title: mountTitle[state.mount] || "Mounting", items: GEN2.mountBom[state.mount](ctx) });
 
     return sections;
   }
@@ -1625,11 +2033,29 @@
       state.selectedUnit = null;
       refresh();
     });
+    $("#surprise-me").addEventListener("click", surpriseMe);
     $("#load-example").addEventListener("click", loadExample);
-    if (store.get("gen2-explainer-dismissed")) $("#explainer").hidden = true;
-    $("#explainer-close").addEventListener("click", () => {
-      $("#explainer").hidden = true;
-      store.set("gen2-explainer-dismissed", "1");
+    $("#build-save").addEventListener("click", saveCurrentBuild);
+    $("#build-share").addEventListener("click", shareLink);
+    $("#build-import").addEventListener("change", (e) => { importBuild(e.target.files[0]); e.target.value = ""; });
+    renderBuildList();
+    // "New to GEN2" primer: collapsible, remembers its open/closed state.
+    const primer = $("#explainer-primer");
+    if (primer) {
+      primer.open = store.get("gen2-primer-collapsed") !== "1";
+      primer.addEventListener("toggle", () => {
+        store.set("gen2-primer-collapsed", primer.open ? "0" : "1");
+      });
+    }
+
+    // Info tooltips: give every (i) badge an accessible label from its tip text.
+    document.querySelectorAll(".info-tip[data-tip]").forEach((el) => {
+      if (!el.getAttribute("aria-label")) el.setAttribute("aria-label", el.dataset.tip);
+    });
+
+    // Wall cover layout: staggered (connected top) vs per-column (easy removal).
+    $("#wall-stagger-seg").querySelectorAll("[data-stagger]").forEach((btn) => {
+      btn.addEventListener("click", () => { state.wallStagger = btn.dataset.stagger === "on"; refresh(); });
     });
     $("#copy-bom").addEventListener("click", copyBom);
     $("#csv-bom").addEventListener("click", downloadCsv);
@@ -1645,6 +2071,14 @@
       state.placed = state.placed.filter((u) => u.id !== state.selectedUnit);
       state.selectedUnit = null;
       refresh();
+    });
+    // Per-unit label: live-update the board only (full refresh would steal focus).
+    $("#ut-label").addEventListener("input", (e) => {
+      const u = selectedUnit();
+      if (!u) return;
+      const v = e.target.value.trim();
+      if (v) u.label = v; else delete u.label;
+      renderBoard();
     });
     $("#ut-shelves").querySelectorAll("[data-shelf]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1731,6 +2165,17 @@
     renderStyleSegs();
     renderPalette();
     renderBoardHelper();
+    // Covers panel (tabletop/wall): the wall-only layout toggle + the
+    // "how covers stack" guide, grouped together below the board.
+    $("#cover-panel").hidden = !(state.mount === "tabletop" || state.mount === "wall");
+    $("#wall-stagger").hidden = state.mount !== "wall";
+    if (state.mount === "wall") {
+      $("#wall-stagger-seg").querySelectorAll("[data-stagger]").forEach((b) =>
+        b.classList.toggle("active", (b.dataset.stagger === "on") === state.wallStagger));
+      $("#wall-stagger-hint").textContent = state.wallStagger
+        ? "One connected top — most rigid."
+        : "Each column lifts off on its own (3W/4W cases still stagger internally).";
+    }
     if (ready) renderBoard();
     renderToolbar();
     renderBom();
@@ -1744,6 +2189,7 @@
   bindBoard();
   bindControls();
   refresh();
+  loadBuildFromHash();   // open a shared #build=… link, if present
 
   /* Headless test hook. Attaches the live state and a few pure helpers to the
      window ONLY when a harness opts in by setting this flag truthy before the
@@ -1752,6 +2198,8 @@
     window.__GEN2_PLANNER_TEST__ = {
       state, refresh, nudgeSelected, canPlace, selectable, heightsForFill,
       computeBom, selectedUnit, interiorFill, interiorComplete, interiorCellsLeft, placeCompartment,
+      fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks,
+      encodeBuildHash, applyBuildHash,
     };
   }
 })();

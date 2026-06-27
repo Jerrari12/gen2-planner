@@ -377,3 +377,215 @@ test("a case overhanging on one end is flagged unsupported; filling the other en
   app.refresh();
   assert.doesNotMatch(warns(), /supported on both ends/i);
 });
+
+/* ---- Itemized Table Top Kit / Wall covers BOM ----
+   gridH=4 → rows()=8, so a 1H (hh=2) case at y=6 sits on the floor. */
+
+test("tabletop: a 1W build bills 1 CU + 1 CL + 4 feet, no foot rails", () => {
+  const { app } = boot();
+  app.state.mount = "tabletop";
+  place(app, { id: 1, x: 0, y: 6, w: 1, hh: 2, fill: "classic" });
+  assert.equal(bomQty(app, "Cover Upper (CU)"), 1);
+  assert.equal(bomQty(app, "Cover Lower (CL)"), 1);
+  assert.equal(bomQty(app, "Foot (TPU)"), 4);        // 2*(N+1)
+  assert.equal(bomQty(app, "Foot Rail"), 0);         // single bottom case
+  assert.equal(bomQty(app, "6mm screw"), 1);         // cover M3, 1 per W
+  assert.equal(bomQty(app, "12mm screw"), 0);
+});
+
+test("tabletop: a 3W build (three 1W cases) staggers covers and adds foot rails", () => {
+  const { app } = boot();
+  app.state.mount = "tabletop";
+  [0, 1, 2].forEach((x) => place(app, { id: x + 1, x, y: 6, w: 1, hh: 2, fill: "classic" }));
+  assert.equal(bomQty(app, "Cover Upper (CU)"), 2);  // N=3 odd → one 1W + one 2W
+  assert.equal(bomQty(app, "Cover Lower (CL)"), 2);
+  assert.equal(bomQty(app, "Foot Rail Upper (FR-U)"), 2);
+  assert.equal(bomQty(app, "Foot Rail Lower (FR-L)"), 2);
+  assert.equal(bomQty(app, "Foot (TPU)"), 8);        // 2*(3+1)
+  assert.equal(bomQty(app, "6mm screw"), 3);
+  assert.equal(bomQty(app, "12mm screw"), 3);
+  assert.equal(bomQty(app, "M3 hex nut"), 6);        // 3 covers + 3 foot rails
+});
+
+test("tabletop: a single 2W bottom case needs no foot rails, but two 1W cases do", () => {
+  let app = boot().app;
+  app.state.mount = "tabletop";
+  place(app, { id: 1, x: 0, y: 6, w: 2, hh: 2, fill: "classic" });
+  assert.equal(bomQty(app, "Cover Upper (CU)"), 1);  // one 2W CU
+  assert.equal(bomQty(app, "Foot Rail"), 0);         // one bottom case
+  assert.equal(bomQty(app, "Foot (TPU)"), 6);        // 2*(2+1)
+
+  app = boot().app;
+  app.state.mount = "tabletop";
+  place(app, { id: 1, x: 0, y: 6, w: 1, hh: 2, fill: "classic" });
+  place(app, { id: 2, x: 1, y: 6, w: 1, hh: 2, fill: "classic" });
+  assert.equal(bomQty(app, "Cover Upper (CU)"), 1);  // same 2W cover
+  assert.equal(bomQty(app, "Foot Rail Upper (FR-U)"), 1); // but foot rails tie the two cases
+  assert.equal(bomQty(app, "Foot Rail Lower (FR-L)"), 1);
+});
+
+test("wall mount adds the same covers but no feet / foot rails", () => {
+  const { app } = boot();
+  app.state.mount = "wall";
+  place(app, { id: 1, x: 0, y: 6, w: 2, hh: 2, fill: "classic" });
+  assert.equal(bomQty(app, "Cover Upper (CU)"), 1);  // 2W cover caps the top
+  assert.equal(bomQty(app, "Cover Lower (CL)"), 1);
+  assert.equal(bomQty(app, "Foot (TPU)"), 0);        // wall build hangs — no feet
+  assert.equal(bomQty(app, "Foot Rail"), 0);
+  assert.ok(bomQty(app, "Wall Mount Kit") >= 1);     // brackets still present
+});
+
+test("EdgeLabel / Classic Pro faceplates omit the handle line (integrated)", () => {
+  const { app } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.state.faceStyle = "essential";
+  assert.equal(bomQty(app, "Handle or knob"), 1);    // Essential needs a handle
+  app.state.faceStyle = "edgelabel";
+  assert.equal(bomQty(app, "Handle or knob"), 0);    // integrated
+  app.state.faceStyle = "classicpro";
+  assert.equal(bomQty(app, "Handle or knob"), 0);    // integrated
+});
+
+test("wall per-column covers tile each top case instead of the whole run", () => {
+  const { app } = boot();
+  app.state.mount = "wall";
+  place(app, { id: 1, x: 0, y: 6, w: 2, hh: 2, fill: "classic" });  // two 2W cases,
+  place(app, { id: 2, x: 2, y: 6, w: 2, hh: 2, fill: "classic" });  // one 4W run
+
+  app.state.wallStagger = true;                       // brick over 4W → CL = 1W+2W+1W
+  assert.equal(bomQty(app, "Cover Upper (CU)"), 2);
+  assert.equal(bomQty(app, "Cover Lower (CL) - 1W"), 2);
+
+  app.state.wallStagger = false;                      // each 2W case → its own 2W cover
+  assert.equal(bomQty(app, "Cover Lower (CL) - 2W"), 2);
+  assert.equal(bomQty(app, "Cover Lower (CL) - 1W"), 0);
+});
+
+const warnsText = (doc) => [...doc.querySelectorAll("#board-warnings .warn")].map((d) => d.textContent).join(" ");
+
+test("Fix structure fills support to clear an unsupported overhang (under-table)", () => {
+  const { app, doc } = boot();                       // under-table: support is the row above
+  place(app, { id: 1, x: 0, y: 0, w: 3, hh: 2 });    // top row, cols 0-2
+  place(app, { id: 2, x: 1, y: 2, w: 3, hh: 2 });    // 2nd row cols 1-3 — col 3 has nothing above
+  app.refresh();
+  assert.match(warnsText(doc), /supported on both ends/i);
+  const before = app.state.placed.length;
+  const r = app.fixStructure();
+  app.refresh();
+  assert.doesNotMatch(warnsText(doc), /supported on both ends/i);
+  assert.ok(r.added >= 1 && app.state.placed.length > before);  // a support case was added
+});
+
+test("Bow warning flags an interior load on a wider case, but not aligned/full-span joins", () => {
+  // a 1W hung at the interior of a 4W (under-table) → the 4W is flagged
+  let app = boot().app;
+  place(app, { id: 1, x: 0, y: 0, w: 4, hh: 2 });
+  place(app, { id: 2, x: 1, y: 2, w: 1, hh: 2 });   // interior, not at either end
+  app.refresh();
+  assert.ok(app.bowRisks().has(1));
+
+  // a full row of 1W under the 4W → distributed load, no bow
+  app = boot().app;
+  place(app, { id: 1, x: 0, y: 0, w: 4, hh: 2 });
+  [0, 1, 2, 3].forEach((x) => place(app, { id: 10 + x, x, y: 2, w: 1, hh: 2 }));
+  app.refresh();
+  assert.equal(app.bowRisks().size, 0);
+
+  // a 1W aligned to the 4W's end → at a wall, no bow
+  app = boot().app;
+  place(app, { id: 1, x: 0, y: 0, w: 4, hh: 2 });
+  place(app, { id: 2, x: 0, y: 2, w: 1, hh: 2 });   // left end
+  app.refresh();
+  assert.equal(app.bowRisks().size, 0);
+
+  // 4W under 4W → same width, no bow
+  app = boot().app;
+  place(app, { id: 1, x: 0, y: 0, w: 4, hh: 2 });
+  place(app, { id: 2, x: 0, y: 2, w: 4, hh: 2 });
+  app.refresh();
+  assert.equal(app.bowRisks().size, 0);
+});
+
+test("Save/load round-trips the full build (setup + layout)", () => {
+  const { app } = boot();
+  app.state.length = 240;
+  app.state.faceStyle = "edgelabel";
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" });
+  place(app, { id: 2, x: 2, y: 0, w: 1, hh: 2, fill: "classic" });
+  app.refresh();
+  const snap = app.serializeBuild();
+
+  app.state.placed = [];                 // wipe the setup + layout
+  app.state.length = 59;
+  app.state.faceStyle = "essential";
+  app.refresh();
+  assert.equal(app.state.placed.length, 0);
+
+  assert.equal(app.applyBuild(snap), true);   // restore
+  assert.equal(app.state.length, 240);
+  assert.equal(app.state.faceStyle, "edgelabel");
+  assert.equal(app.state.placed.length, 2);
+  assert.equal(app.state.placed.find((p) => p.id === 1).w, 2);
+  assert.notEqual(app.state.placed, snap.placed);  // isolated copy, not shared
+});
+
+test("Drawer labels are stored on the unit and survive save/load", () => {
+  const { app } = boot();
+  const u = place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  u.label = "M3 screws";
+  app.refresh();
+  const snap = app.serializeBuild();
+  app.state.placed = [];
+  app.applyBuild(snap);
+  assert.equal(app.state.placed[0].label, "M3 screws");
+});
+
+test("Share link encodes the build and restores it from the hash", () => {
+  const { app } = boot();
+  app.state.mount = "wall";
+  app.state.length = 270;
+  place(app, { id: 1, x: 0, y: 0, w: 3, hh: 2, fill: "decor" });
+  app.refresh();
+  const hash = app.encodeBuildHash();
+  assert.ok(typeof hash === "string" && hash.length > 0);
+
+  app.state.placed = [];                 // wipe
+  app.state.length = 59;
+  app.state.mount = "tabletop";
+  app.refresh();
+
+  assert.equal(app.applyBuildHash(hash), true);
+  assert.equal(app.state.mount, "wall");
+  assert.equal(app.state.length, 270);
+  assert.equal(app.state.placed.length, 1);
+  assert.equal(app.applyBuildHash("not-valid-base64!!"), false);  // bad link is ignored safely
+});
+
+test("Surprise me always yields a supported build within the printer's limits", () => {
+  const { app, doc } = boot();
+  app.state.length = 165;
+  app.state.printer = "a1mini";          // 180×180 → only 1W/2W fit at 165
+  app.refresh();
+  const warns = () => [...doc.querySelectorAll("#board-warnings .warn")].map((d) => d.textContent).join(" ");
+  for (let i = 0; i < 30; i++) {
+    app.surpriseMe();
+    assert.ok(app.state.placed.length > 0, "produced units");
+    assert.ok(app.state.placed.every((p) => p.w <= 2), "respects the 2W fit limit");
+    assert.doesNotMatch(warns(), /supported on both ends/i);
+    assert.doesNotMatch(warns(), /won't print/i);
+  }
+});
+
+test("Fix structure drops a floating tabletop unit without adding parts", () => {
+  const { app, doc } = boot();
+  app.state.mount = "tabletop";
+  place(app, { id: 1, x: 0, y: 2, w: 2, hh: 2 });    // floating mid-grid, nothing below
+  app.refresh();
+  assert.match(warnsText(doc), /supported on both ends/i);
+  const before = app.state.placed.length;
+  const r = app.fixStructure();
+  app.refresh();
+  assert.doesNotMatch(warnsText(doc), /supported on both ends/i);
+  assert.equal(r.added, 0);                          // gravity alone settled it
+  assert.equal(app.state.placed.length, before);
+});

@@ -191,7 +191,12 @@
     GEN2.mounts.forEach((m) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "card" + (state.mount === m.id ? " active" : "");
+      btn.className = "card" + (m.img ? " has-img" : "") + (state.mount === m.id ? " active" : "");
+      // Optional hero photo fades in from the dark card (left) → image (right).
+      if (m.img) {
+        btn.style.backgroundImage =
+          `linear-gradient(to right, var(--panel) 0%, var(--panel) 55%, rgba(44,45,49,0.45) 80%, rgba(44,45,49,0) 100%), url("${m.img}")`;
+      }
       btn.innerHTML =
         `<div class="card-icon">${mountIcon(m.id)}</div>` +
         `<div class="card-title">${m.label}</div>` +

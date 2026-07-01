@@ -128,6 +128,7 @@ const GEN2 = {
     {
       id: "under-table",
       label: "Under-Table",
+      img: "img/parts/mount-under-table.jpg",
       blurb: "GEN2 Rails screw to the underside of any surface. Drawers slide in and QuickLock in place.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/instructions-hanging",
       askSpace: true,
@@ -137,6 +138,7 @@ const GEN2 = {
     {
       id: "tabletop",
       label: "Tabletop",
+      img: "img/parts/mount-tabletop.jpg",
       blurb: "Table Top Kit V2 · covers and foot rails create a rigid standalone unit on any surface.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/table-top-kit",
       askSpace: false,
@@ -145,6 +147,7 @@ const GEN2 = {
     {
       id: "wall",
       label: "Wall Mount",
+      img: "img/parts/mount-wall.jpg",
       blurb: "Wall Mount Kit – Lite attaches GEN2 units directly to the wall with wood screws.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/wall-mount",
       askSpace: true,
@@ -155,17 +158,17 @@ const GEN2 = {
 
   // Drawer lengths (depth in mm). `color` matches the official lineup art.
   lengths: [
-    { id: 59,  label: "59",  color: "#f2f2f2", tagline: "Ultra-shallow · wall storage specialist",
+    { id: 59,  label: "59",  color: "#f2f2f2", tagline: "Ultra-shallow · 45mm inside · cards, bits, screws, small flat parts",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 115, label: "115", color: "#9ea3a8", tagline: "Medium · fits the majority of printer beds",
+    { id: 115, label: "115", color: "#9ea3a8", tagline: "Medium · 101mm inside · pens, cables, tape, small parts & tins",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 165, label: "165", color: "#3aa0e8", tagline: "Mini Edition · for 180mm beds (A1 Mini, Prusa Mini)",
+    { id: 165, label: "165", color: "#3aa0e8", tagline: "Mini Edition · 151mm inside · sockets, calipers, small tools, hobby bits",
       page: "https://www.jerrari3d.com/gen2-modular-system/mini" },
-    { id: 185, label: "185", color: "#ff8a40", tagline: "The GEN2 Standard · best all-around, start here",
-      page: "https://www.jerrari3d.com/gen2-modular-system/standard", recommended: true },
-    { id: 240, label: "240", color: "#3ecfa0", tagline: "Deep storage for extended build plates (X1C, Core One)",
+    { id: 185, label: "185", color: "#ff8a40", tagline: "Standard · 171mm inside · the versatile all-rounder for everyday gear",
+      page: "https://www.jerrari3d.com/gen2-modular-system/standard" },
+    { id: 240, label: "240", color: "#3ecfa0", tagline: "Deep · 226mm inside · power tools, spray cans, boxed sets, tall bottles",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
-    { id: 270, label: "270", color: "#e8453c", tagline: "Large · the deepest drawer in the lineup",
+    { id: 270, label: "270", color: "#e8453c", tagline: "Large · 256mm inside · long tools, cordless kits, big spools",
       page: "https://www.jerrari3d.com/gen2-modular-system/large" },
   ],
 

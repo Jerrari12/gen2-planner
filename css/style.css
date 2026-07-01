@@ -60,7 +60,7 @@ a { color: var(--accent); }
   position: relative;
   z-index: 2;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   padding: 18px 28px;
 }
@@ -70,6 +70,8 @@ a { color: var(--accent); }
 .hero .brand-sub,
 .hero .brand-link { color: #d7d8db; }
 .hero .brand-link:hover { color: var(--accent); }
+.brand { display: flex; align-items: center; gap: 11px; }
+.brand-logo { height: 44px; width: auto; flex-shrink: 0; filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.55)); }
 .brand-mark {
   font-weight: 800;
   font-size: 1.5rem;
@@ -113,6 +115,29 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 }
 .hint { color: var(--muted); font-size: 0.9rem; margin-top: -4px; }
 
+/* "Unsure which length to choose?" — a compact expandable helper in Step 3 */
+.length-help { margin: 8px 0 16px; max-width: 780px; }
+.length-help > summary {
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 7px;
+  font-size: 0.9rem; font-weight: 600; color: var(--accent); padding: 4px 0;
+}
+.length-help > summary::-webkit-details-marker { display: none; }
+.length-help > summary::before {
+  content: "\25B8"; color: var(--accent); font-size: 0.7rem; transition: transform 0.15s ease;
+}
+.length-help[open] > summary::before { transform: rotate(90deg); }
+.length-help > summary:hover { color: var(--text); }
+.length-help-body {
+  margin-top: 8px; padding: 12px 16px;
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); font-size: 0.86rem; line-height: 1.55; color: var(--muted);
+}
+.length-help-body p { margin: 0 0 8px; }
+.length-help-body p:last-child { margin-bottom: 0; }
+.length-help-body b { color: var(--text); }
+.length-help-body ul { margin: 8px 0; padding-left: 18px; }
+.length-help-body li { margin-bottom: 6px; }
+
 /* ---------- cards ---------- */
 
 .card-row { display: flex; flex-wrap: wrap; gap: 14px; }
@@ -142,6 +167,12 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .card-title { font-size: 1.2rem; font-weight: 700; }
 .card-title .mm { font-size: 0.75rem; color: var(--muted); margin-left: 2px; }
 .card-blurb { font-size: 0.83rem; color: var(--muted); margin-top: 6px; }
+/* Install-location cards with a hero photo: fades from the dark card (left) into
+   the image (right), like the faceplate cards. Text gets a shadow + brighter blurb
+   so it stays legible where it overlaps the photo. */
+.card.has-img { background-size: cover; background-position: right center; background-repeat: no-repeat; }
+.card.has-img .card-title { text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+.card.has-img .card-blurb { color: var(--text); text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85); }
 .badge {
   margin-left: 8px;
   font-size: 0.62rem;

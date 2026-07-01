@@ -251,6 +251,43 @@ details.space-box[open] .sb-sum-status { display: none; }
   opacity: 1;
   visibility: visible;
 }
+
+/* Disabled length cards & size tiles: reveal the "won't fit" reason on hover
+   OR focus — so a tap on touch reveals it too (native title= is hover-only).
+   Reuses the info-tip tooltip look. Set via data-tip in app.js. */
+.card.disabled[data-tip], .palette-item.disabled[data-tip] { position: relative; }
+.card.disabled[data-tip]::after, .palette-item.disabled[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 230px;
+  background: #1d1e20;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: 400 0.8rem/1.4 system-ui, sans-serif;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  z-index: 40;
+  pointer-events: none;
+}
+.card.disabled[data-tip]:hover::after, .card.disabled[data-tip]:focus::after,
+.palette-item.disabled[data-tip]:hover::after, .palette-item.disabled[data-tip]:focus::after {
+  opacity: 1;
+  visibility: visible;
+}
+.card.disabled:focus-visible, .palette-item.disabled:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 2px;
+}
 .field-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
 .field-row label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--muted); }
 .field-row input, .field-row select {
@@ -365,12 +402,65 @@ details.space-box[open] .sb-sum-status { display: none; }
 }
 .seg button.active .soon { background: rgba(0,0,0,0.15); color: inherit; border-color: transparent; }
 
+/* Faceplate style — grouped selectable cards: Core System vs Club Expansions.
+   Orange stays the selected state; blue is the Club identity (never orange). */
+.fp-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+.fp-group-title { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin-bottom: 6px; }
+.fp-group-club .fp-group-title { color: var(--blue); }
+.fp-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.fp-card {
+  position: relative; flex: 1 1 140px; min-width: 128px; max-width: 230px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  background: var(--panel-2); border: 2px solid var(--line); border-radius: 10px;
+  padding: 10px 12px 11px; cursor: pointer; text-align: left;
+  transition: border-color 0.15s, transform 0.1s, background 0.15s;
+}
+.fp-card:hover { border-color: var(--accent-dim); transform: translateY(-1px); }
+.fp-card.active { border-color: var(--accent); background: rgba(255, 138, 64, 0.09); }
+.fp-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fp-name { font-weight: 700; font-size: 0.92rem; color: var(--text); }
+.fp-sub { font-size: 0.72rem; color: var(--muted); }
+/* Club expansion cards: a thin blue top accent + sparkle mark them as add-ons. */
+.fp-card.club { border-top-color: var(--blue); }
+.fp-card.club:hover { border-color: var(--blue-dim); border-top-color: var(--blue); }
+.fp-card.club.active { border-color: var(--accent); border-top-color: var(--accent); }
+.fp-spark { position: absolute; top: 8px; right: 9px; color: var(--blue); font-size: 0.85rem; line-height: 1; }
+.club-note {
+  margin: 12px 0 0; padding: 9px 12px; font-size: 0.78rem; line-height: 1.5;
+  background: rgba(47, 155, 224, 0.08); border: 1px solid rgba(47, 155, 224, 0.4);
+  border-radius: 8px; color: var(--text);
+}
+.club-note strong { color: var(--blue); }
+.club-note a { color: var(--blue); font-weight: 600; white-space: nowrap; }
+/* Faceplate cards WITH a hero image: crop is painted via inline background (fades
+   from the dark card on the left into the photo on the right). Shadow keeps text
+   legible where it overlaps the photo. */
+.fp-card.has-img { background-size: cover; background-position: right center; background-repeat: no-repeat; }
+.fp-card.has-img .fp-name { text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75); }
+.fp-card.has-img .fp-sub { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75); }
+/* Reuse the fill-tile .tip-card hover popover for faceplate cards (full image + info) */
+.fp-card .tip-card { left: 0; }
+.fp-row .fp-card:last-child:nth-child(n+2) .tip-card { left: auto; right: 0; }
+.fp-card:hover .tip-card, .fp-card:focus-within .tip-card { opacity: 1; visibility: visible; transform: translateY(0); }
+
 .style-pick { margin-bottom: 12px; }
 .style-pick label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
 
-.bom-style-row { display: flex; gap: 24px; flex-wrap: wrap; margin: 6px 0 0; }
+/* Faceplate/door style picker: a highlighted card atop the parts list, since
+   the choice materially changes which parts get billed. */
+.bom-style-row {
+  display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start;
+  margin: 6px 0 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
 .bom-style-row .style-pick { min-width: 280px; margin-bottom: 4px; }
-.bom-style-row .seg { margin-bottom: 0; background: var(--panel); }
+.bom-style-row .style-pick > label { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.bom-style-row .style-help { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; max-width: 320px; }
+.bom-style-row .seg { margin-bottom: 0; background: var(--panel-2); }
 .bom-style-row .seg button { text-align: center; padding: 8px 12px; }
 .label-gen {
   display: inline-block; margin-top: 10px;
@@ -427,7 +517,7 @@ details.space-box[open] .sb-sum-status { display: none; }
   border-radius: 2px;
 }
 .palette-item.active .palette-box { background: var(--accent-dim); border-color: var(--accent); }
-.palette-label { font-size: 0.62rem; }
+.palette-label { font-size: 0.72rem; }
 
 .fill-grid {
   display: grid;
@@ -521,6 +611,7 @@ details.space-box[open] .sb-sum-status { display: none; }
   min-height: 2.2em;
 }
 .palette-units { font-size: 0.72rem; color: var(--muted); margin: -6px 0 8px; }
+.palette-inside { font-size: 0.74rem; color: var(--accent); margin: 6px 0 0; font-weight: 600; }
 .palette-legend {
   display: flex;
   align-items: center;
@@ -833,6 +924,7 @@ details.builds > summary:hover { color: var(--text); }
   letter-spacing: 0.08em;
   color: var(--accent);
 }
+.bom-scroll { overflow-x: auto; }   /* safety net: a wide row scrolls instead of blowing out the page */
 .bom-table {
   width: 100%;
   border-collapse: collapse;
@@ -857,7 +949,8 @@ details.builds > summary:hover { color: var(--text); }
 .bom-table .link { width: 200px; text-align: right; white-space: nowrap; }
 .bom-table .link .btn { margin-left: 4px; }
 .soon-tag { border-color: var(--accent-dim); color: var(--accent); }
-.bom-table tr.optional .name, .bom-table tr.optional .qty { opacity: 0.65; }
+.club-tag { border-color: var(--blue); color: var(--blue); }
+.bom-table tr.optional .name, .bom-table tr.optional .qty { opacity: 0.8; }
 .tag {
   font-size: 0.65rem;
   text-transform: uppercase;
@@ -884,7 +977,7 @@ details.builds > summary:hover { color: var(--text); }
 .btn.ghost { background: transparent; color: var(--accent); }
 .btn.small { padding: 4px 10px; font-size: 0.72rem; }
 
-.bom-actions { display: flex; gap: 10px; margin-top: 20px; }
+.bom-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 .tip {
   margin-top: 18px;
   background: rgba(255, 138, 64, 0.08);
@@ -899,6 +992,10 @@ details.builds > summary:hover { color: var(--text); }
 
 @media (max-width: 860px) {
   main { padding-left: 14px; padding-right: 14px; }   /* reclaim width → bigger, easier-to-tap cells */
+  /* Off-screen hover/focus tooltips & preview cards must not make the whole page
+     scroll sideways on a phone — clip stray horizontal overflow at the edge.
+     Must be on the root element (html) for the viewport scroll to honor it. */
+  html, body { overflow-x: hidden; }
   .layout-wrap { flex-direction: column; }
   .palette { flex: none; width: 100%; }
 
@@ -929,6 +1026,21 @@ details.builds > summary:hover { color: var(--text); }
   .ut-sheet-title { font-weight: 700; }
   .ut-sheet-close { background: none; border: 0; color: var(--muted); font-size: 1.5rem; line-height: 1; cursor: pointer; }
   body.sheet-open { overflow: hidden; }
+
+  /* Bigger tap targets for the fiddly controls on touch (guideline ~44px). */
+  .stepper button { width: 40px; height: 40px; font-size: 1.15rem; }
+  .stepper b { min-width: 34px; }
+  .ut-pad { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 44px); }
+  .build-row .build-load, .build-row .build-act { min-height: 40px; }
+  .build-act { width: 40px; }
+
+  /* Parts-list rows adapt to width instead of overflowing: smaller thumb, and
+     the store links wrap under the name rather than holding a fixed column. */
+  .bom-table .thumb { width: 42px; padding-left: 8px; }
+  .bom-table .thumb img { width: 34px; height: 34px; }
+  .bom-table td { padding: 8px; }
+  .bom-table .link { width: auto; white-space: normal; text-align: left; }
+  .bom-table .link .btn { margin: 4px 4px 0 0; }
 }
 
 /* ---------- print ---------- */

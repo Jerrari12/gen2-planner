@@ -129,7 +129,8 @@
         <h3>Size</h3>
         <p class="palette-units" id="palette-units"></p>
         <div id="palette-items"></div>
-        <p class="palette-legend"><span class="legend-swatch"></span> won't fit your printer · hover a greyed size to see why</p>
+        <p class="palette-inside" id="palette-inside" hidden></p>
+        <p class="palette-legend"><span class="legend-swatch"></span> won't fit your printer · tap or hover a greyed size to see why</p>
 
         <div class="palette-tools">
           <h3>Grid</h3>
@@ -273,10 +274,17 @@
   <section class="step" id="step-parts" hidden>
     <h2><span class="step-num">5</span> Your parts list</h2>
     <div class="bom-style-row">
-      <div class="style-pick" id="faceplate-style-pick" hidden>
+      <div class="style-pick faceplate-pick" id="faceplate-style-pick" hidden>
         <label>Decor faceplate style</label>
-        <div class="seg" id="faceplate-style-seg"></div>
+        <p class="style-help">Changes the faceplate, label &amp; hardware parts in the list below.</p>
+        <div class="fp-cards" id="faceplate-style-cards"></div>
+        <p class="club-note" id="club-note" hidden></p>
         <a class="label-gen" id="label-gen-link" target="_blank" rel="noopener" hidden></a>
+      </div>
+      <div class="style-pick" id="handle-style-pick" hidden>
+        <label>Handle style</label>
+        <p class="style-help">For Decor drawers whose faceplate has no built-in handle.</p>
+        <div class="seg" id="handle-style-seg"></div>
       </div>
       <div class="style-pick" id="door-style-pick" hidden>
         <label>Cabinet door style</label>

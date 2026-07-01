@@ -12,6 +12,7 @@
     fill: "decor",          // fill id for new placements
     faceStyle: GEN2.faceplateStyles[0].id,
     doorStyle: GEN2.doorStyles[0].id,
+    handleStyle: GEN2.handleStyles[0].id,
     spaceW: null,           // workable width in mm (under-table / wall)
     spaceH: null,           // workable height in mm
     printer: "any",
@@ -236,7 +237,10 @@
         });
       } else {
         const bed = bedSize();
-        btn.title = `Even a 1W case (${GEN2.units.widthMM}×${l.id}mm) won't fit your ${bed.x}×${bed.y}mm bed`;
+        // data-tip (not title): reveals the reason on hover AND on focus, so a
+        // tap on touch devices shows it too (native title= is hover-only).
+        btn.setAttribute("aria-disabled", "true");
+        btn.dataset.tip = `Even a 1W case (${GEN2.units.widthMM}×${l.id}mm) won't fit your ${bed.x}×${bed.y}mm bed`;
       }
       wrap.appendChild(btn);
     });
@@ -444,6 +448,76 @@
     $("#fill-blurb").textContent = fillDef().blurb;
   }
 
+  // GEN2 Club — a monthly membership (on BOTH Printables and Thangs) that includes
+  // the Club faceplate files, which are also sold as one-time purchases. It funds
+  // the project, so the planner gently promotes joining on either platform.
+  const CLUB_URL_PRINTABLES = "https://www.printables.com/@Jerrari#join.@Jerrari.893";
+  const CLUB_URL_THANGS = "https://thangs.com/designer/Jerrari/memberships";
+
+  // Faceplate style picker: grouped selectable cards (Core System vs Club
+  // Expansions) rather than a flat segment, so the Club styles read as optional
+  // add-ons/expansions. Every option stays fully selectable — nothing is locked.
+  function renderFaceplateCards() {
+    const wrap = $("#faceplate-style-cards");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    const groupEl = (title, styles, isClub) => {
+      const g = document.createElement("div");
+      g.className = "fp-group" + (isClub ? " fp-group-club" : "");
+      const head = document.createElement("div");
+      head.className = "fp-group-title";
+      head.textContent = title;
+      g.appendChild(head);
+      const row = document.createElement("div");
+      row.className = "fp-row";
+      styles.forEach((s) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "fp-card" + (isClub ? " club" : "") + (s.img ? " has-img" : "") + (s.id === state.faceStyle ? " active" : "");
+        card.setAttribute("aria-pressed", s.id === state.faceStyle ? "true" : "false");
+        // A cropped hero fades in from the dark card on the left → photo on the right.
+        if (s.img) {
+          card.style.backgroundImage =
+            `linear-gradient(to right, var(--panel-2) 0%, var(--panel-2) 38%, rgba(44,45,49,0.4) 72%, rgba(44,45,49,0) 100%), url("${s.img}")`;
+        }
+        card.innerHTML =
+          (isClub ? '<span class="fp-spark" aria-hidden="true">✦</span>' : "") +
+          `<span class="fp-name">${s.label}</span>` +
+          (s.sub ? `<span class="fp-sub">${s.sub}</span>` : "") +
+          // Rich hover preview (reuses the fill-tile .tip-card component): full image + info.
+          (s.img ? `<span class="tip-card" role="tooltip">` +
+            `<img class="tip-card-img" src="${s.img}" alt="${s.label}" loading="lazy" onerror="this.style.display='none'" />` +
+            `<span class="tip-card-text"><b>${s.label}</b>${s.blurb || s.sub || ""}</span></span>` : "");
+        card.addEventListener("click", () => { state.faceStyle = s.id; refresh(); });
+        row.appendChild(card);
+      });
+      g.appendChild(row);
+      return g;
+    };
+    wrap.appendChild(groupEl("Core System", GEN2.faceplateStyles.filter((s) => !s.club), false));
+    wrap.appendChild(groupEl("Club Expansions", GEN2.faceplateStyles.filter((s) => s.club), true));
+    updateClubNote();
+  }
+
+  // Friendly, non-blocking notice when a Club faceplate is selected: informs the
+  // user their list now includes Club files, and invites them to join the Club.
+  function updateClubNote() {
+    const note = $("#club-note");
+    if (!note) return;
+    const def = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    if (def && def.club) {
+      note.innerHTML =
+        `<strong>${def.label} is included with the GEN2 Club</strong> — or buy it once on Printables or Thangs. ` +
+        "Your parts list now lists the matching faceplate files. " +
+        "Join the Club to support GEN2 — " +
+        `<a href="${CLUB_URL_PRINTABLES}" target="_blank" rel="noopener">on Printables</a> or ` +
+        `<a href="${CLUB_URL_THANGS}" target="_blank" rel="noopener">on Thangs</a>.`;
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
+  }
+
   function renderStyleSegs() {
     const build = (segId, styles, current, onPick) => {
       const seg = $(segId);
@@ -457,10 +531,20 @@
         seg.appendChild(btn);
       });
     };
-    build("#faceplate-style-seg", GEN2.faceplateStyles, state.faceStyle, (id) => { state.faceStyle = id; });
+    renderFaceplateCards();
     build("#door-style-seg", GEN2.doorStyles, state.doorStyle, (id) => { state.doorStyle = id; });
-    $("#faceplate-style-pick").hidden = !state.placed.some((p) => p.fill === "decor");
+    build("#handle-style-seg", GEN2.handleStyles, state.handleStyle, (id) => { state.handleStyle = id; });
+    const hasDecor = state.placed.some((p) => p.fill === "decor");
+    const faceDef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    $("#faceplate-style-pick").hidden = !hasDecor;
     $("#door-style-pick").hidden = !state.placed.some((p) => p.fill === "cabinet");
+    // Handles only apply to Decor drawers whose faceplate has no built-in handle
+    // (EdgeLabel / Classic Pro include one) — so mirror the BOM handle-row rule.
+    $("#handle-style-pick").hidden = !(hasDecor && faceDef && !faceDef.integratedHandle);
+    // Hide the whole style card when no pick applies, so it doesn't render as an
+    // empty highlighted box at the top of the parts list.
+    const styleRow = document.querySelector(".bom-style-row");
+    if (styleRow) styleRow.hidden = $("#faceplate-style-pick").hidden && $("#door-style-pick").hidden && $("#handle-style-pick").hidden;
     updateLabelGenLink();
   }
 
@@ -516,6 +600,18 @@
   function renderPalette() {
     $("#palette-units").textContent =
       `1W = ${GEN2.units.widthMM}mm wide · 1H = ${GEN2.units.heightMM}mm tall`;
+    // Live usable-interior readout for the selected drawer size (drawers only).
+    const inside = $("#palette-inside");
+    if (inside) {
+      const isDrawer = state.fill === "classic" || state.fill === "decor";
+      if (isDrawer && state.selected && state.length) {
+        const d = interiorDims(state.selected.w, state.selected.h, state.length);
+        inside.textContent = `${sizeToken(state.selected.w, state.selected.h)} inside: ${d.w} × ${d.h} × ${d.d} mm`;
+        inside.hidden = false;
+      } else {
+        inside.hidden = true;
+      }
+    }
     const wrap = $("#palette-items");
     wrap.innerHTML = "";
     heightsForFill().forEach((h) => {
@@ -540,7 +636,10 @@
         item.innerHTML = `<span class="palette-box"></span><span class="palette-label">${sizeToken(w, h)}</span>`;
         if (!ok) {
           const f = fillDef();
-          item.title = fitProblem(w, state.fill) ||
+          // data-tip (not title) so the "why it won't fit" reason is reachable
+          // by tap/focus on touch, not just mouse hover.
+          item.setAttribute("aria-disabled", "true");
+          item.dataset.tip = fitProblem(w, state.fill) ||
             (f.integerHeightsOnly && !Number.isInteger(h)
               ? `${f.label}s come in whole heights only`
               : `Not available as a ${f.label}`);
@@ -1098,7 +1197,7 @@
 
   // The fields that make a build reproducible (setup + layout).
   const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
-    "faceStyle", "doorStyle", "wallStagger", "gridW", "gridH", "placed", "nextId"];
+    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "gridW", "gridH", "placed", "nextId"];
   const BUILDS_KEY = "gen2-builds";
 
   const serializeBuild = () => {
@@ -1425,6 +1524,12 @@
     return true;
   }
 
+  // Usable interior cavity (mm) for a drawer of w×h units at the current length.
+  function interiorDims(w, h, len) {
+    const u = GEN2.units, i = GEN2.interior;
+    return { w: u.widthMM * w - i.wWall, h: u.heightMM * h - i.hWall, d: len - i.dWall };
+  }
+
   function renderToolbar() {
     const bar = $("#unit-toolbar");
     const p = selectedUnit();
@@ -1470,8 +1575,13 @@
     thumb.onerror = function () { this.onerror = null; this.src = "img/parts/placeholder.svg"; };
     thumb.src = info.img;
     $("#ut-title").textContent = `${info.label} · ${info.size}`;
-    $("#ut-sub").textContent =
-      `${p.w * GEN2.units.widthMM} × ${h * GEN2.units.heightMM} × ${state.length}mm`;
+    if (p.fill === "classic" || p.fill === "decor") {
+      const din = interiorDims(p.w, h, state.length);
+      $("#ut-sub").textContent = `Inside: ${din.w} × ${din.h} × ${din.d} mm`;
+    } else {
+      $("#ut-sub").textContent =
+        `${p.w * GEN2.units.widthMM} × ${h * GEN2.units.heightMM} × ${state.length}mm`;
+    }
     remove.disabled = false;
 
     // Cabinet interior controls: Simple shelf count vs Advanced compartment editor
@@ -1613,7 +1723,8 @@
     if (!state.length || !state.mount || !state.placed.length) return null;
     const len = state.length;
     const P = GEN2.partNames;
-    const faceStyle = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle).label;
+    const faceDef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    const faceStyle = faceDef.label;
     const doorStyle = GEN2.doorStyles.find((s) => s.id === state.doorStyle).label;
     const sections = [];
 
@@ -1742,13 +1853,23 @@
         count(map, sizeToken(p.w, p.hh / 2));
         return map;
       }, new Map()).forEach((qty, size) => {
-        items.push({ name: P.faceplate(len, size, faceStyle), qty });
+        items.push({ name: P.faceplate(len, size, faceStyle), qty, club: faceDef.club });
       });
       items.sort((a, b) => a.name.localeCompare(b.name));
-      const faceDef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
       GEN2.decorExtras.forEach((x) => {
         // EdgeLabel / Classic Pro faceplates have a built-in handle.
         if (x.id === "handle" && faceDef && faceDef.integratedHandle) return;
+        if (x.id === "handle") {
+          // Name + link the handle after the chosen handle style (the name
+          // matches a LINK_OVERRIDES key so partLinks resolves it directly).
+          const hs = GEN2.handleStyles.find((s) => s.id === state.handleStyle) || GEN2.handleStyles[0];
+          items.push({
+            name: `GEN2 Decor Handles - ${hs.label} Series`,
+            qty: x.qtyPerDrawer * decorCount,
+            note: x.note,
+          });
+          return;
+        }
         items.push({
           name: x.name(len),
           qty: x.qtyPerDrawer * decorCount,
@@ -1799,19 +1920,19 @@
       html += `<p class="tip">💡 New to GEN2? The <a href="${partLinks(starter).printables}" target="_blank" rel="noopener">${starter}</a> bundles everything for a first install.</p>`;
     }
     sections.forEach((sec) => {
-      html += `<h3>${sec.title}</h3><table class="bom-table"><tbody>`;
+      html += `<h3>${sec.title}</h3><div class="bom-scroll"><table class="bom-table"><tbody>`;
       sec.items.filter((it) => it.qty > 0).forEach((it) => { // never show 0× rows (e.g. QuickLocks for an untiled cabinet)
         const img = it.hardware ? "img/parts/hardware.svg" : partImage(it.name);
         html += `<tr class="${it.optional ? "optional" : ""}">
           <td class="thumb"><img src="${img}" alt="" loading="lazy"
             onerror="this.onerror=null;this.src='img/parts/placeholder.svg'"></td>
           <td class="qty">${it.qty}×</td>
-          <td class="name">${it.name}${it.variant ? ` — <em>${it.variant}</em>` : ""}${it.optional ? ' <span class="tag">optional</span>' : ""}
+          <td class="name">${it.name}${it.variant ? ` — <em>${it.variant}</em>` : ""}${it.optional ? ' <span class="tag">optional</span>' : ""}${it.club ? ' <span class="tag club-tag">Club Expansion</span>' : ""}
             ${it.note ? `<div class="note">${it.note}</div>` : ""}</td>
           <td class="link">${linkButtons(it)}</td>
         </tr>`;
       });
-      html += `</tbody></table>`;
+      html += `</tbody></table></div>`;
     });
     wrap.innerHTML = html;
   }

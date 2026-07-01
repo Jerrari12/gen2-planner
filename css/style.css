@@ -708,8 +708,10 @@ details.builds > summary:hover { color: var(--text); }
 .d-rail { fill: #7a7d86; }
 .d-lip { fill: #70737c; }
 .s-screw { fill: var(--bg); }
-.d-label { fill: #dcdde1; font-size: 10px; font-weight: 600; }
-.d-userlabel { fill: #ffd9a8; font-size: 11px; font-weight: 700; }
+/* dark outline behind board text so labels read on any drawer fill */
+.d-label, .d-userlabel { paint-order: stroke; stroke: #15161b; stroke-width: 3px; stroke-linejoin: round; }
+.d-label { fill: #f2f3f5; font-size: 10px; font-weight: 700; }
+.d-userlabel { fill: #ffd9a8; font-size: 11.5px; font-weight: 800; }
 .drawer:hover .d-case { stroke: var(--accent); }
 .drawer.selected .d-case { stroke: var(--accent); stroke-width: 3; }
 .drawer.bow .d-case { stroke: #e8b04b; stroke-width: 2.5; stroke-dasharray: 6 3; }
@@ -778,6 +780,7 @@ details.builds > summary:hover { color: var(--text); }
 .ut-label input {
   flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line);
   border-radius: 8px; color: var(--text); padding: 7px 10px; font-size: 0.85rem;
+  text-transform: uppercase;   /* show caps as you type (value is stored uppercase too) */
 }
 .ut-label input:focus { outline: none; border-color: var(--accent); }
 .ut-actions .btn { font-size: 0.78rem; padding: 7px 12px; }

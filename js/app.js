@@ -461,16 +461,23 @@
     build("#door-style-seg", GEN2.doorStyles, state.doorStyle, (id) => { state.doorStyle = id; });
     $("#faceplate-style-pick").hidden = !state.placed.some((p) => p.fill === "decor");
     $("#door-style-pick").hidden = !state.placed.some((p) => p.fill === "cabinet");
-    // Label-bearing faceplates (EdgeLabel / Classic Pro) link out to the label generator.
-    const fdef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    updateLabelGenLink();
+  }
+
+  /* Label-bearing faceplates (EdgeLabel / Classic Pro) link out to the matching
+     label generator, carrying the decor drawers' labels so they pre-fill there
+     (read as #labels=<base64 JSON> on the generator side). */
+  function updateLabelGenLink() {
     const link = $("#label-gen-link");
-    if (fdef && fdef.labelGen) {
-      link.hidden = false;
-      link.href = fdef.labelGen;
-      link.textContent = `🏷 Design your ${fdef.label} labels →`;
-    } else {
-      link.hidden = true;
-    }
+    if (!link) return;
+    const fdef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    if (!fdef || !fdef.labelGen) { link.hidden = true; return; }
+    link.hidden = false;
+    link.textContent = `🏷 Design your ${fdef.label} labels →`;
+    const labels = state.placed.filter((p) => p.fill === "decor" && p.label).map((p) => p.label);
+    link.href = fdef.labelGen + (labels.length
+      ? "#labels=" + btoa(unescape(encodeURIComponent(JSON.stringify(labels))))
+      : "");
   }
 
   /* Mobile: collapse the chosen setup steps (location / printer / length) into a
@@ -2109,9 +2116,10 @@
     $("#ut-label").addEventListener("input", (e) => {
       const u = selectedUnit();
       if (!u) return;
-      const v = e.target.value.trim();
+      const v = e.target.value.trim().toUpperCase();   // labels print better in ALL CAPS
       if (v) u.label = v; else delete u.label;
       renderBoard();
+      updateLabelGenLink();   // keep the handoff link's labels current as you type
     });
     $("#ut-shelves").querySelectorAll("[data-shelf]").forEach((btn) => {
       btn.addEventListener("click", () => {

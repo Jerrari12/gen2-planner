@@ -286,8 +286,8 @@ details.space-box[open] .sb-sum-status { display: none; }
 /* Disabled length cards & size tiles: reveal the "won't fit" reason on hover
    OR focus — so a tap on touch reveals it too (native title= is hover-only).
    Reuses the info-tip tooltip look. Set via data-tip in app.js. */
-.card.disabled[data-tip], .palette-item.disabled[data-tip] { position: relative; }
-.card.disabled[data-tip]::after, .palette-item.disabled[data-tip]::after {
+.card.disabled[data-tip], .palette-item.disabled[data-tip], .seg button.disabled[data-tip] { position: relative; }
+.card.disabled[data-tip]::after, .palette-item.disabled[data-tip]::after, .seg button.disabled[data-tip]::after {
   content: attr(data-tip);
   position: absolute;
   bottom: calc(100% + 8px);
@@ -311,7 +311,8 @@ details.space-box[open] .sb-sum-status { display: none; }
   pointer-events: none;
 }
 .card.disabled[data-tip]:hover::after, .card.disabled[data-tip]:focus::after,
-.palette-item.disabled[data-tip]:hover::after, .palette-item.disabled[data-tip]:focus::after {
+.palette-item.disabled[data-tip]:hover::after, .palette-item.disabled[data-tip]:focus::after,
+.seg button.disabled[data-tip]:hover::after, .seg button.disabled[data-tip]:focus::after {
   opacity: 1;
   visibility: visible;
 }
@@ -493,12 +494,19 @@ details.space-box[open] .sb-sum-status { display: none; }
 .bom-style-row .style-help { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; max-width: 320px; }
 .bom-style-row .seg { margin-bottom: 0; background: var(--panel-2); }
 .bom-style-row .seg button { text-align: center; padding: 8px 12px; }
+/* The label-generator handoff is the highest-value click for an EdgeLabel /
+   Classic Pro user (it carries their typed drawer labels, pre-filled) — so
+   it's the one SOLID accent button in this card; the ghost video chip below
+   reads as its secondary. Pill radius matches the .video-chip family. */
 .label-gen {
   display: inline-block; margin-top: 10px;
-  font-size: 0.8rem; font-weight: 600; color: var(--accent); text-decoration: none;
-  border: 1px solid var(--accent-dim); border-radius: 8px; padding: 6px 12px;
+  font-size: 0.8rem; font-weight: 700; text-decoration: none;
+  color: #1d1e20; background: var(--accent);
+  border: 1px solid var(--accent); border-radius: 999px; padding: 6px 14px;
 }
-.label-gen:hover { background: rgba(255, 138, 64, 0.1); border-color: var(--accent); }
+.label-gen:hover { background: #ffa161; border-color: #ffa161; }
+.label-gen .lg-count { font-weight: 600; opacity: 0.75; }
+.label-gen .lg-ico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 3px; }
 
 #grid-h-auto { font-size: 0.72rem; margin: -2px 0 8px; }
 
@@ -547,7 +555,10 @@ details.space-box[open] .sb-sum-status { display: none; }
   border: 1px solid #5b5c61;
   border-radius: 2px;
 }
-.palette-item.active .palette-box { background: var(--accent-dim); border-color: var(--accent); }
+/* The size-footprint box depicts a case of the CHOSEN length, so its active
+   tint wears the length's lineup color (set as --len-color from refresh());
+   the tile's selected border stays accent orange — that's selection chrome. */
+.palette-item.active .palette-box { background: var(--len-color-dim, var(--accent-dim)); border-color: var(--len-color, var(--accent)); }
 .palette-label { font-size: 0.72rem; }
 
 .fill-grid {
@@ -581,13 +592,99 @@ details.space-box[open] .sb-sum-status { display: none; }
 .fi-face { fill: #55565b; }
 .fi-dark { fill: #26272a; }
 .fi-lip { fill: #6a6b70; }
+.fi-wall { fill: #45464b; }
 .fi-rail { fill: #6a6b70; }
 .fi-line { stroke: #5e5f64; stroke-width: 2; }
 .fi-item { fill: #5e5f64; }
 .fi-door { fill: #55565b; stroke: #6a6b70; stroke-width: 1; }
 .fi-knob { fill: var(--text); opacity: 0.8; }
-.fi-hinge { fill: var(--accent-dim); }
-.fill-tile.active .fi-rail, .fill-tile.active .fi-lip, .fill-tile.active .fi-hinge { fill: var(--accent); }
+/* Cabinet hinges wear the chosen length's lineup color even when the tile
+   isn't selected (matches the product-color board's cabinet hinges); falls
+   back to dim accent before a length is picked. */
+.fi-hinge { fill: var(--len-color, var(--accent-dim)); }
+/* Other active fill-icon details (decor rails, classic scoop) depict product
+   parts too, so they take the lineup color while their tile is selected. */
+.fill-tile.active .fi-rail, .fill-tile.active .fi-lip { fill: var(--len-color, var(--accent)); }
+
+/* Parts-list thumbnail magnifier: one shared fixed-position card (it must
+   escape .bom-scroll's overflow clipping, so it can't live inside the table).
+   Image only — the row already carries the name/notes. */
+.thumb-zoom {
+  position: fixed;
+  z-index: 90;
+  pointer-events: none;   /* never traps the cursor or blocks clicks */
+  background: #1d1e20;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+.thumb-zoom img {
+  display: block;
+  width: 220px;
+  height: 220px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #2c2d31;
+}
+.thumb-zoom .tz-name {
+  display: block;
+  width: 220px;
+  margin-top: 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text);
+  text-align: center;
+}
+
+/* Instructional-video modal: a native <dialog> (backdrop, ESC, focus handling
+   for free). The 16:9 frame holds the lazy YouTube embed. */
+.video-modal {
+  background: #1d1e20;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  width: min(760px, 92vw);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
+}
+.video-modal::backdrop { background: rgba(0, 0, 0, 0.6); }
+.vm-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.vm-title { flex: 1; font-weight: 600; font-size: 0.95rem; }
+.vm-close {
+  background: none; border: 0; color: var(--muted); font-size: 1.5rem;
+  line-height: 1; cursor: pointer; padding: 2px 8px; border-radius: 6px;
+}
+.vm-close:hover { color: var(--text); background: #2c2d31; }
+.vm-frame { aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
+.vm-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+.vm-yt {
+  display: inline-block; margin-top: 10px;
+  font-size: 0.78rem; color: var(--muted); text-decoration: none;
+}
+.vm-yt:hover { color: var(--accent); }
+
+/* "▶ Watch" chips — rendered wherever a video's context matches (selected-unit
+   toolbar, parts-list section titles). */
+.video-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none;
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  color: var(--accent);
+  font: inherit; font-size: 0.74rem; font-weight: 600;
+  text-transform: none; letter-spacing: normal;
+  padding: 3px 10px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.video-chip:hover { border-color: var(--accent); background: rgba(255, 138, 64, 0.08); }
+/* red play glyph = instant "video" association; chip chrome stays accent */
+.video-chip .vc-play { color: #ff4444; font-size: 0.85em; }
+.ut-video { margin-top: 6px; }
+.fp-video { margin-top: 8px; }
+#bom h3 .video-chip { margin-left: 10px; }
 
 /* Rich hover card on the fill tiles (image + caption) */
 .tip-card {
@@ -829,13 +926,69 @@ details.builds > summary:hover { color: var(--text); }
 .d-shelf-line.dashed { stroke-dasharray: 4 4; stroke: var(--accent); }
 .d-rail { fill: #7a7d86; }
 .d-lip { fill: #70737c; }
+/* classic-drawer handle scoop: light chamfer ramp → thin lip edge → recessed wall */
+.d-scoop { fill: #83868e; }
+.d-scoop-wall { fill: #55575d; }
+.d-scoop-edge { stroke: #9a9eaa; stroke-width: 1.2; }
+/* decor-drawer recessed centre panel between the faceplate rails */
+.d-panel { fill: #2b2c31; }
+
+/* Product colors (default board style, toggleable to schematic grays in the
+   palette): drawer fronts wear the CHOSEN LENGTH's lineup color, like the real
+   collections (165 blue, 185 orange, 240 teal, 270 red…) — same shading logic
+   per shade. The --len-face-* vars are computed in refresh() and set INLINE on
+   the #board svg (not :root) so the share-card clone carries them; fallbacks
+   are the 185 orange. Cases/cabinets/shelves stay dark, true to the product. */
+#board.product .d-face { fill: var(--len-face, #e0702a); }
+#board.product .d-scoop { fill: var(--len-face-light, #f18a45); }
+#board.product .d-scoop-wall { fill: var(--len-face-dark, #a3511d); }
+#board.product .d-scoop-edge { stroke: var(--len-face-edge, #ffc08a); }
+#board.product .d-panel { fill: var(--len-face-dark, #aa5520); }
+#board.product .d-rail { fill: var(--len-face-light, #f18a45); }
+/* cabinet hinges + shelf/seam lines are accent details too — same lineup
+   shade as the drawer rails (the ID selector also wins over .dashed's stroke,
+   so cabinet seams recolor while keeping their dash pattern). */
+#board.product .d-hinge { fill: var(--len-face-light, #f18a45); }
+#board.product .d-shelf-line { stroke: var(--len-face-light, #f18a45); }
+
+/* the Product/Schematic picker in the palette's Grid tools */
+.board-colors { margin: 4px 0 12px; }
+.board-colors .bc-label { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; }
+.board-colors .seg { margin-bottom: 0; }
+.board-colors .seg button { text-align: center; padding: 6px 8px; font-size: 0.78rem; }
 .s-screw { fill: var(--bg); }
 /* dark outline behind board text so labels read on any drawer fill */
-.d-label, .d-userlabel { paint-order: stroke; stroke: #15161b; stroke-width: 3px; stroke-linejoin: round; }
-.d-label { fill: #f2f3f5; font-size: 10px; font-weight: 700; }
-.d-userlabel { fill: #ffd9a8; font-size: 11.5px; font-weight: 800; }
+.d-label, .d-userlabel { paint-order: stroke; stroke: #15161b; stroke-linejoin: round; }
+/* size badge = metadata: small, dim, light — the user's label is the headline.
+   On labelled units it only appears on hover/selection (.on-demand). */
+.d-label { fill: #aab0bb; font-size: 8.5px; font-weight: 500; stroke-width: 2px; transition: opacity 0.12s; }
+.d-label.on-demand { opacity: 0; }
+.drawer:hover .d-label.on-demand, .drawer.selected .d-label.on-demand { opacity: 1; }
+/* the user's label is the content — bright + bold. font-size set per-unit inline. */
+.d-userlabel { fill: #f2f3f5; font-weight: 700; stroke-width: 2.5px; }
 .drawer:hover .d-case { stroke: var(--accent); }
 .drawer.selected .d-case { stroke: var(--accent); stroke-width: 3; }
+/* Drawer fronts slide "toward you" on hover/selection — in a front view an
+   opening drawer reads as the front growing slightly and casting a shadow.
+   Works because mousemove never rebuilds the board (see updateGhost). */
+.drawer .d-front { transform-box: fill-box; transform-origin: center; }
+.drawer:not(.dragging):hover .d-front,
+.drawer.selected .d-front {
+  transform: scale(1.05);
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer .d-front { transition: transform 0.16s ease, filter 0.16s ease; }
+  /* One-shot stagger when an example/surprise build loads: units settle in
+     sequence toward the mount surface (renderBoard sets the per-unit vars). */
+  .drawer.drop-in {
+    animation: unit-drop 0.3s ease backwards;
+    animation-delay: var(--drop-delay, 0ms);
+  }
+  @keyframes unit-drop {
+    from { opacity: 0; transform: translateY(var(--drop-from, -10px)); }
+  }
+}
 .drawer.bow .d-case { stroke: #e8b04b; stroke-width: 2.5; stroke-dasharray: 6 3; }
 .drawer.dragging { opacity: 0.35; }
 .drawer { cursor: grab; }
@@ -898,6 +1051,11 @@ details.builds > summary:hover { color: var(--text); }
 
 .ut-actions { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; flex-wrap: wrap; }
 .ut-shelves { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
+/* Per-drawer closure picker (None / Magnets / Push-Click) */
+.ut-closure { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
+.ut-closure .seg { margin-bottom: 0; }
+.ut-closure .seg button { padding: 5px 12px; font-size: 0.78rem; text-align: center; white-space: nowrap; }
+.seg button.disabled { opacity: 0.45; cursor: not-allowed; }
 .ut-label { flex: 1 1 100%; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); }
 .ut-label input {
   flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line);
@@ -967,6 +1125,9 @@ details.builds > summary:hover { color: var(--text); }
 .bom-table td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .bom-table tr:last-child td { border-bottom: 0; }
 .bom-table .thumb { width: 58px; padding: 6px 0 6px 10px; }
+/* real renders invite the magnifier; the cursor is set from JS only on rows
+   with a real image (generic placeholder/hardware icons don't zoom) */
+.bom-table .thumb img.zoomable { cursor: zoom-in; }
 .bom-table .thumb img {
   width: 46px; height: 46px;
   object-fit: contain;

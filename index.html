@@ -163,6 +163,13 @@
             </label>
             <p class="hint" id="grid-h-auto" hidden>Height adjusts automatically as you build.</p>
           </div>
+          <div class="board-colors">
+            <span class="bc-label">Board colors</span>
+            <div class="seg" id="board-colors-seg" role="group" aria-label="Board colors">
+              <button type="button" data-colors="product">Product</button>
+              <button type="button" data-colors="schematic">Schematic</button>
+            </div>
+          </div>
           <button type="button" class="btn" id="surprise-me">🎲 Surprise me</button>
           <div class="tool-row">
             <button type="button" class="btn ghost small" id="load-example">Load example</button>
@@ -196,6 +203,7 @@
             <div class="ut-text">
               <div class="ut-title" id="ut-title">No unit selected</div>
               <div class="ut-sub" id="ut-sub">Click a part on the grid to move or remove it.</div>
+              <div class="ut-video" id="ut-video" hidden></div>
             </div>
           </div>
           <div class="ut-pad" role="group" aria-label="Move selected unit">
@@ -216,6 +224,10 @@
                 <b id="ut-shelf-count">0</b>
                 <button type="button" data-shelf="+">+</button>
               </span>
+            </div>
+            <div class="ut-closure" id="ut-closure" hidden>
+              <span>Drawer close</span>
+              <div class="seg" id="ut-closure-seg" role="group" aria-label="Drawer closure"></div>
             </div>
             <button type="button" class="btn ghost ut-edit-btn" id="ut-edit" hidden>Edit interior</button>
             <button type="button" class="btn ghost" id="ut-remove" disabled>Remove unit</button>
@@ -292,6 +304,7 @@
         <div class="fp-cards" id="faceplate-style-cards"></div>
         <p class="club-note" id="club-note" hidden></p>
         <a class="label-gen" id="label-gen-link" target="_blank" rel="noopener" hidden></a>
+        <div class="fp-video" id="faceplate-video" hidden></div>
       </div>
       <div class="style-pick" id="handle-style-pick" hidden>
         <label>Handle style</label>
@@ -308,6 +321,7 @@
       <button type="button" class="btn" id="copy-bom">Copy as text</button>
       <button type="button" class="btn" id="csv-bom">Download CSV</button>
       <button type="button" class="btn" id="print-bom">Print</button>
+      <button type="button" class="btn" id="save-image">Save build image</button>
     </div>
     <p class="fineprint">
       Quantities for mount hardware are estimates · always confirm against the instructions at
@@ -316,6 +330,26 @@
   </section>
 
 </main>
+
+<!-- Shared magnifier card for the parts-list thumbnails (hover/tap to enlarge).
+     Fixed-position so it can escape the BOM table's scroll clipping. -->
+<div class="thumb-zoom" id="thumb-zoom" hidden aria-hidden="true"><img alt="" /><span class="tz-name" id="thumb-zoom-name"></span></div>
+
+<!-- Shared player for the "▶ Watch" instructional-video chips. The iframe src
+     is set on open and cleared on close — nothing loads until a chip is
+     clicked, and clearing the src stops playback. -->
+<dialog class="video-modal" id="video-modal">
+  <div class="vm-head">
+    <span class="vm-title" id="video-modal-title"></span>
+    <button type="button" class="vm-close" id="video-modal-close" aria-label="Close video">×</button>
+  </div>
+  <div class="vm-frame">
+    <iframe id="video-modal-frame" title="Instructional video"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen></iframe>
+  </div>
+  <a class="vm-yt" id="video-modal-link" target="_blank" rel="noopener">Watch on YouTube ↗</a>
+</dialog>
 
 <footer class="footer">
   GEN2 QuickLock Modular System by <a href="https://www.jerrari3d.com" target="_blank" rel="noopener">JERRARI3D</a>

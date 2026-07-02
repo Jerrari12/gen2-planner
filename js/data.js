@@ -50,13 +50,13 @@ const GEN2 = {
       id: "classic",
       label: "Classic Drawer",
       blurb: "Print-in-place handle. No assembly, no extra parts.",
-      previewImg: "img/parts/GEN2_185-1W-1H Classic Drawer_256p.png",
+      previewImg: "img/parts/185/Classic Drawer 185-1W-1H.png",
     },
     {
       id: "decor",
       label: "Decor Drawer",
       blurb: "Swappable faceplate + handle/knob. Clips included in the drawer download (v2602).",
-      previewImg: "img/parts/185-1W-1H Decor Drawer.png",
+      previewImg: "img/parts/185/Decor Drawer 185-1W-1H.png",
     },
     {
       id: "shelf",
@@ -109,6 +109,7 @@ const GEN2 = {
     { id: "coreone",    label: "Prusa Core One",         x: 250, y: 220 },
     { id: "coreonel",   label: "Prusa Core One L",       x: 300, y: 300 },
     { id: "mk4",        label: "Prusa MK4 / MK3.9",      x: 250, y: 210 },
+    { id: "mini",       label: "Prusa Mini",             x: 180, y: 180 },
     { id: "xl",         label: "Prusa XL",               x: 360, y: 360 },
     { id: "bambux1",    label: "Bambu X1 / P1 / A1",     x: 256, y: 256 },
     { id: "a1mini",     label: "Bambu A1 mini",          x: 180, y: 180 },
@@ -139,10 +140,10 @@ const GEN2 = {
       id: "tabletop",
       label: "Tabletop",
       img: "img/parts/mount-tabletop.jpg",
-      blurb: "Table Top Kit V2 · covers and foot rails create a rigid standalone unit on any surface.",
+      blurb: "Table Top Kit · covers and foot rails create a rigid standalone unit on any surface.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/table-top-kit",
       askSpace: false,
-      planTip: "Tabletop: this builds a free-standing unit, so size is entirely up to you. The Table Top Kit V2 adds the covers and foot rails that make it rigid.",
+      planTip: "Tabletop: this builds a free-standing unit, so size is entirely up to you. The Table Top Kit adds the covers and foot rails that make it rigid.",
     },
     {
       id: "wall",
@@ -311,7 +312,9 @@ const GEN2 = {
     linkName: "GEN2 Hardware",
   },
 
-  // Optional extras for Decor drawers
+  // Faceplate handle for Decor drawers whose faceplate has no built-in handle.
+  // (Other drawer/case hardware — closures, QuickLocks — lives in the Hardware
+  // section, built from `closures` + `quickLock`.)
   decorExtras: [
     {
       id: "handle",
@@ -319,12 +322,29 @@ const GEN2 = {
       qtyPerDrawer: 1,
       note: "Pick any style · handles and knobs are swappable.",
     },
+  ],
+
+  /* How a drawer closes — chosen PER DRAWER in the unit toolbar ("Drawer
+     close"), default none. A closure's `parts` bill once per opted-in drawer.
+     Classic and Decor share the same clip slot on the back, so closures apply
+     to both. `soon` renders the option disabled with its `tip` as the reason;
+     `noWall` disables it on wall builds (once released) — PR-001 sticks out
+     the back of the case, which a wall doesn't allow. */
+  closures: [
+    { id: "none", label: "None" },
     {
-      name: () => "Magnets 10×2mm or 6×2mm (optional soft-close)",
-      qtyPerDrawer: 2,
-      note: "Optional · only for soft-close configurations.",
-      hardware: true,
-      optional: true,
+      id: "magnet", label: "Magnets",
+      tip: "Soft-close: a magnet clip bridges the drawer and its case.",
+      parts: [
+        { name: () => "GEN2 Magnet Clip", qtyPerDrawer: 1, linkAs: "GEN2 Hardware",
+          note: "Bridges the drawer and its case for a magnetic soft-close catch. Wider drawers have extra slots if you'd like to add more." },
+        { name: () => "Magnets 10×2mm or 6×2mm", qtyPerDrawer: 2, hardware: true,
+          note: "Seat in the magnet clips." },
+      ],
+    },
+    {
+      id: "pushclick", label: "Push-Click", soon: true, noWall: true,
+      tip: "PR-001 push-to-open — coming soon. Not for wall builds: it sticks out the back of the case.",
     },
   ],
 
@@ -355,6 +375,64 @@ const GEN2 = {
   // Parts that aren't published yet — shown with a "coming soon" tag
   // instead of download links. Remove entries as they're released.
   unreleased: ["shelfInsert", "door", "hinge", "latch", "sideCover"],
+
+  // Exact part names not modeled yet, same "coming soon" treatment as
+  // `unreleased` above but for SPECIFIC size/length combos rather than a whole
+  // part type — e.g. some drawer sizes exist for one length but not another.
+  // A missing render in a batch usually means the model itself isn't done, so
+  // this is populated alongside IMAGE_OVERRIDES from what a render batch left out.
+  unreleasedParts: [
+    "GEN2 185-3W-1.5H Classic Drawer",
+    "GEN2 185-3W-2H Classic Drawer",
+    "GEN2 185-4W-1.5H Classic Drawer",
+    "GEN2 185-4W-2H Classic Drawer",
+    "GEN2 165-3W-1.5H Classic Drawer",
+    "GEN2 165-3W-2H Classic Drawer",
+    "GEN2 165-4W-1.5H Classic Drawer",
+    "GEN2 165-4W-2H Classic Drawer",
+    // 270: same 3W/4W × 1.5H/2H gap as 185/165, PLUS the 1W/2W-3H sizes aren't
+    // modeled at this length either (unlike 185/165, where they are).
+    "GEN2 270-1W-3H Classic Drawer",
+    "GEN2 270-2W-3H Classic Drawer",
+    "GEN2 270-3W-1.5H Classic Drawer",
+    "GEN2 270-3W-2H Classic Drawer",
+    "GEN2 270-4W-1.5H Classic Drawer",
+    "GEN2 270-4W-2H Classic Drawer",
+    // 270 Decor Drawer: one gap in an otherwise-complete batch.
+    "GEN2 270-4W-1H Decor Drawer",
+    // 115 Classic Drawer: only 1W/2W modeled so far — all 3W/4W + the 3H sizes
+    // aren't cut yet.
+    "GEN2 115-1W-3H Classic Drawer",
+    "GEN2 115-2W-3H Classic Drawer",
+    "GEN2 115-3W-0.5H Classic Drawer",
+    "GEN2 115-3W-1H Classic Drawer",
+    "GEN2 115-3W-1.5H Classic Drawer",
+    "GEN2 115-3W-2H Classic Drawer",
+    "GEN2 115-4W-0.5H Classic Drawer",
+    "GEN2 115-4W-1H Classic Drawer",
+    "GEN2 115-4W-1.5H Classic Drawer",
+    "GEN2 115-4W-2H Classic Drawer",
+    // 240 Classic Drawer: same 6-size gap as 165/185/270 (3W/4W × 1.5H/2H + the
+    // two 3H sizes).
+    "GEN2 240-1W-3H Classic Drawer",
+    "GEN2 240-2W-3H Classic Drawer",
+    "GEN2 240-3W-1.5H Classic Drawer",
+    "GEN2 240-3W-2H Classic Drawer",
+    "GEN2 240-4W-1.5H Classic Drawer",
+    "GEN2 240-4W-2H Classic Drawer",
+  ],
+
+  /* Short instructional YouTube videos, played in the in-page modal. Surfaced
+     as "▶ Watch" chips wherever the context matches: `fills` → shown in the
+     toolbar when a unit of that fill is selected; `mounts` → shown next to
+     that mount's parts-list section; `faceStyles` → shown in the faceplate
+     style picker when that style is chosen. Adding a video = adding a row. */
+  videos: [
+    { id: "b2xK4EpuWog", title: "Cabinet assembly & wall installation",
+      fills: ["cabinet"], mounts: ["wall"] },
+    { id: "3rPmE_q4KH0", title: "EdgeLabel faceplate assembly",
+      faceStyles: ["edgelabel"] },
+  ],
 };
 
 /* ---------------------------------------------------------------------------
@@ -538,13 +616,330 @@ function partLinks(name) {
 const IMAGE_OVERRIDES = {
   "GEN2 QuickLock - Left": "img/parts/QuickLock.png",
   "GEN2 QuickLock - Right": "img/parts/QuickLock.png",
-  "GEN2 185-1W-1H Decor Drawer": "img/parts/185-1W-1H Decor Drawer.png",
+  "GEN2 Magnet Clip": "img/parts/Magnet Clip.png",
+  // L/R stoppers are mirrored parts sharing one render (like the QuickLocks)
+  "GEN2 Drawer Stopper - Left": "img/parts/Drawer Stopper.png",
+  "GEN2 Drawer Stopper - Right": "img/parts/Drawer Stopper.png",
+  // Hardware-store items (bought, not printed) — real reference photos instead
+  // of the generic wrench icon, so a user knows exactly what to pick up.
+  // renderBom() looks these up specially: it.hardware skips partImage()'s
+  // auto-pattern (these names don't follow the "GEN2 ..." convention anyway)
+  // and falls back to hardware.svg, never the "coming soon" placeholder.
+  "M3×6mm screw": "img/parts/Screw.png",
+  "M3×12mm screw": "img/parts/Screw.png",
+  "M3 hex nut": "img/parts/Nut.png",
+  "Magnets 10×2mm or 6×2mm": "img/parts/Magnets.png",
+  "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)": "img/parts/Wood Screw.png",
+  // 185 Decor Drawer renders (2026-07) live in img/parts/185/ with a
+  // "Decor Drawer 185-<size>" scheme — no dots in filenames (0.5H → 05H).
+  // All 18 catalog sizes; case-sensitive once hosted on GitHub Pages.
+  "GEN2 185-1W-0.5H Decor Drawer": "img/parts/185/Decor Drawer 185-1W-05H.png",
+  "GEN2 185-1W-1H Decor Drawer":   "img/parts/185/Decor Drawer 185-1W-1H.png",
+  "GEN2 185-1W-1.5H Decor Drawer": "img/parts/185/Decor Drawer 185-1W-15H.png",
+  "GEN2 185-1W-2H Decor Drawer":   "img/parts/185/Decor Drawer 185-1W-2H.png",
+  "GEN2 185-1W-3H Decor Drawer":   "img/parts/185/Decor Drawer 185-1W-3H.png",
+  "GEN2 185-2W-0.5H Decor Drawer": "img/parts/185/Decor Drawer 185-2W-05H.png",
+  "GEN2 185-2W-1H Decor Drawer":   "img/parts/185/Decor Drawer 185-2W-1H.png",
+  "GEN2 185-2W-1.5H Decor Drawer": "img/parts/185/Decor Drawer 185-2W-15H.png",
+  "GEN2 185-2W-2H Decor Drawer":   "img/parts/185/Decor Drawer 185-2W-2H.png",
+  "GEN2 185-2W-3H Decor Drawer":   "img/parts/185/Decor Drawer 185-2W-3H.png",
+  "GEN2 185-3W-0.5H Decor Drawer": "img/parts/185/Decor Drawer 185-3W-05H.png",
+  "GEN2 185-3W-1H Decor Drawer":   "img/parts/185/Decor Drawer 185-3W-1H.png",
+  "GEN2 185-3W-1.5H Decor Drawer": "img/parts/185/Decor Drawer 185-3W-15H.png",
+  "GEN2 185-3W-2H Decor Drawer":   "img/parts/185/Decor Drawer 185-3W-2H.png",
+  "GEN2 185-4W-0.5H Decor Drawer": "img/parts/185/Decor Drawer 185-4W-05H.png",
+  "GEN2 185-4W-1H Decor Drawer":   "img/parts/185/Decor Drawer 185-4W-1H.png",
+  "GEN2 185-4W-1.5H Decor Drawer": "img/parts/185/Decor Drawer 185-4W-15H.png",
+  "GEN2 185-4W-2H Decor Drawer":   "img/parts/185/Decor Drawer 185-4W-2H.png",
+  // 185 Case renders (2026-07) — all 18 valid sizes (no 3W-3H/4W-3H; those
+  // combos don't exist, see GEN2.unavailableSizes).
+  "GEN2 185 Case - 1W-0.5H": "img/parts/185/Case 185-1W-05H.png",
+  "GEN2 185 Case - 1W-1H":   "img/parts/185/Case 185-1W-1H.png",
+  "GEN2 185 Case - 1W-1.5H": "img/parts/185/Case 185-1W-15H.png",
+  "GEN2 185 Case - 1W-2H":   "img/parts/185/Case 185-1W-2H.png",
+  "GEN2 185 Case - 1W-3H":   "img/parts/185/Case 185-1W-3H.png",
+  "GEN2 185 Case - 2W-0.5H": "img/parts/185/Case 185-2W-05H.png",
+  "GEN2 185 Case - 2W-1H":   "img/parts/185/Case 185-2W-1H.png",
+  "GEN2 185 Case - 2W-1.5H": "img/parts/185/Case 185-2W-15H.png",
+  "GEN2 185 Case - 2W-2H":   "img/parts/185/Case 185-2W-2H.png",
+  "GEN2 185 Case - 2W-3H":   "img/parts/185/Case 185-2W-3H.png",
+  "GEN2 185 Case - 3W-0.5H": "img/parts/185/Case 185-3W-05H.png",
+  "GEN2 185 Case - 3W-1H":   "img/parts/185/Case 185-3W-1H.png",
+  "GEN2 185 Case - 3W-1.5H": "img/parts/185/Case 185-3W-15H.png",
+  "GEN2 185 Case - 3W-2H":   "img/parts/185/Case 185-3W-2H.png",
+  "GEN2 185 Case - 4W-0.5H": "img/parts/185/Case 185-4W-05H.png",
+  "GEN2 185 Case - 4W-1H":   "img/parts/185/Case 185-4W-1H.png",
+  "GEN2 185 Case - 4W-1.5H": "img/parts/185/Case 185-4W-15H.png",
+  "GEN2 185 Case - 4W-2H":   "img/parts/185/Case 185-4W-2H.png",
+  // 185 Classic Drawer renders (2026-07). Only 14 of the 18 catalog sizes were
+  // rendered — the other 4 (3W/4W × 1.5H/2H) aren't modeled yet, so they're
+  // listed in GEN2.unreleasedParts instead (no image override, no download
+  // links — partImage() falls back to placeholder.svg for those on its own).
+  "GEN2 185-1W-0.5H Classic Drawer": "img/parts/185/Classic Drawer 185-1W-05H.png",
+  "GEN2 185-1W-1H Classic Drawer":   "img/parts/185/Classic Drawer 185-1W-1H.png",
+  "GEN2 185-1W-1.5H Classic Drawer": "img/parts/185/Classic Drawer 185-1W-15H.png",
+  "GEN2 185-1W-2H Classic Drawer":   "img/parts/185/Classic Drawer 185-1W-2H.png",
+  "GEN2 185-1W-3H Classic Drawer":   "img/parts/185/Classic Drawer 185-1W-3H.png",
+  "GEN2 185-2W-0.5H Classic Drawer": "img/parts/185/Classic Drawer 185-2W-05H.png",
+  "GEN2 185-2W-1H Classic Drawer":   "img/parts/185/Classic Drawer 185-2W-1H.png",
+  "GEN2 185-2W-1.5H Classic Drawer": "img/parts/185/Classic Drawer 185-2W-15H.png",
+  "GEN2 185-2W-2H Classic Drawer":   "img/parts/185/Classic Drawer 185-2W-2H.png",
+  "GEN2 185-2W-3H Classic Drawer":   "img/parts/185/Classic Drawer 185-2W-3H.png",
+  "GEN2 185-3W-0.5H Classic Drawer": "img/parts/185/Classic Drawer 185-3W-05H.png",
+  "GEN2 185-3W-1H Classic Drawer":   "img/parts/185/Classic Drawer 185-3W-1H.png",
+  "GEN2 185-4W-0.5H Classic Drawer": "img/parts/185/Classic Drawer 185-4W-05H.png",
+  "GEN2 185-4W-1H Classic Drawer":   "img/parts/185/Classic Drawer 185-4W-1H.png",
+  // 185 Case Extender renders (2026-07) — width-only, all 4 sizes (1W-4W).
+  "GEN2 185 Case Extender - 1W-1H": "img/parts/185/Case Extender 185-1W.png",
+  "GEN2 185 Case Extender - 2W-1H": "img/parts/185/Case Extender 185-2W.png",
+  "GEN2 185 Case Extender - 3W-1H": "img/parts/185/Case Extender 185-3W.png",
+  "GEN2 185 Case Extender - 4W-1H": "img/parts/185/Case Extender 185-4W.png",
+  // 165 Classic Drawer renders (2026-07). Same story as 185 above: 14 of 18
+  // sizes rendered, the other 4 (3W/4W × 1.5H/2H) aren't modeled yet.
+  "GEN2 165-1W-0.5H Classic Drawer": "img/parts/165/Classic Drawer 165-1W-05H.png",
+  "GEN2 165-1W-1H Classic Drawer":   "img/parts/165/Classic Drawer 165-1W-1H.png",
+  "GEN2 165-1W-1.5H Classic Drawer": "img/parts/165/Classic Drawer 165-1W-15H.png",
+  "GEN2 165-1W-2H Classic Drawer":   "img/parts/165/Classic Drawer 165-1W-2H.png",
+  "GEN2 165-1W-3H Classic Drawer":   "img/parts/165/Classic Drawer 165-1W-3H.png",
+  "GEN2 165-2W-0.5H Classic Drawer": "img/parts/165/Classic Drawer 165-2W-05H.png",
+  "GEN2 165-2W-1H Classic Drawer":   "img/parts/165/Classic Drawer 165-2W-1H.png",
+  "GEN2 165-2W-1.5H Classic Drawer": "img/parts/165/Classic Drawer 165-2W-15H.png",
+  "GEN2 165-2W-2H Classic Drawer":   "img/parts/165/Classic Drawer 165-2W-2H.png",
+  "GEN2 165-2W-3H Classic Drawer":   "img/parts/165/Classic Drawer 165-2W-3H.png",
+  "GEN2 165-3W-0.5H Classic Drawer": "img/parts/165/Classic Drawer 165-3W-05H.png",
+  "GEN2 165-3W-1H Classic Drawer":   "img/parts/165/Classic Drawer 165-3W-1H.png",
+  "GEN2 165-4W-0.5H Classic Drawer": "img/parts/165/Classic Drawer 165-4W-05H.png",
+  "GEN2 165-4W-1H Classic Drawer":   "img/parts/165/Classic Drawer 165-4W-1H.png",
+  // 165 Decor Drawer renders (2026-07) — all 18 catalog sizes.
+  "GEN2 165-1W-0.5H Decor Drawer": "img/parts/165/Decor Drawer 165-1W-05H.png",
+  "GEN2 165-1W-1H Decor Drawer":   "img/parts/165/Decor Drawer 165-1W-1H.png",
+  "GEN2 165-1W-1.5H Decor Drawer": "img/parts/165/Decor Drawer 165-1W-15H.png",
+  "GEN2 165-1W-2H Decor Drawer":   "img/parts/165/Decor Drawer 165-1W-2H.png",
+  "GEN2 165-1W-3H Decor Drawer":   "img/parts/165/Decor Drawer 165-1W-3H.png",
+  "GEN2 165-2W-0.5H Decor Drawer": "img/parts/165/Decor Drawer 165-2W-05H.png",
+  "GEN2 165-2W-1H Decor Drawer":   "img/parts/165/Decor Drawer 165-2W-1H.png",
+  "GEN2 165-2W-1.5H Decor Drawer": "img/parts/165/Decor Drawer 165-2W-15H.png",
+  "GEN2 165-2W-2H Decor Drawer":   "img/parts/165/Decor Drawer 165-2W-2H.png",
+  "GEN2 165-2W-3H Decor Drawer":   "img/parts/165/Decor Drawer 165-2W-3H.png",
+  "GEN2 165-3W-0.5H Decor Drawer": "img/parts/165/Decor Drawer 165-3W-05H.png",
+  "GEN2 165-3W-1H Decor Drawer":   "img/parts/165/Decor Drawer 165-3W-1H.png",
+  "GEN2 165-3W-1.5H Decor Drawer": "img/parts/165/Decor Drawer 165-3W-15H.png",
+  "GEN2 165-3W-2H Decor Drawer":   "img/parts/165/Decor Drawer 165-3W-2H.png",
+  "GEN2 165-4W-0.5H Decor Drawer": "img/parts/165/Decor Drawer 165-4W-05H.png",
+  "GEN2 165-4W-1H Decor Drawer":   "img/parts/165/Decor Drawer 165-4W-1H.png",
+  "GEN2 165-4W-1.5H Decor Drawer": "img/parts/165/Decor Drawer 165-4W-15H.png",
+  "GEN2 165-4W-2H Decor Drawer":   "img/parts/165/Decor Drawer 165-4W-2H.png",
+  // 165 Case renders (2026-07) — all 18 valid sizes (no 3W-3H/4W-3H).
+  "GEN2 165 Case - 1W-0.5H": "img/parts/165/Case 165-1W-05H.png",
+  "GEN2 165 Case - 1W-1H":   "img/parts/165/Case 165-1W-1H.png",
+  "GEN2 165 Case - 1W-1.5H": "img/parts/165/Case 165-1W-15H.png",
+  "GEN2 165 Case - 1W-2H":   "img/parts/165/Case 165-1W-2H.png",
+  "GEN2 165 Case - 1W-3H":   "img/parts/165/Case 165-1W-3H.png",
+  "GEN2 165 Case - 2W-0.5H": "img/parts/165/Case 165-2W-05H.png",
+  "GEN2 165 Case - 2W-1H":   "img/parts/165/Case 165-2W-1H.png",
+  "GEN2 165 Case - 2W-1.5H": "img/parts/165/Case 165-2W-15H.png",
+  "GEN2 165 Case - 2W-2H":   "img/parts/165/Case 165-2W-2H.png",
+  "GEN2 165 Case - 2W-3H":   "img/parts/165/Case 165-2W-3H.png",
+  "GEN2 165 Case - 3W-0.5H": "img/parts/165/Case 165-3W-05H.png",
+  "GEN2 165 Case - 3W-1H":   "img/parts/165/Case 165-3W-1H.png",
+  "GEN2 165 Case - 3W-1.5H": "img/parts/165/Case 165-3W-15H.png",
+  "GEN2 165 Case - 3W-2H":   "img/parts/165/Case 165-3W-2H.png",
+  "GEN2 165 Case - 4W-0.5H": "img/parts/165/Case 165-4W-05H.png",
+  "GEN2 165 Case - 4W-1H":   "img/parts/165/Case 165-4W-1H.png",
+  "GEN2 165 Case - 4W-1.5H": "img/parts/165/Case 165-4W-15H.png",
+  "GEN2 165 Case - 4W-2H":   "img/parts/165/Case 165-4W-2H.png",
+  // 270 Case renders (2026-07) — all 18 valid sizes (no 3W-3H/4W-3H).
+  "GEN2 270 Case - 1W-0.5H": "img/parts/270/Case 270-1W-05H.png",
+  "GEN2 270 Case - 1W-1H":   "img/parts/270/Case 270-1W-1H.png",
+  "GEN2 270 Case - 1W-1.5H": "img/parts/270/Case 270-1W-15H.png",
+  "GEN2 270 Case - 1W-2H":   "img/parts/270/Case 270-1W-2H.png",
+  "GEN2 270 Case - 1W-3H":   "img/parts/270/Case 270-1W-3H.png",
+  "GEN2 270 Case - 2W-0.5H": "img/parts/270/Case 270-2W-05H.png",
+  "GEN2 270 Case - 2W-1H":   "img/parts/270/Case 270-2W-1H.png",
+  "GEN2 270 Case - 2W-1.5H": "img/parts/270/Case 270-2W-15H.png",
+  "GEN2 270 Case - 2W-2H":   "img/parts/270/Case 270-2W-2H.png",
+  "GEN2 270 Case - 2W-3H":   "img/parts/270/Case 270-2W-3H.png",
+  "GEN2 270 Case - 3W-0.5H": "img/parts/270/Case 270-3W-05H.png",
+  "GEN2 270 Case - 3W-1H":   "img/parts/270/Case 270-3W-1H.png",
+  "GEN2 270 Case - 3W-1.5H": "img/parts/270/Case 270-3W-15H.png",
+  "GEN2 270 Case - 3W-2H":   "img/parts/270/Case 270-3W-2H.png",
+  "GEN2 270 Case - 4W-0.5H": "img/parts/270/Case 270-4W-05H.png",
+  "GEN2 270 Case - 4W-1H":   "img/parts/270/Case 270-4W-1H.png",
+  "GEN2 270 Case - 4W-1.5H": "img/parts/270/Case 270-4W-15H.png",
+  "GEN2 270 Case - 4W-2H":   "img/parts/270/Case 270-4W-2H.png",
+  // 270 Case Extender renders (2026-07) — width-only, all 4 sizes.
+  "GEN2 270 Case Extender - 1W-1H": "img/parts/270/Case Extender 270-1W.png",
+  "GEN2 270 Case Extender - 2W-1H": "img/parts/270/Case Extender 270-2W.png",
+  "GEN2 270 Case Extender - 3W-1H": "img/parts/270/Case Extender 270-3W.png",
+  "GEN2 270 Case Extender - 4W-1H": "img/parts/270/Case Extender 270-4W.png",
+  // 270 Classic Drawer renders (2026-07). 12 of 18 sizes rendered — see
+  // GEN2.unreleasedParts for the 6 gaps (3W/4W × 1.5H/2H, plus 1W/2W-3H,
+  // which unlike 185/165 aren't modeled at this length yet).
+  "GEN2 270-1W-0.5H Classic Drawer": "img/parts/270/Classic Drawer 270-1W-05H.png",
+  "GEN2 270-1W-1H Classic Drawer":   "img/parts/270/Classic Drawer 270-1W-1H.png",
+  "GEN2 270-1W-1.5H Classic Drawer": "img/parts/270/Classic Drawer 270-1W-15H.png",
+  "GEN2 270-1W-2H Classic Drawer":   "img/parts/270/Classic Drawer 270-1W-2H.png",
+  "GEN2 270-2W-0.5H Classic Drawer": "img/parts/270/Classic Drawer 270-2W-05H.png",
+  "GEN2 270-2W-1H Classic Drawer":   "img/parts/270/Classic Drawer 270-2W-1H.png",
+  "GEN2 270-2W-1.5H Classic Drawer": "img/parts/270/Classic Drawer 270-2W-15H.png",
+  "GEN2 270-2W-2H Classic Drawer":   "img/parts/270/Classic Drawer 270-2W-2H.png",
+  "GEN2 270-3W-0.5H Classic Drawer": "img/parts/270/Classic Drawer 270-3W-05H.png",
+  "GEN2 270-3W-1H Classic Drawer":   "img/parts/270/Classic Drawer 270-3W-1H.png",
+  "GEN2 270-4W-0.5H Classic Drawer": "img/parts/270/Classic Drawer 270-4W-05H.png",
+  "GEN2 270-4W-1H Classic Drawer":   "img/parts/270/Classic Drawer 270-4W-1H.png",
+  // 270 Decor Drawer renders (2026-07). 17 of 18 sizes — see unreleasedParts
+  // for the one gap (4W-1H).
+  "GEN2 270-1W-0.5H Decor Drawer": "img/parts/270/Decor Drawer 270-1W-05H.png",
+  "GEN2 270-1W-1H Decor Drawer":   "img/parts/270/Decor Drawer 270-1W-1H.png",
+  "GEN2 270-1W-1.5H Decor Drawer": "img/parts/270/Decor Drawer 270-1W-15H.png",
+  "GEN2 270-1W-2H Decor Drawer":   "img/parts/270/Decor Drawer 270-1W-2H.png",
+  "GEN2 270-1W-3H Decor Drawer":   "img/parts/270/Decor Drawer 270-1W-3H.png",
+  "GEN2 270-2W-0.5H Decor Drawer": "img/parts/270/Decor Drawer 270-2W-05H.png",
+  "GEN2 270-2W-1H Decor Drawer":   "img/parts/270/Decor Drawer 270-2W-1H.png",
+  "GEN2 270-2W-1.5H Decor Drawer": "img/parts/270/Decor Drawer 270-2W-15H.png",
+  "GEN2 270-2W-2H Decor Drawer":   "img/parts/270/Decor Drawer 270-2W-2H.png",
+  "GEN2 270-2W-3H Decor Drawer":   "img/parts/270/Decor Drawer 270-2W-3H.png",
+  "GEN2 270-3W-0.5H Decor Drawer": "img/parts/270/Decor Drawer 270-3W-05H.png",
+  "GEN2 270-3W-1H Decor Drawer":   "img/parts/270/Decor Drawer 270-3W-1H.png",
+  "GEN2 270-3W-1.5H Decor Drawer": "img/parts/270/Decor Drawer 270-3W-15H.png",
+  "GEN2 270-3W-2H Decor Drawer":   "img/parts/270/Decor Drawer 270-3W-2H.png",
+  "GEN2 270-4W-0.5H Decor Drawer": "img/parts/270/Decor Drawer 270-4W-05H.png",
+  "GEN2 270-4W-1.5H Decor Drawer": "img/parts/270/Decor Drawer 270-4W-15H.png",
+  "GEN2 270-4W-2H Decor Drawer":   "img/parts/270/Decor Drawer 270-4W-2H.png",
+  // 59 Decor Drawer renders (2026-07) — 59 has only the 4 short sizes
+  "GEN2 59-1W-0.5H Decor Drawer": "img/parts/59/Decor Drawer 59-1W-05H.png",
+  "GEN2 59-1W-1H Decor Drawer": "img/parts/59/Decor Drawer 59-1W-1H.png",
+  "GEN2 59-2W-0.5H Decor Drawer": "img/parts/59/Decor Drawer 59-2W-05H.png",
+  "GEN2 59-2W-1H Decor Drawer": "img/parts/59/Decor Drawer 59-2W-1H.png",
+  // 59 Classic Drawer renders (2026-07)
+  "GEN2 59-1W-0.5H Classic Drawer": "img/parts/59/Classic Drawer 59-1W-05H.png",
+  "GEN2 59-1W-1H Classic Drawer": "img/parts/59/Classic Drawer 59-1W-1H.png",
+  "GEN2 59-2W-0.5H Classic Drawer": "img/parts/59/Classic Drawer 59-2W-05H.png",
+  "GEN2 59-2W-1H Classic Drawer": "img/parts/59/Classic Drawer 59-2W-1H.png",
+  // 59 Case renders (2026-07)
+  "GEN2 59 Case - 1W-0.5H": "img/parts/59/Case 59-1W-05H.png",
+  "GEN2 59 Case - 1W-1H": "img/parts/59/Case 59-1W-1H.png",
+  "GEN2 59 Case - 2W-0.5H": "img/parts/59/Case 59-2W-05H.png",
+  "GEN2 59 Case - 2W-1H": "img/parts/59/Case 59-2W-1H.png",
+  // 59 Case Extender renders (2026-07)
+  "GEN2 59 Case Extender - 1W-1H": "img/parts/59/Case Extender 59-1W.png",
+  "GEN2 59 Case Extender - 2W-1H": "img/parts/59/Case Extender 59-2W.png",
+  "GEN2 59 Case Extender - 3W-1H": "img/parts/59/Case Extender 59-3W.png",
+  "GEN2 59 Case Extender - 4W-1H": "img/parts/59/Case Extender 59-4W.png",
+  // 115 Decor Drawer renders (2026-07) — all 18 sizes
+  "GEN2 115-1W-0.5H Decor Drawer": "img/parts/115/Decor Drawer 115-1W-05H.png",
+  "GEN2 115-1W-1.5H Decor Drawer": "img/parts/115/Decor Drawer 115-1W-15H.png",
+  "GEN2 115-1W-1H Decor Drawer": "img/parts/115/Decor Drawer 115-1W-1H.png",
+  "GEN2 115-1W-2H Decor Drawer": "img/parts/115/Decor Drawer 115-1W-2H.png",
+  "GEN2 115-1W-3H Decor Drawer": "img/parts/115/Decor Drawer 115-1W-3H.png",
+  "GEN2 115-2W-0.5H Decor Drawer": "img/parts/115/Decor Drawer 115-2W-05H.png",
+  "GEN2 115-2W-1.5H Decor Drawer": "img/parts/115/Decor Drawer 115-2W-15H.png",
+  "GEN2 115-2W-1H Decor Drawer": "img/parts/115/Decor Drawer 115-2W-1H.png",
+  "GEN2 115-2W-2H Decor Drawer": "img/parts/115/Decor Drawer 115-2W-2H.png",
+  "GEN2 115-2W-3H Decor Drawer": "img/parts/115/Decor Drawer 115-2W-3H.png",
+  "GEN2 115-3W-0.5H Decor Drawer": "img/parts/115/Decor Drawer 115-3W-05H.png",
+  "GEN2 115-3W-1.5H Decor Drawer": "img/parts/115/Decor Drawer 115-3W-15H.png",
+  "GEN2 115-3W-1H Decor Drawer": "img/parts/115/Decor Drawer 115-3W-1H.png",
+  "GEN2 115-3W-2H Decor Drawer": "img/parts/115/Decor Drawer 115-3W-2H.png",
+  "GEN2 115-4W-0.5H Decor Drawer": "img/parts/115/Decor Drawer 115-4W-05H.png",
+  "GEN2 115-4W-1.5H Decor Drawer": "img/parts/115/Decor Drawer 115-4W-15H.png",
+  "GEN2 115-4W-1H Decor Drawer": "img/parts/115/Decor Drawer 115-4W-1H.png",
+  "GEN2 115-4W-2H Decor Drawer": "img/parts/115/Decor Drawer 115-4W-2H.png",
+  // 115 Classic Drawer renders (2026-07) — 1W/2W only so far (see unreleasedParts)
+  "GEN2 115-1W-0.5H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-05H.png",
+  "GEN2 115-1W-1.5H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-15H.png",
+  "GEN2 115-1W-1H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-1H.png",
+  "GEN2 115-1W-2H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-2H.png",
+  "GEN2 115-2W-0.5H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-05H.png",
+  "GEN2 115-2W-1.5H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-15H.png",
+  "GEN2 115-2W-1H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-1H.png",
+  "GEN2 115-2W-2H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-2H.png",
+  // 115 Case renders (2026-07) — all 18 sizes
+  "GEN2 115 Case - 1W-0.5H": "img/parts/115/Case 115-1W-05H.png",
+  "GEN2 115 Case - 1W-1.5H": "img/parts/115/Case 115-1W-15H.png",
+  "GEN2 115 Case - 1W-1H": "img/parts/115/Case 115-1W-1H.png",
+  "GEN2 115 Case - 1W-2H": "img/parts/115/Case 115-1W-2H.png",
+  "GEN2 115 Case - 1W-3H": "img/parts/115/Case 115-1W-3H.png",
+  "GEN2 115 Case - 2W-0.5H": "img/parts/115/Case 115-2W-05H.png",
+  "GEN2 115 Case - 2W-1.5H": "img/parts/115/Case 115-2W-15H.png",
+  "GEN2 115 Case - 2W-1H": "img/parts/115/Case 115-2W-1H.png",
+  "GEN2 115 Case - 2W-2H": "img/parts/115/Case 115-2W-2H.png",
+  "GEN2 115 Case - 2W-3H": "img/parts/115/Case 115-2W-3H.png",
+  "GEN2 115 Case - 3W-0.5H": "img/parts/115/Case 115-3W-05H.png",
+  "GEN2 115 Case - 3W-1.5H": "img/parts/115/Case 115-3W-15H.png",
+  "GEN2 115 Case - 3W-1H": "img/parts/115/Case 115-3W-1H.png",
+  "GEN2 115 Case - 3W-2H": "img/parts/115/Case 115-3W-2H.png",
+  "GEN2 115 Case - 4W-0.5H": "img/parts/115/Case 115-4W-05H.png",
+  "GEN2 115 Case - 4W-1.5H": "img/parts/115/Case 115-4W-15H.png",
+  "GEN2 115 Case - 4W-1H": "img/parts/115/Case 115-4W-1H.png",
+  "GEN2 115 Case - 4W-2H": "img/parts/115/Case 115-4W-2H.png",
+  // 115 Case Extender renders (2026-07)
+  "GEN2 115 Case Extender - 1W-1H": "img/parts/115/Case Extender 115-1W.png",
+  "GEN2 115 Case Extender - 2W-1H": "img/parts/115/Case Extender 115-2W.png",
+  "GEN2 115 Case Extender - 3W-1H": "img/parts/115/Case Extender 115-3W.png",
+  "GEN2 115 Case Extender - 4W-1H": "img/parts/115/Case Extender 115-4W.png",
+  // 240 Decor Drawer renders (2026-07) — all 18 sizes
+  "GEN2 240-1W-0.5H Decor Drawer": "img/parts/240/Decor Drawer 240-1W-05H.png",
+  "GEN2 240-1W-1.5H Decor Drawer": "img/parts/240/Decor Drawer 240-1W-15H.png",
+  "GEN2 240-1W-1H Decor Drawer": "img/parts/240/Decor Drawer 240-1W-1H.png",
+  "GEN2 240-1W-2H Decor Drawer": "img/parts/240/Decor Drawer 240-1W-2H.png",
+  "GEN2 240-1W-3H Decor Drawer": "img/parts/240/Decor Drawer 240-1W-3H.png",
+  "GEN2 240-2W-0.5H Decor Drawer": "img/parts/240/Decor Drawer 240-2W-05H.png",
+  "GEN2 240-2W-1.5H Decor Drawer": "img/parts/240/Decor Drawer 240-2W-15H.png",
+  "GEN2 240-2W-1H Decor Drawer": "img/parts/240/Decor Drawer 240-2W-1H.png",
+  "GEN2 240-2W-2H Decor Drawer": "img/parts/240/Decor Drawer 240-2W-2H.png",
+  "GEN2 240-2W-3H Decor Drawer": "img/parts/240/Decor Drawer 240-2W-3H.png",
+  "GEN2 240-3W-0.5H Decor Drawer": "img/parts/240/Decor Drawer 240-3W-05H.png",
+  "GEN2 240-3W-1.5H Decor Drawer": "img/parts/240/Decor Drawer 240-3W-15H.png",
+  "GEN2 240-3W-1H Decor Drawer": "img/parts/240/Decor Drawer 240-3W-1H.png",
+  "GEN2 240-3W-2H Decor Drawer": "img/parts/240/Decor Drawer 240-3W-2H.png",
+  "GEN2 240-4W-0.5H Decor Drawer": "img/parts/240/Decor Drawer 240-4W-05H.png",
+  "GEN2 240-4W-1.5H Decor Drawer": "img/parts/240/Decor Drawer 240-4W-15H.png",
+  "GEN2 240-4W-1H Decor Drawer": "img/parts/240/Decor Drawer 240-4W-1H.png",
+  "GEN2 240-4W-2H Decor Drawer": "img/parts/240/Decor Drawer 240-4W-2H.png",
+  // 240 Classic Drawer renders (2026-07) — see unreleasedParts for the 6 gaps
+  "GEN2 240-1W-0.5H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-05H.png",
+  "GEN2 240-1W-1.5H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-15H.png",
+  "GEN2 240-1W-1H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-1H.png",
+  "GEN2 240-1W-2H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-2H.png",
+  "GEN2 240-2W-0.5H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-05H.png",
+  "GEN2 240-2W-1.5H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-15H.png",
+  "GEN2 240-2W-1H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-1H.png",
+  "GEN2 240-2W-2H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-2H.png",
+  "GEN2 240-3W-0.5H Classic Drawer": "img/parts/240/Classic Drawer 240-3W-05H.png",
+  "GEN2 240-3W-1H Classic Drawer": "img/parts/240/Classic Drawer 240-3W-1H.png",
+  "GEN2 240-4W-0.5H Classic Drawer": "img/parts/240/Classic Drawer 240-4W-05H.png",
+  "GEN2 240-4W-1H Classic Drawer": "img/parts/240/Classic Drawer 240-4W-1H.png",
+  // 240 Case renders (2026-07) — all 18 sizes
+  "GEN2 240 Case - 1W-0.5H": "img/parts/240/Case 240-1W-05H.png",
+  "GEN2 240 Case - 1W-1.5H": "img/parts/240/Case 240-1W-15H.png",
+  "GEN2 240 Case - 1W-1H": "img/parts/240/Case 240-1W-1H.png",
+  "GEN2 240 Case - 1W-2H": "img/parts/240/Case 240-1W-2H.png",
+  "GEN2 240 Case - 1W-3H": "img/parts/240/Case 240-1W-3H.png",
+  "GEN2 240 Case - 2W-0.5H": "img/parts/240/Case 240-2W-05H.png",
+  "GEN2 240 Case - 2W-1.5H": "img/parts/240/Case 240-2W-15H.png",
+  "GEN2 240 Case - 2W-1H": "img/parts/240/Case 240-2W-1H.png",
+  "GEN2 240 Case - 2W-2H": "img/parts/240/Case 240-2W-2H.png",
+  "GEN2 240 Case - 2W-3H": "img/parts/240/Case 240-2W-3H.png",
+  "GEN2 240 Case - 3W-0.5H": "img/parts/240/Case 240-3W-05H.png",
+  "GEN2 240 Case - 3W-1.5H": "img/parts/240/Case 240-3W-15H.png",
+  "GEN2 240 Case - 3W-1H": "img/parts/240/Case 240-3W-1H.png",
+  "GEN2 240 Case - 3W-2H": "img/parts/240/Case 240-3W-2H.png",
+  "GEN2 240 Case - 4W-0.5H": "img/parts/240/Case 240-4W-05H.png",
+  "GEN2 240 Case - 4W-1.5H": "img/parts/240/Case 240-4W-15H.png",
+  "GEN2 240 Case - 4W-1H": "img/parts/240/Case 240-4W-1H.png",
+  "GEN2 240 Case - 4W-2H": "img/parts/240/Case 240-4W-2H.png",
+  // 240 Case Extender renders (2026-07)
+  "GEN2 240 Case Extender - 1W-1H": "img/parts/240/Case Extender 240-1W.png",
+  "GEN2 240 Case Extender - 2W-1H": "img/parts/240/Case Extender 240-2W.png",
+  "GEN2 240 Case Extender - 3W-1H": "img/parts/240/Case Extender 240-3W.png",
+  "GEN2 240 Case Extender - 4W-1H": "img/parts/240/Case Extender 240-4W.png",
 };
 
 /* Thumbnail path for a part. Render files mirror the part name with "GEN2 " →
    "GEN2_", every "." dropped (we avoid dots mid-filename, so 0.5H → 05H and
-   1.5H → 15H), and a resolution suffix — e.g. "GEN2 185-2W-0.5H Classic Drawer"
-   → img/parts/GEN2_185-2W-05H Classic Drawer_256p.png. Off-pattern or shared art
+   1.5H → 15H), and a resolution suffix — e.g. "GEN2 240-3W-0.5H Classic Drawer"
+   → img/parts/GEN2_240-3W-05H Classic Drawer_256p.png. Off-pattern or shared art
    goes in IMAGE_OVERRIDES above; anything missing falls back to placeholder.svg. */
 const RENDER_SUFFIX = "_256p";
 function partImage(name) {

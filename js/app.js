@@ -399,17 +399,22 @@
   function fillIcon(id) {
     const frame = `<rect x="2" y="2" width="60" height="40" rx="5" class="fi-case"/>`;
     if (id === "classic") {
+      // mirrors the board's classic front view: flat face + bottom handle scoop
+      // (full-width chamfer → recessed wall band, triangles at the corners)
       return `<svg viewBox="0 0 64 44">${frame}
         <rect x="7" y="7" width="50" height="30" rx="3" class="fi-face"/>
-        <rect x="9" y="8" width="46" height="6" rx="2" class="fi-dark"/>
-        <polygon points="12,29 52,29 46,36 18,36" class="fi-lip"/></svg>`;
+        <polygon points="7,23 57,23 47,33 17,33" class="fi-lip"/>
+        <rect x="17" y="33" width="30" height="4" class="fi-wall"/>
+        <line x1="17" y1="33" x2="47" y2="33" class="fi-line"/></svg>`;
     }
     if (id === "decor") {
+      // mirrors the board's decor front view: inset rails + recessed centre
+      // panel (chamfered bottom corners) over a body-coloured face
       return `<svg viewBox="0 0 64 44">${frame}
-        <rect x="7" y="7" width="50" height="30" rx="3" class="fi-dark"/>
-        <rect x="9" y="7" width="6" height="30" rx="2" class="fi-rail"/>
-        <rect x="49" y="7" width="6" height="30" rx="2" class="fi-rail"/>
-        <line x1="15" y1="33" x2="49" y2="33" class="fi-line"/></svg>`;
+        <rect x="7" y="7" width="50" height="30" rx="3" class="fi-face"/>
+        <polygon points="14,8 50,8 50,31 47,34 17,34 14,31" class="fi-dark"/>
+        <rect x="9" y="9" width="4" height="26" rx="1" class="fi-rail"/>
+        <rect x="51" y="9" width="4" height="26" rx="1" class="fi-rail"/></svg>`;
     }
     if (id === "shelf") {
       return `<svg viewBox="0 0 64 44">${frame}
@@ -425,6 +430,20 @@
       <rect x="5" y="26" width="4" height="8" rx="1" class="fi-hinge"/></svg>`;
   }
 
+  /* Hover preview for a fill tile. The render should depict the CHOSEN length —
+     a 185 drawer on a 165 build reads as the wrong product (depth is visible in
+     the 3/4 view). Use the current length's 1W-1H render when one is wired in
+     IMAGE_OVERRIDES; otherwise keep the fill's default (185) preview so lengths
+     without render batches yet never show a broken image. */
+  function fillPreviewFor(f) {
+    if (!f.previewImg) return null;
+    if (state.length) {
+      const name = GEN2.partNames.drawer(state.length, "1W-1H", f.label);
+      if (IMAGE_OVERRIDES[name]) return IMAGE_OVERRIDES[name];
+    }
+    return f.previewImg;
+  }
+
   function renderFillSeg() {
     const seg = $("#fill-seg");
     seg.innerHTML = "";
@@ -432,10 +451,11 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "fill-tile" + (state.fill === f.id ? " active" : "");
+      const preview = fillPreviewFor(f);
       const card =
         `<span class="tip-card" role="tooltip">` +
-        (f.previewImg
-          ? `<img class="tip-card-img" src="${f.previewImg}" alt="${f.label}" loading="lazy" />`
+        (preview
+          ? `<img class="tip-card-img" src="${preview}" alt="${f.label}" loading="lazy" />`
           : "") +
         `<span class="tip-card-text"><b>${f.label}</b>${f.blurb}</span>` +
         `</span>`;
@@ -551,6 +571,15 @@
     const styleRow = document.querySelector(".bom-style-row");
     if (styleRow) styleRow.hidden = $("#faceplate-style-pick").hidden && $("#door-style-pick").hidden && $("#handle-style-pick").hidden;
     updateLabelGenLink();
+    // "▶ Watch" chips for videos tied to the chosen faceplate style (e.g. the
+    // EdgeLabel assembly video) — they live next to the label-generator link,
+    // the style's home in the UI.
+    const fpv = $("#faceplate-video");
+    if (fpv) {
+      const vids = GEN2.videos.filter((v) => v.faceStyles && v.faceStyles.includes(state.faceStyle));
+      fpv.hidden = !vids.length;
+      fpv.innerHTML = vids.map(videoChipHtml).join("");
+    }
   }
 
   /* Label-bearing faceplates (EdgeLabel / Classic Pro) link out to the matching
@@ -562,8 +591,17 @@
     const fdef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
     if (!fdef || !fdef.labelGen) { link.hidden = true; return; }
     link.hidden = false;
-    link.textContent = `🏷 Design your ${fdef.label} labels →`;
     const labels = state.placed.filter((p) => p.fill === "decor" && p.label).map((p) => p.label);
+    // Surface the payload: the user's typed drawer labels ride along and
+    // pre-fill the generator — the live count is what makes that visible.
+    // Inline SVG tag icon (not an emoji): crisp at 14px, inherits the button's
+    // text colour, and renders identically on every platform.
+    const tagIco = `<svg class="lg-ico" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" fill="currentColor"
+      d="M2 2h6l6.3 6.3a1.5 1.5 0 0 1 0 2.1l-3.9 3.9a1.5 1.5 0 0 1-2.1 0L2 8V2z
+         M5.2 3.9a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z"/></svg>`;
+    link.innerHTML = `${tagIco} Design your ${fdef.label} labels →` + (labels.length
+      ? ` <span class="lg-count">· ${labels.length} label${labels.length > 1 ? "s" : ""} ready</span>`
+      : "");
     link.href = fdef.labelGen + (labels.length
       ? "#labels=" + btoa(unescape(encodeURIComponent(JSON.stringify(labels))))
       : "");
@@ -737,6 +775,7 @@
   let hover = null; // {x,y} of hovered cell
   let drag = null;  // {id, dx, dy, tx, ty, moved, sx, sy} while pressing a placed unit
   let pressCell = null; // {x,y} where a press on empty space began (placement decided on release)
+  let animatePlacement = false; // one-shot: Load example / Surprise me stagger units in
   // A touch tap emits emulated mouse events (mousedown/mouseup/click) right
   // after touchend. We handle touches ourselves, so ignore any mouse event that
   // lands within this window of a touchend — otherwise those emulated events
@@ -744,11 +783,13 @@
   let lastTouchEnd = 0;
   const GHOST_CLICK_MS = 700;
   // A press that moves less than this many CSS pixels counts as a tap/click
-  // (which selects the unit), not a drag. Grid cells are tiny on phones, so
-  // without a pixel dead-zone the small finger drift in an ordinary tap reads as
-  // a one-cell drag and the unit never gets selected. Desktop cells are large,
-  // so deliberate drags still clear this easily.
-  const DRAG_SLOP = 18;
+  // (which selects the unit), not a drag. Touch needs a MUCH larger dead-zone than
+  // the mouse: a real thumb tap routinely drifts 20–40px on a small target, so a
+  // tight value makes those taps read as a one-cell drag and the unit never gets
+  // selected (this made selection nearly unusable on phones). The mouse is precise,
+  // so it can stay tight and still start deliberate drags easily.
+  const DRAG_SLOP = 18;    // mouse
+  const TOUCH_SLOP = 30;   // touch — thumbs drift far more than a mouse ever does
 
   // Advanced cabinet interior editor — transient UI state (never persisted on a unit).
   let interiorArmed = null; // {w,h} armed compartment size for click-to-place, or null
@@ -782,32 +823,66 @@
     const bows = bowRisks();
     state.placed.forEach((p) => drawUnit(svg, p, bows));
 
-    if (drag && drag.moved) {
-      // moving an existing unit: ghost it at the drop target
-      const p = state.placed.find((u) => u.id === drag.id);
-      if (p) {
-        const ok = canPlace(drag.tx, drag.ty, p.w, p.hh, p.id);
-        el("rect", {
-          x: gx + drag.tx * CW + 2, y: gy + drag.ty * (CH / 2) + 2,
-          width: p.w * CW - 4, height: p.hh * (CH / 2) - 4, rx: 6,
-          class: ok ? "ghost ok" : "ghost bad",
-        }, svg);
-      }
-    } else if (hover && state.selected && !drag) {
-      const { w, h } = state.selected;
-      const hh = h * 2;
-      const ok = canPlace(hover.x, hover.y, w, hh);
-      if (hover.x >= 0 && hover.y >= 0 && hover.x < state.gridW && hover.y < rows() && !unitAt(hover.x, hover.y)) {
-        el("rect", {
-          x: gx + hover.x * CW + 2, y: gy + hover.y * (CH / 2) + 2,
-          width: w * CW - 4, height: hh * (CH / 2) - 4, rx: 6,
-          class: ok ? "ghost ok" : "ghost bad",
-        }, svg);
-      }
+    // One-shot placement animation (Load example / Surprise me): units settle
+    // into place in sequence, toward the mount surface.
+    if (animatePlacement) {
+      animatePlacement = false;
+      const from = state.mount === "tabletop" ? "10px" : "-10px";
+      svg.querySelectorAll("g.drawer").forEach((u, i) => {
+        u.style.setProperty("--drop-from", from);
+        u.style.setProperty("--drop-delay", `${i * 45}ms`);
+        u.classList.add("drop-in");
+      });
     }
+
+    ghostEl = null;      // the wipe above detached the old ghost node
+    updateGhost();
 
     renderBoardMeta();
     renderWarnings();
+  }
+
+  /* The placement/drop ghost is the ONLY thing on the board that changes with
+     bare cursor movement, so it lives in its own element that mousemove updates
+     imperatively — renderBoard is never called per-move. That keeps the placed
+     units' DOM stable under the cursor (a rebuilt node skips its CSS
+     transition, which would kill the drawer-slide hover animation) and makes
+     hover/drag cost O(1) instead of a full board rebuild. */
+  let ghostEl = null;
+  function updateGhost() {
+    const svg = $("#board");
+    let spec = null;
+    if (drag && drag.moved) {
+      const p = state.placed.find((u) => u.id === drag.id);
+      if (p) spec = { x: drag.tx, y: drag.ty, w: p.w, hh: p.hh, ok: canPlace(drag.tx, drag.ty, p.w, p.hh, p.id) };
+    } else if (hover && state.selected && !drag &&
+               hover.x >= 0 && hover.y >= 0 && hover.x < state.gridW && hover.y < rows() &&
+               !unitAt(hover.x, hover.y)) {
+      const { w, h } = state.selected;
+      spec = { x: hover.x, y: hover.y, w, hh: h * 2, ok: canPlace(hover.x, hover.y, w, h * 2) };
+    }
+    if (!spec) {
+      if (ghostEl && ghostEl.parentNode) ghostEl.remove();
+      ghostEl = null;
+      return;
+    }
+    if (!ghostEl || !ghostEl.parentNode) ghostEl = el("rect", { rx: 6 }, svg);
+    ghostEl.setAttribute("x", PAD.left + spec.x * CW + 2);
+    ghostEl.setAttribute("y", PAD.top + spec.y * (CH / 2) + 2);
+    ghostEl.setAttribute("width", spec.w * CW - 4);
+    ghostEl.setAttribute("height", spec.hh * (CH / 2) - 4);
+    ghostEl.setAttribute("class", spec.ok ? "ghost ok" : "ghost bad");
+  }
+
+  /* Board colors: "product" paints drawer fronts in the signature GEN2 orange
+     (the default — screenshots and share cards read as the real system);
+     "schematic" keeps the neutral grays. The class lives on the persistent
+     <svg>, so it survives re-renders and rides into the share-card clone. */
+  function applyBoardColors(mode) {
+    store.set("gen2-board-colors", mode);
+    $("#board").classList.toggle("product", mode === "product");
+    $("#board-colors-seg").querySelectorAll("[data-colors]").forEach((b) =>
+      b.classList.toggle("active", b.dataset.colors === mode));
   }
 
   function drawUnit(svg, p, bows) {
@@ -824,6 +899,11 @@
     const cabFill = interiorFill(p);
     const caseCls = "d-case" + (cabFill ? (cabFill.complete ? " tiled-ok" : " tiled-bad") : "");
     el("rect", { x: x + 2, y: y + 2, width: w - 4, height: h - 4, rx: 6, class: caseCls }, g);
+
+    // Drawer fronts (and their label) live in a nested group so they can slide
+    // "toward you" on hover/selection (CSS .d-front transform + shadow) while
+    // the case shell stays put. Shelves/cabinets draw straight into the unit.
+    const front = (p.fill === "classic" || p.fill === "decor") ? el("g", { class: "d-front" }, g) : g;
 
     if (p.fill === "shelf") {
       el("rect", { x: x + 7, y: y + 7, width: w - 14, height: h - 14, rx: 4, class: "d-interior" }, g);
@@ -858,26 +938,139 @@
         }
       }
     } else if (p.fill === "decor") {
-      // open front with the two vertical faceplate rails
-      el("rect", { x: x + 7, y: y + 7, width: w - 14, height: h - 14, rx: 4, class: "d-interior" }, g);
-      el("rect", { x: x + 9, y: y + 7, width: 7, height: h - 14, rx: 2, class: "d-rail" }, g);
-      el("rect", { x: x + w - 16, y: y + 7, width: 7, height: h - 14, rx: 2, class: "d-rail" }, g);
-      el("line", { x1: x + 16, y1: y + h - 11, x2: x + w - 16, y2: y + h - 11, class: "d-shelf-line" }, g);
-    } else {
-      // classic bin: open top + integrated chamfered handle lip at the bottom
-      el("rect", { x: x + 7, y: y + 7, width: w - 14, height: h - 14, rx: 4, class: "d-face" }, g);
-      el("rect", { x: x + 9, y: y + 8, width: w - 18, height: 5, rx: 2, class: "d-interior" }, g);
-      const lipTopY = y + h - 16, lipBotY = y + h - 7;
+      // decor drawer, true front view: body-coloured front with the two
+      // vertical faceplate rails INSET from the sides (a thin face margin shows
+      // outside each) and a recessed centre panel between them — chamfered
+      // bottom corners, stopping short of the bottom to leave the floor-lip
+      // band. Rail/margin/band sizes are physical constants → fixed px; only
+      // the vertical runs stretch with drawer height.
+      const fx = x + 7, fy = y + 7, fw = w - 14, fh = h - 14;
+      el("rect", { x: fx, y: fy, width: fw, height: fh, rx: 4, class: "d-face" }, front);
+      const px0 = fx + 7, px1 = fx + fw - 7, py0 = fy + 1, py1 = fy + fh - 3;
+      const c = Math.min(3, Math.round((py1 - py0) / 3));   // bottom-corner chamfer
       el("polygon", {
-        points: `${x + 12},${lipTopY} ${x + w - 12},${lipTopY} ${x + w - 22},${lipBotY} ${x + 22},${lipBotY}`,
-        class: "d-lip",
+        points: `${px0},${py0} ${px1},${py0} ${px1},${py1 - c} ${px1 - c},${py1} ${px0 + c},${py1} ${px0},${py1 - c}`,
+        class: "d-panel",
+      }, front);
+      const rw = 4, railY = fy + 2, railB = fy + fh - 1, tip = Math.min(2, (railB - railY) / 4);
+      [fx + 2, fx + fw - 2 - rw].forEach((rx0) => {
+        el("polygon", {
+          points: `${rx0},${railY} ${rx0 + rw},${railY} ${rx0 + rw},${railB - tip} ${rx0 + rw - 1.5},${railB} ${rx0 + 1.5},${railB} ${rx0},${railB - tip}`,
+          class: "d-rail",
+        }, front);
+      });
+    } else {
+      // classic drawer, true front view: flat face with the integrated handle
+      // scoop across the bottom — a full-width chamfer ramps down at ~45° to a
+      // recessed wall band, leaving solid triangles at the outer corners. The
+      // scoop is a fixed physical size (a finger pull doesn't grow with drawer
+      // height), shrunk only when a 0.5H face is too short for it.
+      const fx = x + 7, fy = y + 7, fw = w - 14, fh = h - 14;
+      el("rect", { x: fx, y: fy, width: fw, height: fh, rx: 4, class: "d-face" }, front);
+      const scoopH = Math.min(14, Math.round(fh * 0.55));
+      const bandH = Math.max(3, Math.round(scoopH * 0.3));
+      const inset = Math.min(scoopH - bandH, Math.round(fw * 0.28));
+      const scoopTop = fy + fh - scoopH, bandTop = fy + fh - bandH;
+      el("polygon", {
+        points: `${fx},${scoopTop} ${fx + fw},${scoopTop} ${fx + fw - inset},${bandTop} ${fx + inset},${bandTop}`,
+        class: "d-scoop",
+      }, front);
+      el("rect", { x: fx + inset, y: bandTop, width: fw - inset * 2, height: bandH, class: "d-scoop-wall" }, front);
+      el("line", { x1: fx + inset, y1: bandTop, x2: fx + fw - inset, y2: bandTop, class: "d-scoop-edge" }, front);
+    }
+    // Native hover tooltip: the full (uncropped) label plus size and fill type.
+    const size = sizeToken(p.w, p.hh / 2);
+    el("title", {}, g).textContent = (p.label ? p.label + " · " : "") + size + " " + fillDef(p.fill).label;
+    // The size badge earns its pixels only on unlabelled units (it's what tells
+    // four empty 1W-1H cells apart). Labelled units show it on hover/selection
+    // instead (CSS .on-demand) — the label is the content, size is metadata,
+    // and the badge otherwise covers the drawer artwork. A labelled 0.5H unit
+    // is too short even for the transient badge; the toolbar covers it there.
+    if (!(p.label && p.hh <= 1)) {
+      el("text", {
+        x: x + w - 8, y: y + h - 9, "text-anchor": "end",
+        class: "d-label" + (p.label ? " on-demand" : ""),
+      }, g).textContent = size;
+    }
+    if (p.label) drawUserLabel(front, p.label, x, y, w, h);   // rides the drawer front
+  }
+
+  /* The user's "what's in this drawer" label, drawn to STAY INSIDE the unit.
+     The box is tiny (a 1W cell is CW px wide), so a long label wraps across the
+     available lines and any line still too wide is CROPPED with an ellipsis (…)
+     rather than squished — the full text is on the unit's hover <title> and in
+     the inspector's Label field. Line breaks are laid out with a cheap width
+     estimate (labels are ALL-CAPS, so ~0.66·fontSize per glyph is close
+     enough); the hard "never overflow" guarantee comes from measuring each
+     finished line and trimming it. */
+  function drawUserLabel(g, label, x, y, w, h) {
+    const PADX = 6;                        // side breathing room inside the box
+    const availW = w - PADX * 2;
+    const fs = h <= CH / 2 ? 8 : 10;       // 0.5H units are only ~CH/2 px tall
+    const lineH = fs + 1.5;
+    // full box: the size badge only appears transiently (hover/selection), so
+    // the label doesn't reserve space for it
+    const bandTop = y + 3, bandBot = y + h - 3;
+    const maxLines = Math.max(1, Math.min(3, Math.floor((bandBot - bandTop) / lineH)));
+    const lines = wrapLabel(label, availW, fs, maxLines);
+    const blockH = lines.length * lineH;
+    let baseY = bandTop + Math.max(0, (bandBot - bandTop - blockH) / 2) + fs;
+    const cx = x + w / 2;
+    lines.forEach((line) => {
+      const t = el("text", {
+        x: cx, y: baseY, class: "d-userlabel", "text-anchor": "middle",
+        style: "font-size:" + fs + "px",
       }, g);
+      t.textContent = line;
+      fitWithEllipsis(t, line, availW);
+      baseY += lineH;
+    });
+  }
+
+  /* Crop a rendered <text> node to availW, appending "…" — keeps the glyphs at
+     full size instead of squishing them. Binary-searches the longest prefix
+     that fits. getComputedTextLength is a no-op (0) under headless jsdom, so in
+     tests the check short-circuits and nothing is cropped. */
+  function fitWithEllipsis(node, str, availW) {
+    const measure = () => {
+      try { return node.getComputedTextLength ? node.getComputedTextLength() : 0; }
+      catch (e) { return 0; }
+    };
+    if (measure() <= availW) return;       // already fits (or unmeasurable)
+    const ELL = "…";
+    let lo = 0, hi = str.length;            // longest prefix length that still fits
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      node.textContent = str.slice(0, mid) + ELL;
+      if (measure() <= availW) lo = mid; else hi = mid - 1;
     }
-    el("text", { x: x + w - 8, y: y + h - 9, class: "d-label", "text-anchor": "end" }, g)
-      .textContent = sizeToken(p.w, p.hh / 2);
-    if (p.label) {
-      el("text", { x: x + 9, y: y + 16, class: "d-userlabel" }, g).textContent = p.label;
+    // don't cut through a surrogate pair (emoji etc.) — a lone half renders �
+    if (lo > 0 && /[\uD800-\uDBFF]/.test(str[lo - 1])) lo--;
+    node.textContent = lo > 0 ? str.slice(0, lo) + ELL : ELL;
+  }
+
+  /* Greedy word-wrap into at most maxLines lines using an estimated glyph
+     advance — no DOM measurement, so the headless tests stay happy. Any words
+     past the line budget are merged onto the last line, which drawUserLabel
+     then crops to fit. */
+  function wrapLabel(text, availW, fs, maxLines) {
+    const words = String(text).split(/\s+/).filter(Boolean);
+    const perChar = 0.66 * fs;   // ~avg advance of the bold all-caps label
+    const fits = (s) => s.length * perChar <= availW;
+    const lines = [];
+    let cur = "";
+    for (const word of words) {
+      const cand = cur ? cur + " " + word : word;
+      if (!cur || fits(cand)) cur = cand;
+      else { lines.push(cur); cur = word; }
     }
+    if (cur) lines.push(cur);
+    if (lines.length > maxLines) {
+      const head = lines.slice(0, maxLines - 1);
+      head.push(lines.slice(maxLines - 1).join(" "));
+      return head;
+    }
+    return lines;
   }
 
   /* Mount-specific scenery drawn around the grid, with the needed
@@ -886,6 +1079,16 @@
     const cols = occupiedColumns();
     const gy = PAD.top;
     const gridBottom = gy + rows() * (CH / 2);
+    // Kit titles name the chosen length, so they wear its official lineup
+    // color (same as the length cards) rather than the brand accent — on a
+    // 165 build the title reads blue, on 240 teal, etc. (185's color IS the
+    // accent orange). Inline style because the class fill would win otherwise.
+    const titleAttrs = (x, y) => {
+      const l = GEN2.lengths.find((g) => g.id === state.length);
+      const a = { x, y, class: "s-part-label" };
+      if (l) a.style = `fill:${l.color}`;
+      return a;
+    };
 
     if (state.mount === "under-table") {
       el("rect", { x: 0, y: gy - 26, width: W, height: 18, class: "s-wood" }, svg);
@@ -896,7 +1099,7 @@
         el("rect", { x: PAD.left + s.start * CW + 8, y: gy - 8, width: s.w * CW - 16, height: 8, rx: 2, class: "s-part s-rail" }, svg);
       });
       if (cols.length) {
-        el("text", { x: PAD.left, y: gridBottom + 24, class: "s-part-label" }, svg)
+        el("text", titleAttrs(PAD.left, gridBottom + 24), svg)
           .textContent = `▮ GEN2 Rails - ${state.length ?? ""}: ${mixText(railMix())}`;
       }
     } else if (state.mount === "tabletop") {
@@ -935,8 +1138,8 @@
       el("text", { x: W / 2, y: gridBottom + 51, class: "s-label", "text-anchor": "middle" }, svg)
         .textContent = "tabletop surface";
       if (cols.length) {
-        el("text", { x: PAD.left, y: gy - 48, class: "s-part-label" }, svg)
-          .textContent = `▮ Table Top Kit V2 - ${state.length ?? ""}`;
+        el("text", titleAttrs(PAD.left, gy - 48), svg)
+          .textContent = `▮ Table Top Kit - ${state.length ?? ""}`;
         el("text", { x: PAD.left, y: gy - 36, class: "s-hint-label" }, svg)
           .textContent = "Covers (CU over CL) stagger like brick · seams offset for strength";
       }
@@ -970,7 +1173,7 @@
         drawLayerW(lay.lower, gy - 15, "s-cover-l");
       });
       if (cols.length) {
-        el("text", { x: PAD.left, y: gridBottom + 24, class: "s-part-label" }, svg)
+        el("text", titleAttrs(PAD.left, gridBottom + 24), svg)
           .textContent = `▮ Wall Mount Kit - Lite - ${state.length ?? ""}: ${mixText(mixOf(wallSections()))}`;
         el("text", { x: PAD.left, y: gridBottom + 38, class: "s-hint-label" }, svg)
           .textContent = `+ top covers (CU over CL, ${state.wallStagger ? "staggered" : "per-column"})`;
@@ -1095,18 +1298,20 @@
     state.placed = [];
     state.selectedUnit = null;
     const fits = (w, fill) => state.gridW >= w && fillFits(w, fill);
+    // One drawer style throughout, like a real build (mixing Classic + Decor
+    // in one setup is unusual — matching surpriseMe's single-fill rule). Use
+    // the palette's selected fill when it's a drawer; Decor otherwise, and
+    // when the bed can't fit Classic at this length.
+    let fill = state.fill === "classic" || state.fill === "decor" ? state.fill : "decor";
+    if (!fits(1, fill)) fill = "decor";
 
     // top level: a row of 1H drawers
     const row = [];
     let x = 0;
-    [
-      { w: 2, fill: "decor" },
-      { w: 1, fill: "decor" },
-      { w: 1, fill: fits(1, "classic") ? "classic" : "decor" },
-    ].forEach((u) => {
-      if (fits(u.w, u.fill) && x + u.w <= state.gridW) {
-        row.push({ x, level: 0, w: u.w, hh: 2, fill: u.fill });
-        x += u.w;
+    [2, 1, 1].forEach((w) => {
+      if (fits(w, fill) && x + w <= state.gridW) {
+        row.push({ x, level: 0, w, hh: 2, fill });
+        x += w;
       }
     });
     if (!row.length && fits(1, "decor")) row.push({ x: 0, level: 0, w: 1, hh: 2, fill: "decor" });
@@ -1116,8 +1321,8 @@
     const extra = [];
     if (state.mount === "tabletop") {
       row.forEach((u) => extra.push({ ...u, level: 1, hh: 2 }));
-    } else if (capH() >= 3 && fits(2, "decor") && x >= 2) {
-      extra.push({ x: 0, level: 1, w: 2, hh: 4, fill: "decor" });
+    } else if (capH() >= 3 && fits(2, fill) && x >= 2) {
+      extra.push({ x: 0, level: 1, w: 2, hh: 4, fill });
     }
 
     const units = row.concat(extra);
@@ -1129,6 +1334,7 @@
         : u.level * 2;                          // top-anchored
       state.placed.push({ id: state.nextId++, x: u.x, y, w: u.w, hh: u.hh, fill: u.fill, shelves: 0 });
     });
+    animatePlacement = true;
     refresh();
   }
 
@@ -1195,6 +1401,7 @@
         state.placed.push({ id: state.nextId++, x: c.x, y, w: c.w, hh: row.hh, fill: c.fill, shelves: 0 }));
       cursor = fromTop ? cursor + row.hh : cursor - row.hh;
     });
+    animatePlacement = true;
     refresh();
   }
 
@@ -1211,9 +1418,86 @@
     return JSON.parse(JSON.stringify(o));   // deep copy (placed array)
   };
 
+  /* ------- Untrusted-build sanitizer (share links, files, saved builds) -------
+     applyBuild() is the only entry point for data this session didn't create,
+     so everything is validated here: enum fields must exist in the catalog,
+     numbers are clamped to the UI's own limits, and structurally invalid units
+     are dropped (never "repaired" into something the user didn't build). A
+     corrupt or hostile link loads smaller — it can't brick the app or hang the
+     tab (a poisoned state would otherwise crash every refresh()).
+     Returns how many units were dropped, for the caller's warning. */
+  const LABEL_MAX = 40;   // mirrors the #ut-label input's maxlength
+  function sanitizeBuild(d) {
+    const int = (v, min, max, fb) => {
+      v = Math.round(Number(v));
+      return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fb;
+    };
+    const idIn = (list, v, fb) => (list.some((e) => e.id === v) ? v : fb);
+
+    d.mount = idIn(GEN2.mounts, d.mount, null);
+    d.length = idIn(GEN2.lengths, d.length, null);
+    d.printer = d.printer === "custom" ? "custom" : idIn(GEN2.printers, d.printer, "any");
+    d.faceStyle = idIn(GEN2.faceplateStyles, d.faceStyle, GEN2.faceplateStyles[0].id);
+    d.doorStyle = idIn(GEN2.doorStyles, d.doorStyle, GEN2.doorStyles[0].id);
+    d.handleStyle = idIn(GEN2.handleStyles, d.handleStyle, GEN2.handleStyles[0].id);
+    d.wallStagger = !!d.wallStagger;
+    d.gridW = int(d.gridW, GRID_LIMITS.wMin, GRID_LIMITS.wMax, 6);
+    d.gridH = int(d.gridH, GRID_LIMITS.hMin, GRID_LIMITS.hMax, 4);
+    // clamps mirror the space/bed inputs' min/max attributes
+    d.spaceW = d.spaceW == null ? null : int(d.spaceW, 88, 10000, null);
+    d.spaceH = d.spaceH == null ? null : int(d.spaceH, 28, 10000, null);
+    const bed = (d.customBed && typeof d.customBed === "object") ? d.customBed : {};
+    d.customBed = {
+      x: bed.x == null ? null : int(bed.x, 50, 1000, null),
+      y: bed.y == null ? null : int(bed.y, 50, 1000, null),
+    };
+
+    const gridRows = d.gridH * 2, kept = [];
+    for (const u of d.placed) {
+      if (!u || typeof u !== "object" || Array.isArray(u)) continue;
+      if (!GEN2.fills.some((f) => f.id === u.fill)) continue;
+      const w = Math.round(Number(u.w)), hh = Math.round(Number(u.hh));
+      const x = Math.round(Number(u.x)), y = Math.round(Number(u.y));
+      if (![w, hh, x, y].every(Number.isFinite)) continue;
+      const h = hh / 2;
+      if (w < 1 || w > 4 || !heightsForFill(u.fill).includes(h)) continue;
+      if (!sizeExists(w, h, u.fill)) continue;
+      if (x < 0 || y < 0 || x + w > d.gridW || y + hh > gridRows) continue;
+      // no overlaps: first valid unit wins the cells
+      if (kept.some((k) => x < k.x + k.w && k.x < x + w && y < k.y + k.hh && k.y < y + hh)) continue;
+      // ids are reassigned wholesale — duplicate/stale ids in the source can't
+      // survive into selection or nextId
+      const unit = { id: kept.length + 1, x, y, w, hh, fill: u.fill,
+                     shelves: int(u.shelves, 0, Math.max(0, h - 1), 0) };
+      if (typeof u.label === "string" && u.label.trim()) unit.label = u.label.slice(0, LABEL_MAX);
+      // closures: drawers only, whitelisted to released options ("none" is
+      // simply the field's absence)
+      if ((u.fill === "classic" || u.fill === "decor") &&
+          GEN2.closures.some((c) => c.id === u.closure && c.parts && !c.soon))
+        unit.closure = u.closure;
+      if (u.fill === "cabinet" && Array.isArray(u.interior) && u.interior.length) {
+        // compartment coords are FULL 1H rows within the shell; any invalid
+        // compartment discards the whole interior (falls back to simple mode)
+        const comps = u.interior.map((c) => (c && typeof c === "object") ? {
+          x: Math.round(Number(c.x)), y: Math.round(Number(c.y)),
+          w: Math.round(Number(c.w)), h: Math.round(Number(c.h)),
+        } : null);
+        if (comps.every((c) => c && [c.x, c.y, c.w, c.h].every(Number.isFinite) &&
+            c.w >= 1 && c.h >= 1 && c.x >= 0 && c.y >= 0 && c.x + c.w <= w && c.y + c.h <= h))
+          unit.interior = comps;
+      }
+      kept.push(unit);
+    }
+    const dropped = d.placed.length - kept.length;
+    d.placed = kept;
+    d.nextId = kept.length + 1;
+    return dropped;
+  }
+
   function applyBuild(data) {
     if (!data || !Array.isArray(data.placed)) return false;
     data = JSON.parse(JSON.stringify(data));   // isolate from the source (no shared refs)
+    const dropped = sanitizeBuild(data);
     BUILD_FIELDS.forEach((k) => { if (k in data) state[k] = data[k]; });
     state.selectedUnit = null;
     // Reflect the restored setup back into the controls.
@@ -1223,6 +1507,8 @@
     $("#space-h").value = state.spaceH ?? "";
     renderMountCards();
     refresh();
+    if (dropped) warn($("#board-warnings"),
+      `${dropped} unit${dropped > 1 ? "s" : ""} in that build ${dropped > 1 ? "were" : "was"} invalid and skipped.`);
     return true;
   }
 
@@ -1302,10 +1588,15 @@
   function shareLink() {
     if (!state.placed.length) return;
     const url = location.origin + location.pathname + "#build=" + encodeBuildHash();
+    // A max-size labelled build encodes to a ~30KB+ URL. Browsers take it, but
+    // chat apps and some URL fields truncate long links — steer big builds to
+    // the file export instead of letting the link break silently elsewhere.
+    const big = url.length > 8000;
     const flash = () => {
       const b = $("#build-share"), t = b.dataset.label || b.textContent;
-      b.dataset.label = t; b.textContent = "✓ Link copied!";
-      setTimeout(() => { b.textContent = t; }, 1800);
+      b.dataset.label = t;
+      b.textContent = big ? "✓ Copied · big build — an exported file is safer" : "✓ Link copied!";
+      setTimeout(() => { b.textContent = t; }, big ? 3500 : 1800);
     };
     const fallback = () => { const i = $("#share-url"); i.hidden = false; i.value = url; i.focus(); i.select(); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1535,6 +1826,38 @@
     return { w: u.widthMM * w - i.wWall, h: u.heightMM * h - i.hWall, d: len - i.dWall };
   }
 
+  /* Per-drawer closure picker (None / Magnets / Push-Click…), data-driven from
+     GEN2.closures. "soon" options render disabled with their tip as a
+     hover/tap-revealed reason (same pattern as greyed sizes); `noWall` options
+     also disable on wall builds once released. */
+  function renderClosureSeg(p) {
+    const seg = $("#ut-closure-seg");
+    seg.innerHTML = "";
+    const cur = p.closure || "none";
+    GEN2.closures.forEach((c) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = c.label + (c.soon ? ' <span class="soon">soon</span>' : "");
+      const disabled = !!c.soon || (c.noWall && state.mount === "wall");
+      // aria-disabled + class (not the disabled attribute) keeps the button
+      // focusable so the reason tooltip tap-reveals on touch
+      if (disabled) {
+        b.classList.add("disabled");
+        b.setAttribute("aria-disabled", "true");
+        if (c.tip) b.dataset.tip = c.tip;
+      } else {
+        b.classList.toggle("active", cur === c.id);
+        if (c.tip) b.title = c.tip;
+      }
+      b.addEventListener("click", () => {
+        if (disabled) return;
+        if (c.id === "none") delete p.closure; else p.closure = c.id;
+        refresh();
+      });
+      seg.appendChild(b);
+    });
+  }
+
   function renderToolbar() {
     const bar = $("#unit-toolbar");
     const p = selectedUnit();
@@ -1554,6 +1877,12 @@
       btn.disabled = !p || !canPlace(p.x + d[0], p.y + d[1], p.w, p.hh, p.id);
     });
 
+    // "▶ Watch" chips for videos matching the selected unit's fill
+    const vids = p ? GEN2.videos.filter((v) => v.fills && v.fills.includes(p.fill)) : [];
+    const uv = $("#ut-video");
+    uv.hidden = !vids.length;
+    uv.innerHTML = vids.map(videoChipHtml).join("");
+
     if (!p) {
       bar.classList.remove("active");
       thumb.classList.add("empty");
@@ -1562,6 +1891,7 @@
       $("#ut-sub").textContent = "Click a part on the grid to move or remove it.";
       remove.disabled = true;
       shelves.hidden = true;
+      $("#ut-closure").hidden = true;
       $("#ut-mode").hidden = true;
       $("#ut-edit").hidden = true;
       $("#ut-label-wrap").hidden = true;
@@ -1588,6 +1918,11 @@
         `${p.w * GEN2.units.widthMM} × ${h * GEN2.units.heightMM} × ${state.length}mm`;
     }
     remove.disabled = false;
+
+    // closure picker: drawers only (a cabinet/shelf has nothing to close)
+    const isDrawer = p.fill === "classic" || p.fill === "decor";
+    $("#ut-closure").hidden = !isDrawer;
+    if (isDrawer) renderClosureSeg(p);
 
     // Cabinet interior controls: Simple shelf count vs Advanced compartment editor
     const W = p.w, H = p.hh / 2;
@@ -1787,7 +2122,8 @@
         title: "Drawers",
         items: [...drawers.entries()].sort().map(([key, qty]) => {
           const [size, fillLabel] = key.split("|");
-          return { name: P.drawer(len, size, fillLabel), qty };
+          const name = P.drawer(len, size, fillLabel);
+          return { name, qty, unreleased: GEN2.unreleasedParts.includes(name) };
         }),
       });
     }
@@ -1826,11 +2162,6 @@
         name: P.extender(len, w), qty,
         note: "Stacks above a case to add cabinet height · interchangeable with full cases.",
       }));
-      const totalCases = [...cases.values()].reduce((a, b) => a + b, 0);
-      items.push(
-        { name: P.quickLockL(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
-        { name: P.quickLockR(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
-      );
       // optional side covers for units on the outer edges of the layout.
       // Covers pair to a case via the side dovetails, so cabinets (stacked
       // 1H cases/extenders) take 1H covers per level.
@@ -1849,7 +2180,7 @@
         optional: true,
         unreleased: GEN2.unreleased.includes("sideCover"),
       }));
-      sections.push({ title: "Cases, Extenders & QuickLocks", items });
+      sections.push({ title: "Cases & Extenders", items });
     }
 
     if (decorCount) {
@@ -1883,7 +2214,66 @@
           optional: x.optional,
         });
       });
-      sections.push({ title: "Faceplates & Hardware (Decor)", items });
+      sections.push({ title: "Faceplates & Handles", items });
+    }
+
+    // Hardware that attaches to a drawer or case: QuickLocks (per case) plus the
+    // optional soft-close magnet clips + magnets (per Decor drawer). Grouped here
+    // so all drawer/case hardware sits together instead of split across sections.
+    {
+      const items = [];
+      const totalCases = [...cases.values()].reduce((a, b) => a + b, 0);
+      if (totalCases) items.push(
+        { name: P.quickLockL(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
+        { name: P.quickLockR(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
+      );
+      // Closure hardware: billed per drawer that opted in via the toolbar's
+      // "Drawer close" picker (default none → nothing billed). Not tagged
+      // optional — once chosen for a drawer it's part of the plan.
+      GEN2.closures.forEach((c) => {
+        if (!c.parts) return;
+        const n = state.placed.filter((p) =>
+          (p.fill === "classic" || p.fill === "decor") && p.closure === c.id).length;
+        if (!n) return;
+        c.parts.forEach((x) => items.push({
+          name: x.name(len),
+          qty: x.qtyPerDrawer * n,
+          note: x.note,
+          hardware: x.hardware,
+          linkAs: x.linkAs,
+        }));
+      });
+      // Optional drawer stoppers: a Left + Right pair per 1W of drawer width
+      // keeps a drawer from being pulled all the way out. They slot into the
+      // underside of whatever sits above the drawer — the case above, or the
+      // covers over a top row. The under-table RAIL has stoppers built in, so
+      // drawers hanging directly from it need none. Drawers only: stoppers
+      // have no function in a shelf or cabinet.
+      const hasUnitAbove = (p) => {
+        for (let cx = p.x; cx < p.x + p.w; cx++) if (unitAt(cx, p.y - 1)) return true;
+        return false;
+      };
+      const stopperW = state.placed
+        .filter((p) => (p.fill === "classic" || p.fill === "decor") &&
+                       (state.mount !== "under-table" || hasUnitAbove(p)))
+        .reduce((sum, p) => sum + p.w, 0);
+      if (stopperW) items.push(
+        {
+          name: "GEN2 Drawer Stopper - Left",
+          qty: stopperW,
+          note: "Optional but recommended · a Left + Right pair per 1W stops a drawer from pulling all the way out. They snap into the base of the case above (or the covers over a top row). Under-table top-row drawers don't need them — the rail has stoppers built in.",
+          linkAs: "GEN2 Hardware",
+          optional: true,
+        },
+        {
+          name: "GEN2 Drawer Stopper - Right",
+          qty: stopperW,
+          note: "Optional · mirrored partner to the Left stoppers above.",
+          linkAs: "GEN2 Hardware",
+          optional: true,
+        },
+      );
+      if (items.length) sections.push({ title: "Hardware", items });
     }
 
     const mix = railMix();
@@ -1906,7 +2296,9 @@
       wallMix: mixOf(wallSections()),
     };
     const mountTitle = { tabletop: "Table Top Kit", wall: "Wall Mount", "under-table": "Mounting" };
-    sections.push({ title: mountTitle[state.mount] || "Mounting", items: GEN2.mountBom[state.mount](ctx) });
+    // mountSection flags this section for extras keyed to the mount (renderBom
+    // attaches matching "▶ Watch" video chips to its title)
+    sections.push({ title: mountTitle[state.mount] || "Mounting", items: GEN2.mountBom[state.mount](ctx), mountSection: true });
 
     return sections;
   }
@@ -1925,12 +2317,25 @@
       html += `<p class="tip">💡 New to GEN2? The <a href="${partLinks(starter).printables}" target="_blank" rel="noopener">${starter}</a> bundles everything for a first install.</p>`;
     }
     sections.forEach((sec) => {
-      html += `<h3>${sec.title}</h3><div class="bom-scroll"><table class="bom-table"><tbody>`;
+      // the mount section's title carries any install videos for this mount
+      const chips = sec.mountSection
+        ? GEN2.videos.filter((v) => v.mounts && v.mounts.includes(state.mount)).map(videoChipHtml).join("")
+        : "";
+      html += `<h3>${sec.title}${chips}</h3><div class="bom-scroll"><table class="bom-table"><tbody>`;
       sec.items.filter((it) => it.qty > 0).forEach((it) => { // never show 0× rows (e.g. QuickLocks for an untiled cabinet)
-        const img = it.hardware ? "img/parts/hardware.svg" : partImage(it.name);
+        // Hardware-store items skip partImage()'s "GEN2 ..." auto-pattern
+        // (their names don't follow it) and use a real reference photo when
+        // IMAGE_OVERRIDES has one for that exact item, else the generic
+        // wrench icon — never the "coming soon" placeholder, which means
+        // something else (a printed part not designed yet).
+        const img = it.hardware ? (IMAGE_OVERRIDES[it.name] || "img/parts/hardware.svg") : partImage(it.name);
+        const zoomable = it.hardware ? !!IMAGE_OVERRIDES[it.name] : true;
+        // real photos/renders get the magnifier (see bindThumbZoom); generic
+        // icons don't, and a load failure drops the affordance along with it
+        const fallbackImg = it.hardware ? "img/parts/hardware.svg" : "img/parts/placeholder.svg";
         html += `<tr class="${it.optional ? "optional" : ""}">
-          <td class="thumb"><img src="${img}" alt="" loading="lazy"
-            onerror="this.onerror=null;this.src='img/parts/placeholder.svg'"></td>
+          <td class="thumb"><img src="${img}" alt="" loading="lazy"${zoomable ? ` class="zoomable" data-name="${it.name.replace(/"/g, "&quot;")}"` : ""}
+            onerror="this.onerror=null;this.src='${fallbackImg}';this.classList.remove('zoomable')"></td>
           <td class="qty">${it.qty}×</td>
           <td class="name">${it.name}${it.variant ? ` — <em>${it.variant}</em>` : ""}${it.optional ? ' <span class="tag">optional</span>' : ""}${it.club ? ' <span class="tag club-tag">Club Expansion</span>' : ""}
             ${it.note ? `<div class="note">${it.note}</div>` : ""}</td>
@@ -1948,6 +2353,83 @@
     const links = partLinks(it.linkAs || it.name);
     return `<a class="btn small ${links.exactP ? "" : "ghost"}" href="${links.printables}" target="_blank" rel="noopener">Printables</a>
       <a class="btn small ${links.exactT ? "" : "ghost"}" href="${links.thangs}" target="_blank" rel="noopener">Thangs</a>`;
+  }
+
+  /* Magnifier for the tiny parts-list thumbnails: hovering (mouse) or tapping
+     (touch) a real render shows it enlarged in the shared #thumb-zoom card.
+     Listeners are delegated on #bom so they survive every re-render, and the
+     card is position:fixed so the table's scroll container can't clip it. */
+  function bindThumbZoom() {
+    const pop = $("#thumb-zoom");
+    if (!pop) return;
+    const big = pop.querySelector("img");
+    const cap = pop.querySelector(".tz-name");
+    const hide = () => { pop.hidden = true; delete pop.dataset.src; };
+    const show = (t) => {
+      big.src = t.src;                 // same file as the thumb — already cached
+      cap.textContent = t.dataset.name || "";   // part name under the image
+      pop.dataset.src = t.src;
+      pop.hidden = false;
+      // beside the thumb: right if there's room, else left; clamped to viewport.
+      // Measured after the caption is set, so tall names don't push it off-screen.
+      const r = t.getBoundingClientRect();
+      const pw = pop.offsetWidth || 242, ph = pop.offsetHeight || 242;
+      let x = r.right + 12;
+      if (x + pw > window.innerWidth - 8) x = Math.max(8, r.left - pw - 12);
+      const y = Math.max(8, Math.min(window.innerHeight - ph - 8, r.top + r.height / 2 - ph / 2));
+      pop.style.left = x + "px";
+      pop.style.top = y + "px";
+    };
+    const bom = $("#bom");
+    bom.addEventListener("pointerover", (e) => {
+      if (e.pointerType !== "mouse") return;   // touch uses the click toggle below
+      const t = e.target.closest(".thumb img.zoomable");
+      if (t) show(t);
+    });
+    bom.addEventListener("pointerout", (e) => {
+      if (e.pointerType === "mouse" && e.target.closest(".thumb img.zoomable")) hide();
+    });
+    bom.addEventListener("click", (e) => {
+      const t = e.target.closest(".thumb img.zoomable");
+      if (!t) return;
+      if (!pop.hidden && pop.dataset.src === t.src) hide(); else show(t);
+    });
+    // tapping anywhere else, or scrolling (the fixed card would drift), closes it
+    document.addEventListener("click", (e) => { if (!e.target.closest(".thumb")) hide(); });
+    window.addEventListener("scroll", hide, { passive: true });
+  }
+
+  /* -------------- Instructional videos (GEN2.videos) -------------- */
+
+  // A "▶ Watch" chip; one delegated listener in bindVideoModal() opens the
+  // shared <dialog> player, so chips can live in string-rendered HTML (BOM)
+  // and DOM-rendered spots (toolbar) alike. The play glyph is YouTube-red —
+  // the universal "this is a video" cue — while the chip chrome stays accent.
+  const videoChipHtml = (v) =>
+    `<button type="button" class="video-chip" data-video="${v.id}"><span class="vc-play">▶</span> Watch: ${v.title}</button>`;
+
+  function bindVideoModal() {
+    const dlg = $("#video-modal");
+    if (!dlg) return;
+    const frame = $("#video-modal-frame");
+    const open = (v) => {
+      // no <dialog> support (very old browsers / headless) → plain YouTube tab
+      if (!dlg.showModal) { window.open(`https://youtu.be/${v.id}`, "_blank", "noopener"); return; }
+      $("#video-modal-title").textContent = v.title;
+      $("#video-modal-link").href = `https://youtu.be/${v.id}`;
+      frame.src = `https://www.youtube-nocookie.com/embed/${v.id}`;   // loads only now
+      dlg.showModal();
+    };
+    dlg.addEventListener("close", () => { frame.src = ""; });   // stops playback
+    $("#video-modal-close").addEventListener("click", () => dlg.close());
+    // a click on the backdrop lands on the <dialog> element itself
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+    document.addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-video]");
+      if (!chip) return;
+      const v = GEN2.videos.find((x) => x.id === chip.dataset.video);
+      if (v) open(v);
+    });
   }
 
   /* ----------------------------- Exports ----------------------------- */
@@ -2004,6 +2486,131 @@
     setTimeout(() => { btn.textContent = orig; }, 1200);
   }
 
+  /* ------------------------ Shareable build card ------------------------
+     Renders the board into a branded PNG (wordmark, build stats, link back to
+     the planner) for posting on Reddit/Discord/Printables. The board <svg> is
+     styled by the page stylesheet, so a standalone copy needs that CSS embedded
+     — same-origin, so document.styleSheets hands over every rule. */
+  async function saveBuildImage() {
+    if (!state.placed.length) return;
+    const src = $("#board");
+    const clone = src.cloneNode(true);
+    // strip transient chrome: selection/drag highlights, the placement ghost,
+    // and the one-shot drop-in classes (their animation starts at opacity 0 —
+    // a static rasterisation would capture invisible units)
+    clone.querySelectorAll(".ghost").forEach((n) => n.remove());
+    clone.querySelectorAll(".drawer").forEach((g) => g.classList.remove("selected", "dragging", "drop-in"));
+    // drop the responsive sizing but KEEP the rest of the inline style — the
+    // product-color --len-face-* vars ride on it
+    clone.style.width = "";
+    clone.style.height = "";
+    // texts inherit the page font through <body>; a standalone SVG has no body,
+    // so pin the computed family on the root
+    clone.style.fontFamily = getComputedStyle(src).fontFamily;
+    clone.setAttribute("xmlns", SVG_NS);
+    let css = "";
+    for (const sheet of document.styleSheets) {
+      try { for (const r of sheet.cssRules) css += r.cssText + "\n"; } catch (e) { /* cross-origin sheet: none expected */ }
+    }
+    const styleEl = document.createElementNS(SVG_NS, "style");
+    styleEl.textContent = css;
+    clone.insertBefore(styleEl, clone.firstChild);
+
+    const svgUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" }));
+    try {
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = svgUrl; });
+
+      // ---- compose the card (logical px; drawn at 2× for crispness — the
+      // browser re-rasterises the SVG vector at the scaled size) ----
+      const bw = +src.getAttribute("width"), bh = +src.getAttribute("height");
+      const PADC = 26, HEAD = 58, FOOT = 52;
+      const cw = Math.max(bw + PADC * 2, 560);
+      const chh = HEAD + bh + FOOT;
+      const SCALE = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = cw * SCALE;
+      canvas.height = chh * SCALE;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(SCALE, SCALE);
+
+      const lenDef = GEN2.lengths.find((l) => l.id === state.length);
+      const accent = "#ff8a40", muted = "#9a9eaa", text = "#e8e9ec";
+      ctx.fillStyle = "#1b1c20";
+      ctx.fillRect(0, 0, cw, chh);
+
+      // header: wordmark left, length · mount right (length in its lineup color)
+      ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = accent;
+      ctx.font = "800 20px system-ui, sans-serif";
+      ctx.fillText("GEN2", PADC, 36);
+      const gw = ctx.measureText("GEN2").width;
+      ctx.fillStyle = muted;
+      ctx.font = "600 13px system-ui, sans-serif";
+      const spaced = "P L A N N E R";
+      ctx.fillText(spaced, PADC + gw + 10, 36);
+      const mountLabel = (mountDef() || {}).label || "";
+      ctx.font = "700 16px system-ui, sans-serif";
+      const lenTxt = `${state.length}mm`, mountTxt = ` · ${mountLabel}`;
+      const rightW = ctx.measureText(lenTxt).width + ctx.measureText(mountTxt).width;
+      ctx.fillStyle = (lenDef && lenDef.color) || accent;
+      ctx.fillText(lenTxt, cw - PADC - rightW, 36);
+      ctx.fillStyle = text;
+      ctx.fillText(mountTxt, cw - PADC - ctx.measureText(mountTxt).width, 36);
+      ctx.strokeStyle = "#33353c";
+      ctx.beginPath(); ctx.moveTo(PADC, HEAD - 10); ctx.lineTo(cw - PADC, HEAD - 10); ctx.stroke();
+
+      ctx.drawImage(img, (cw - bw) / 2, HEAD, bw, bh);
+      // subtle in-board watermark, so branding survives even if someone crops
+      // the card down to just the grid
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = muted;
+      ctx.font = "600 11px system-ui, sans-serif";
+      const wm = "jerrari3d.com";
+      ctx.fillText(wm, (cw + bw) / 2 - ctx.measureText(wm).width - 10, HEAD + bh - 8);
+      ctx.restore();
+
+      // footer: stats left, call-to-action right
+      const fy = HEAD + bh + 20;
+      ctx.beginPath(); ctx.moveTo(PADC, fy - 12); ctx.lineTo(cw - PADC, fy - 12); ctx.stroke();
+      const minX = Math.min(...state.placed.map((u) => u.x));
+      const maxX = Math.max(...state.placed.map((u) => u.x + u.w));
+      const minY = Math.min(...state.placed.map((u) => u.y));
+      const maxY = Math.max(...state.placed.map((u) => u.y + u.hh));
+      // printed pieces = everything in the plan you print (opt-outs excluded)
+      const pieces = (computeBom() || []).reduce((s, sec) =>
+        s + sec.items.reduce((q, it) => q + (it.hardware || it.optional ? 0 : it.qty), 0), 0);
+      ctx.fillStyle = text;
+      ctx.font = "600 13px system-ui, sans-serif";
+      ctx.fillText(
+        `${state.placed.length} unit${state.placed.length > 1 ? "s" : ""} · ` +
+        `≈ ${(maxX - minX) * GEN2.units.widthMM} × ${(maxY - minY) * (GEN2.units.heightMM / 2)} × ${state.length} mm · ` +
+        `${pieces} printed parts`, PADC, fy + 6);
+      // brand CTA (the fixed home domain, not the runtime host — dev shows
+      // localhost and GitHub Pages isn't the brand), domain in accent
+      ctx.font = "600 12px system-ui, sans-serif";
+      const ctaA = "Build your own at ", ctaB = "jerrari3d.com";
+      const wA = ctx.measureText(ctaA).width, wB = ctx.measureText(ctaB).width;
+      ctx.fillStyle = muted;
+      ctx.fillText(ctaA, cw - PADC - wA - wB, fy + 6);
+      ctx.fillStyle = accent;
+      ctx.fillText(ctaB, cw - PADC - wB, fy + 6);
+
+      const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `gen2-build-${state.length}-${state.mount}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      flash("#save-image", "✓ Saved!");
+    } catch (e) {
+      flash("#save-image", "Couldn't render — try again");
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  }
+
   /* --------------------------- Interaction --------------------------- */
 
   function bindBoard() {
@@ -2028,14 +2635,20 @@
       if (drag) {
         const p = state.placed.find((u) => u.id === drag.id);
         if (p) {
-          if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > DRAG_SLOP) drag.moved = true;
+          if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > DRAG_SLOP) {
+            drag.moved = true;
+            // dim the source unit in place — a class flip, not a rebuild
+            svg.querySelector(`g.drawer[data-id="${drag.id}"]`)?.classList.add("dragging");
+          }
           if (drag.moved) {
             drag.tx = hover.x - drag.dx;
             drag.ty = hover.y - drag.dy;
           }
         }
       }
-      renderBoard();
+      // cursor movement only ever changes the ghost; the rest of the board is
+      // state-driven and stays untouched (which lets hover transitions play)
+      updateGhost();
     });
 
     /* Selection and placement resolve on mouseup, NOT on "click". The board
@@ -2112,13 +2725,16 @@
       const cell = cellAt(pt.x, pt.y);
       const p = state.placed.find((u) => u.id === drag.id);
       if (!p) return;
-      if (Math.hypot(t.clientX - drag.sx, t.clientY - drag.sy) > DRAG_SLOP) drag.moved = true;
+      if (!drag.moved && Math.hypot(t.clientX - drag.sx, t.clientY - drag.sy) > TOUCH_SLOP) {
+        drag.moved = true;
+        svg.querySelector(`g.drawer[data-id="${drag.id}"]`)?.classList.add("dragging");
+      }
       if (drag.moved) {
         drag.tx = cell.x - drag.dx;
         drag.ty = cell.y - drag.dy;
       }
       e.preventDefault();
-      renderBoard();
+      updateGhost();   // same as the mouse path: only the ghost moves
     }, { passive: false });
 
     svg.addEventListener("touchend", (e) => {
@@ -2226,6 +2842,9 @@
     $("#copy-bom").addEventListener("click", copyBom);
     $("#csv-bom").addEventListener("click", downloadCsv);
     $("#print-bom").addEventListener("click", () => window.print());
+    $("#save-image").addEventListener("click", saveBuildImage);
+    $("#board-colors-seg").querySelectorAll("[data-colors]").forEach((btn) =>
+      btn.addEventListener("click", () => applyBoardColors(btn.dataset.colors)));
 
     // Selected-unit toolbar: arrow pad nudges, remove deletes, stepper edits
     // cabinet shelves. The markup is static, so these bind once.
@@ -2318,6 +2937,33 @@
 
   function refresh() {
     const ready = state.mount && state.length;
+    // Palette icon accents (size boxes, active fill details) wear the chosen
+    // length's lineup color — same idea as the board's kit title. Selection
+    // chrome stays accent orange. Cleared when no length is picked, so the
+    // CSS var() fallbacks return everything to the default accent.
+    const lenDef = GEN2.lengths.find((l) => l.id === state.length);
+    const rootStyle = document.documentElement.style;
+    // Drawer-front shades for the product-color board derive from the same
+    // lineup color (165 = blue drawers, 270 = red…). They live INLINE on the
+    // #board svg — not :root — so the share-card clone (a standalone SVG with
+    // no <html> ancestor) still resolves them.
+    const boardStyle = $("#board").style;
+    if (lenDef) {
+      rootStyle.setProperty("--len-color", lenDef.color);
+      rootStyle.setProperty("--len-color-dim", lenDef.color + "59");   // ~35% alpha
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(lenDef.color.slice(i, i + 2), 16));
+      const shade = (f) => `rgb(${f(r)}, ${f(g)}, ${f(b)})`;
+      const toWhite = (c, t) => Math.round(c + (255 - c) * t);
+      boardStyle.setProperty("--len-face", shade((c) => Math.round(c * 0.88)));       // front body
+      boardStyle.setProperty("--len-face-light", shade((c) => toWhite(c, 0.18)));     // rails / scoop ramp
+      boardStyle.setProperty("--len-face-dark", shade((c) => Math.round(c * 0.62)));  // recesses
+      boardStyle.setProperty("--len-face-edge", shade((c) => toWhite(c, 0.45)));      // lip highlight
+    } else {
+      rootStyle.removeProperty("--len-color");
+      rootStyle.removeProperty("--len-color-dim");
+      ["--len-face", "--len-face-light", "--len-face-dark", "--len-face-edge"]
+        .forEach((p) => boardStyle.removeProperty(p));
+    }
     $("#step-layout").hidden = !ready;
     $("#step-parts").hidden = !ready;
     renderStepSummaries();
@@ -2357,7 +3003,10 @@
   buildPrinterSelect();
   bindBoard();
   bindControls();
+  bindThumbZoom();
+  bindVideoModal();
   bindStepCollapse();
+  applyBoardColors(store.get("gen2-board-colors") || "product");
   refresh();
   loadBuildFromHash();   // open a shared #build=… link, if present
 

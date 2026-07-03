@@ -43,6 +43,17 @@
     set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* session-only */ } },
   };
 
+  /* Fire a GoatCounter custom event (cookieless analytics; see the script tag
+     in index.html). `name` is the event path, e.g. "length:185". Fails silent
+     and is a no-op if the beacon is blocked/absent — analytics must NEVER be
+     able to break the planner. */
+  function track(name) {
+    try {
+      if (window.goatcounter && window.goatcounter.count)
+        window.goatcounter.count({ path: name, title: name, event: true });
+    } catch (e) { /* ignore — never let tracking throw */ }
+  }
+
   /* ----------------------- Printer / bed fitting ----------------------- */
 
   function bedSize() {
@@ -203,6 +214,7 @@
         `<div class="card-blurb">${m.blurb}</div>`;
       btn.addEventListener("click", () => {
         state.mount = m.id;
+        track("mount:" + m.id);
         renderMountCards();
         refresh();
       });
@@ -229,6 +241,7 @@
         btn.addEventListener("click", () => {
           const wasReady = state.mount && state.length;
           state.length = l.id;
+          track("length:" + l.id);
           ensureValidSelection();
           renderLengthCards();
           refresh();
@@ -465,6 +478,7 @@
         card;
       btn.addEventListener("click", () => {
         state.fill = f.id;
+        track("fill:" + f.id);
         ensureValidSelection();
         refresh();
       });
@@ -513,7 +527,7 @@
           (s.img ? `<span class="tip-card" role="tooltip">` +
             `<img class="tip-card-img" src="${s.img}" alt="${s.label}" loading="lazy" onerror="this.style.display='none'" />` +
             `<span class="tip-card-text"><b>${s.label}</b>${s.blurb || s.sub || ""}</span></span>` : "");
-        card.addEventListener("click", () => { state.faceStyle = s.id; refresh(); });
+        card.addEventListener("click", () => { state.faceStyle = s.id; track("faceplate:" + s.id); refresh(); });
         row.appendChild(card);
       });
       g.appendChild(row);
@@ -1295,6 +1309,7 @@
      and parts list react before they understand every control. Adapts to the
      current grid, printer, and mount. */
   function loadExample() {
+    track("example");
     state.placed = [];
     state.selectedUnit = null;
     const fits = (w, fill) => state.gridW >= w && fillFits(w, fill);
@@ -1343,6 +1358,7 @@
      case is fully supported by the row toward the surface) of random widths,
      heights, and drawer fills. */
   function surpriseMe() {
+    track("surprise");
     const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
     const pick = (arr) => arr[randInt(0, arr.length - 1)];
     const FILLS = ["classic", "decor"];
@@ -1587,6 +1603,7 @@
 
   function shareLink() {
     if (!state.placed.length) return;
+    track("share-link");
     const url = location.origin + location.pathname + "#build=" + encodeBuildHash();
     // A max-size labelled build encodes to a ~30KB+ URL. Browsers take it, but
     // chat apps and some URL fields truncate long links — steer big builds to
@@ -2305,6 +2322,8 @@
 
   function renderBom() {
     const wrap = $("#bom");
+    // the labels export only earns a button when there's a label to export
+    $("#labels-txt").hidden = !state.placed.some((p) => p.label);
     const sections = computeBom();
     if (!sections) {
       wrap.innerHTML = `<p class="hint">Choose a location and length, then place units in the layout · your parts list builds itself here.</p>`;
@@ -2413,6 +2432,7 @@
     if (!dlg) return;
     const frame = $("#video-modal-frame");
     const open = (v) => {
+      track("video:" + v.id);
       // no <dialog> support (very old browsers / headless) → plain YouTube tab
       if (!dlg.showModal) { window.open(`https://youtu.be/${v.id}`, "_blank", "noopener"); return; }
       $("#video-modal-title").textContent = v.title;
@@ -2453,6 +2473,7 @@
   }
 
   function copyBom() {
+    track("export:copy");
     const m = mountDef();
     let txt = `GEN2 ${state.length} · ${m ? m.label : ""} setup\n`;
     txt += `Planned with the GEN2 Planner · jerrari3d.com\n\n`;
@@ -2467,6 +2488,7 @@
   }
 
   function downloadCsv() {
+    track("export:csv");
     const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
     let csv = "Section,Qty,Part,Printables,Thangs\n";
     bomAsRows().forEach((r) => {
@@ -2475,6 +2497,25 @@
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = `gen2-${state.length}-${state.mount}-parts.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  /* Labels export: every typed drawer label as PLAIN TEXT, one per line, in
+     reading order (top-left → bottom-right). No columns, quotes, or header —
+     just the label text, so it pastes cleanly into a label field and imports
+     into label software (Dymo, Brother, Niimbot…) where each line becomes one
+     label. EdgeLabel / Classic Pro users have the label-generator handoff; this
+     is for everyone else printing stick-on labels. */
+  function downloadLabelList() {
+    track("export:labels");
+    const labels = state.placed
+      .filter((p) => p.label)
+      .sort((a, b) => (a.y - b.y) || (a.x - b.x))
+      .map((p) => p.label);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([labels.join("\n") + "\n"], { type: "text/plain" }));
+    a.download = `gen2-${state.length}-${state.mount}-labels.txt`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -2493,6 +2534,7 @@
      — same-origin, so document.styleSheets hands over every rule. */
   async function saveBuildImage() {
     if (!state.placed.length) return;
+    track("save-image");
     const src = $("#board");
     const clone = src.cloneNode(true);
     // strip transient chrome: selection/drag highlights, the placement ghost,
@@ -2843,6 +2885,17 @@
     $("#csv-bom").addEventListener("click", downloadCsv);
     $("#print-bom").addEventListener("click", () => window.print());
     $("#save-image").addEventListener("click", saveBuildImage);
+    $("#labels-txt").addEventListener("click", downloadLabelList);
+    // Conversion clicks (the money events): the label-generator handoff and the
+    // Club join links. Delegated because both re-render. Tagged with the chosen
+    // faceplate style so the funnel is legible.
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest("a");
+      if (!a) return;
+      if (a.id === "label-gen-link") track("labelgen:" + state.faceStyle);
+      else if (a.href === CLUB_URL_PRINTABLES) track("club:printables");
+      else if (a.href === CLUB_URL_THANGS) track("club:thangs");
+    });
     $("#board-colors-seg").querySelectorAll("[data-colors]").forEach((btn) =>
       btn.addEventListener("click", () => applyBoardColors(btn.dataset.colors)));
 

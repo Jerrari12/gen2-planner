@@ -322,6 +322,7 @@
       <button type="button" class="btn" id="csv-bom">Download CSV</button>
       <button type="button" class="btn" id="print-bom">Print</button>
       <button type="button" class="btn" id="save-image">Save build image</button>
+      <button type="button" class="btn" id="labels-txt" hidden>Download labels</button>
     </div>
     <p class="fineprint">
       Quantities for mount hardware are estimates · always confirm against the instructions at
@@ -360,5 +361,10 @@
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script src="js/hero.js"></script>
+<!-- GoatCounter analytics: cookieless, no consent banner. Counts a pageview on
+     load; app.js's track() sends custom events (mount/length/faceplate/share…).
+     Loads async and fails silent — the planner never depends on it. -->
+<script data-goatcounter="https://jerrari.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>

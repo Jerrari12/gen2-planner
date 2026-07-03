@@ -376,6 +376,7 @@
     sel.addEventListener("change", () => {
       const prevBed = bedSize();
       state.printer = sel.value;
+      track("printer:" + state.printer);   // which printers the audience runs
       // switching to Custom carries over the last preset's real dims, so the
       // boxes never show misleading example numbers next to a chosen printer
       if (state.printer === "custom" && prevBed && !(state.customBed.x && state.customBed.y)) {

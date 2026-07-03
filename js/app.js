@@ -1427,7 +1427,6 @@
   // The fields that make a build reproducible (setup + layout).
   const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
     "faceStyle", "doorStyle", "handleStyle", "wallStagger", "gridW", "gridH", "placed", "nextId"];
-  const BUILDS_KEY = "gen2-builds";
 
   const serializeBuild = () => {
     const o = {};
@@ -1529,56 +1528,14 @@
     return true;
   }
 
-  const loadBuilds = () => { try { return JSON.parse(store.get(BUILDS_KEY)) || []; } catch (e) { return []; } };
-  const saveBuilds = (list) => store.set(BUILDS_KEY, JSON.stringify(list));
-
-  function saveCurrentBuild() {
+  /* Save = download the build as a file (bumpmesh-style): no in-app list, no
+     name prompt. exportBuild() gives it a sensible default filename; the
+     browser's "ask where to save" dialog (if the user has it on) is then the
+     single place to rename it. Load is the "Load build from file" import. */
+  function saveBuildToFile() {
     if (!state.placed.length) return;
-    const name = (window.prompt("Name this build:", `${state.length} ${state.mount} build`) || "").trim();
-    if (!name) return;
-    const list = loadBuilds().filter((b) => b.name !== name);   // overwrite same name
-    list.push({ name, savedAt: Date.now(), data: serializeBuild() });
-    saveBuilds(list);
-    renderBuildList();
-  }
-
-  function deleteBuild(name) {
-    saveBuilds(loadBuilds().filter((b) => b.name !== name));
-    renderBuildList();
-  }
-
-  function renderBuildList() {
-    const box = $("#build-list");
-    if (!box) return;
-    const list = loadBuilds().sort((a, b) => b.savedAt - a.savedAt);
-    box.innerHTML = "";
-    if (!list.length) {
-      const p = document.createElement("p");
-      p.className = "builds-empty";
-      p.textContent = "No saved builds yet.";
-      box.appendChild(p);
-      return;
-    }
-    list.forEach((b) => {
-      const row = document.createElement("div");
-      row.className = "build-row";
-      const load = document.createElement("button");
-      load.type = "button"; load.className = "build-load"; load.textContent = b.name;
-      load.title = "Load this build";
-      load.addEventListener("click", () => applyBuild(b.data));
-      const exp = document.createElement("button");
-      exp.type = "button"; exp.className = "build-act"; exp.textContent = "⭳";
-      exp.setAttribute("aria-label", `Export ${b.name} to a file`);
-      exp.title = "Export to file";
-      exp.addEventListener("click", () => exportBuild(b.data, b.name));
-      const del = document.createElement("button");
-      del.type = "button"; del.className = "build-act build-del"; del.textContent = "✕";
-      del.setAttribute("aria-label", `Delete ${b.name}`);
-      del.title = "Delete";
-      del.addEventListener("click", () => deleteBuild(b.name));
-      row.append(load, exp, del);
-      box.appendChild(row);
-    });
+    track("save-build");
+    exportBuild(serializeBuild(), `gen2-${state.length}-${state.mount}-build`);
   }
 
   // Download a saved build as a file, reusing its saved name (named once, at Save).
@@ -1628,6 +1585,7 @@
     reader.onload = () => {
       let ok = false;
       try { const p = JSON.parse(reader.result); ok = applyBuild(p && p.data ? p.data : p); } catch (e) { ok = false; }
+      if (ok) track("load-build");
       if (!ok) {
         const box = $("#board-warnings");
         warn(box, "That file isn't a valid GEN2 build.");
@@ -2858,10 +2816,9 @@
     });
     $("#surprise-me").addEventListener("click", surpriseMe);
     $("#load-example").addEventListener("click", loadExample);
-    $("#build-save").addEventListener("click", saveCurrentBuild);
+    $("#build-save").addEventListener("click", saveBuildToFile);
     $("#build-share").addEventListener("click", shareLink);
     $("#build-import").addEventListener("change", (e) => { importBuild(e.target.files[0]); e.target.value = ""; });
-    renderBuildList();
     // "New to GEN2" primer: collapsible, remembers its open/closed state.
     const primer = $("#explainer-primer");
     if (primer) {

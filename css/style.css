@@ -777,22 +777,6 @@ details.builds > summary::before {
 details.builds[open] > summary::before { transform: rotate(90deg); }
 details.builds > summary:hover { color: var(--text); }
 .builds-body .build-import { display: block; text-align: center; }
-.build-list:not(:empty) { margin-top: 8px; }
-.builds-empty { font-size: 0.76rem; color: var(--muted); margin: 6px 0 0; }
-.build-row { display: flex; gap: 5px; margin-top: 6px; }
-.build-load {
-  flex: 1; min-width: 0; text-align: left;
-  background: none; border: 1px solid var(--line); border-radius: 8px;
-  color: var(--text); font-size: 0.78rem; font-weight: 600; padding: 7px 10px; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.build-load:hover { border-color: var(--accent); background: rgba(255, 138, 64, 0.08); }
-.build-act {
-  flex: none; width: 30px; border: 1px solid var(--line); border-radius: 8px;
-  background: none; color: var(--muted); cursor: pointer; font-size: 0.85rem;
-}
-.build-act:hover { border-color: var(--accent); color: var(--accent); }
-.build-del:hover { border-color: var(--bad); color: var(--bad); }
 .share-url {
   width: 100%; margin-top: 6px; font-size: 0.72rem; padding: 6px 8px;
   background: var(--panel-2); border: 1px solid var(--accent); border-radius: 8px; color: var(--text);
@@ -1223,8 +1207,6 @@ details.builds > summary:hover { color: var(--text); }
   .stepper button { width: 40px; height: 40px; font-size: 1.15rem; }
   .stepper b { min-width: 34px; }
   .ut-pad { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 44px); }
-  .build-row .build-load, .build-row .build-act { min-height: 40px; }
-  .build-act { width: 40px; }
 
   /* Parts-list rows adapt to width instead of overflowing: smaller thumb, and
      the store links wrap under the name rather than holding a fixed column. */

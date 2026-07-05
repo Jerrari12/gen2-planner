@@ -160,6 +160,11 @@ const GEN2 = {
   // Drawer lengths (depth in mm). `color` matches the official lineup art.
   lengths: [
     { id: 59,  label: "59",  color: "#f2f2f2", tagline: "Ultra-shallow · 45mm inside · cards, bits, screws, small flat parts",
+      // 59 cases are too shallow to stand as a rigid free-standing unit: the
+      // collection has no foot rails and no feet slots in the case undersides,
+      // so there's nothing to make a Table Top build stable. Under-Table / Wall
+      // only (those hang off rails / the wall, no feet needed).
+      noTabletop: "The 59 collection is too shallow for a Table Top build — its cases have no foot rails and no feet slots to stand on. Use Under-Table or Wall mount.",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
     { id: 115, label: "115", color: "#9ea3a8", tagline: "Medium · 101mm inside · pens, cables, tape, small parts & tins",
       page: "https://www.jerrari3d.com/gen2-modular-system" },

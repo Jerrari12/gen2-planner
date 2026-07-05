@@ -439,11 +439,13 @@ test("EdgeLabel / Classic Pro faceplates omit the handle line (integrated)", () 
   const { app } = boot();
   place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
   app.state.faceStyle = "essential";
-  assert.equal(bomQty(app, "Handle or knob"), 1);    // Essential needs a handle
+  // Non-integrated faceplate bills a handle row named after the chosen handle
+  // style (default BlockBar), so the parts list links to that Printables model.
+  assert.equal(bomQty(app, "Decor Handles"), 1);     // Essential needs a handle
   app.state.faceStyle = "edgelabel";
-  assert.equal(bomQty(app, "Handle or knob"), 0);    // integrated
+  assert.equal(bomQty(app, "Decor Handles"), 0);     // integrated
   app.state.faceStyle = "classicpro";
-  assert.equal(bomQty(app, "Handle or knob"), 0);    // integrated
+  assert.equal(bomQty(app, "Decor Handles"), 0);     // integrated
 });
 
 test("wall per-column covers tile each top case instead of the whole run", () => {
@@ -600,4 +602,349 @@ test("Fix structure drops a floating tabletop unit without adding parts", () => 
   assert.doesNotMatch(warnsText(doc), /supported on both ends/i);
   assert.equal(r.added, 0);                          // gravity alone settled it
   assert.equal(app.state.placed.length, before);
+});
+
+/* ---------------- Untrusted-build sanitizing (share links / imports) ---------------- */
+
+const encodeHash = (o) => Buffer.from(JSON.stringify(o), "utf8").toString("base64");
+const baseBuild = () => ({
+  mount: "under-table", length: 185, printer: "any", gridW: 6, gridH: 4,
+  nextId: 9, placed: [{ id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" }],
+});
+
+test("hostile build hashes can't crash or hang the planner", () => {
+  const payloads = [
+    (p) => { p.placed[0].fill = "bogus"; },
+    (p) => { p.mount = "roof"; },
+    (p) => { p.length = 9999; },
+    (p) => { p.doorStyle = "bogus"; },
+    (p) => { p.faceStyle = "bogus"; },
+    (p) => { p.placed = [null, "x", 42, { id: 1 }]; },
+    (p) => { p.gridW = 5000; p.gridH = -3; },
+    (p) => { p.gridW = "6"; },
+    (p) => { p.spaceW = 1e12; p.spaceH = -5; },
+    (p) => { p.placed[0].hh = 7; p.placed[0].w = 999; p.placed[0].x = -3; },
+    (p) => { p.placed[0] = { id: 1, x: 0, y: 0, w: 1, hh: 6, fill: "cabinet", shelves: 99999 }; },
+    (p) => { p.placed[0].label = { a: 1 }; },
+  ];
+  for (const mutate of payloads) {
+    const { app } = boot();
+    const payload = baseBuild();
+    mutate(payload);
+    assert.doesNotThrow(() => {
+      app.applyBuildHash(encodeHash(payload));
+      app.refresh();          // a poisoned state would crash here
+      app.computeBom();
+    });
+  }
+});
+
+test("sanitizer clamps numbers to the UI's own limits", () => {
+  const { app } = boot();
+  const p = baseBuild();
+  p.gridW = 5000; p.gridH = -3; p.spaceW = 1e12; p.gridH = "banana";
+  app.applyBuildHash(encodeHash(p));
+  assert.equal(app.state.gridW, 12);       // GRID_LIMITS.wMax
+  assert.equal(app.state.gridH, 4);        // non-numeric -> default
+  assert.equal(app.state.spaceW, 10000);   // input max
+});
+
+test("sanitizer drops invalid units, keeps valid ones, renumbers ids", () => {
+  const { app } = boot();
+  const p = baseBuild();
+  p.placed = [
+    { id: 7, x: 0, y: 0, w: 1, hh: 2, fill: "decor", label: "KEEP" },
+    { id: 7, x: 1, y: 0, w: 1, hh: 2, fill: "decor" },        // duplicate id, still valid
+    { id: 9, x: 0, y: 0, w: 2, hh: 2, fill: "classic" },      // overlaps first -> dropped
+    { id: 10, x: 3, y: 0, w: 1, hh: 7, fill: "decor" },       // 3.5H doesn't exist
+    { id: 11, x: 50, y: 0, w: 1, hh: 2, fill: "decor" },      // outside the grid
+    null, "junk",
+  ];
+  p.nextId = 1;
+  app.applyBuildHash(encodeHash(p));
+  assert.equal(app.state.placed.length, 2);
+  assert.deepEqual(Array.from(app.state.placed, (u) => u.id), [1, 2]);  // renumbered
+  assert.equal(app.state.nextId, 3);
+  assert.equal(app.state.placed[0].label, "KEEP");
+});
+
+test("sanitizer truncates labels and clamps shelves", () => {
+  const { app } = boot();
+  const p = baseBuild();
+  p.placed = [
+    { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor", label: "X".repeat(5000) },
+    { id: 2, x: 1, y: 0, w: 1, hh: 6, fill: "cabinet", shelves: 99999 },
+    { id: 3, x: 2, y: 0, w: 1, hh: 2, fill: "decor", label: { a: 1 } },
+  ];
+  app.applyBuildHash(encodeHash(p));
+  assert.equal(app.state.placed[0].label.length, 40);          // input maxlength
+  assert.equal(app.state.placed[1].shelves, 2);                // 3H cabinet -> max 2
+  assert.equal("label" in app.state.placed[2], false);         // non-string dropped
+});
+
+test("sanitizer discards a garbage cabinet interior (falls back to simple)", () => {
+  const { app } = boot();
+  const p = baseBuild();
+  p.placed = [
+    { id: 1, x: 0, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [{ x: -5, y: 0, w: 999, h: 999 }] },
+    { id: 2, x: 2, y: 0, w: 2, hh: 4, fill: "cabinet", interior: [{ x: 0, y: 0, w: 1, h: 2 }, { x: 1, y: 0, w: 1, h: 2 }] },
+  ];
+  app.applyBuildHash(encodeHash(p));
+  assert.equal("interior" in app.state.placed[0], false);      // invalid -> simple mode
+  assert.equal(app.state.placed[1].interior.length, 2);        // valid tiling kept
+});
+
+test("un-modeled drawer sizes show as coming soon with no download links", () => {
+  const { app } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "classic" });   // 1W-1H: modeled
+  place(app, { id: 2, x: 1, y: 0, w: 3, hh: 3, fill: "classic" });   // 3W-1.5H: not modeled
+  const items = [];
+  for (const s of app.computeBom()) items.push(...s.items.filter((i) => i.name.includes("Classic Drawer")));
+  const modeled = items.find((i) => i.name.includes("1W-1H"));
+  const unmodeled = items.find((i) => i.name.includes("3W-1.5H"));
+  assert.equal(modeled.unreleased, false);
+  assert.equal(unmodeled.unreleased, true);
+});
+
+test("drawer stoppers: mirrored L+R per 1W, skipping rail-mounted under-table drawers", () => {
+  const { app } = boot();                                            // under-table
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "classic" });   // on the rail: built-in stops
+  place(app, { id: 2, x: 0, y: 2, w: 1, hh: 2, fill: "decor" });     // under a case: 1L+1R
+  assert.equal(bomQty(app, "Drawer Stopper - Left"), 1);             // two mirrored line items
+  assert.equal(bomQty(app, "Drawer Stopper - Right"), 1);
+
+  app.state.mount = "tabletop";                                      // covers have stopper slots,
+  assert.equal(bomQty(app, "Drawer Stopper - Left"), 3);             // so the 2W top row counts too
+  assert.equal(bomQty(app, "Drawer Stopper"), 6);                    // L + R combined
+
+  app.state.placed = [{ id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "cabinet", shelves: 0 }];
+  assert.equal(bomQty(app, "Drawer Stopper"), 0);                    // no function in a cabinet
+});
+
+test("Load example uses one drawer style — the selected fill (Decor otherwise)", () => {
+  const { window, app, doc } = boot();
+  const fillsUsed = () => [...new Set(app.state.placed.map((p) => p.fill))];
+
+  app.state.fill = "decor";
+  fireClick(window, doc.querySelector("#load-example"));
+  assert.deepEqual(fillsUsed().join(","), "decor");
+  assert.ok(app.state.placed.length >= 3);
+
+  app.state.fill = "classic";
+  fireClick(window, doc.querySelector("#load-example"));
+  assert.deepEqual(fillsUsed().join(","), "classic");
+
+  app.state.fill = "shelf";                       // non-drawer fill → Decor example
+  fireClick(window, doc.querySelector("#load-example"));
+  assert.deepEqual(fillsUsed().join(","), "decor");
+});
+
+test("instructional-video chips surface by fill (toolbar) and mount (BOM)", () => {
+  const { app, doc } = boot();
+  app.state.mount = "wall";
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "cabinet" });
+  place(app, { id: 2, x: 2, y: 0, w: 1, hh: 2, fill: "decor" });
+
+  select(app, 1);                                   // cabinet selected → chip
+  assert.equal(doc.querySelector("#ut-video").hidden, false);
+  assert.match(doc.querySelector("#ut-video .video-chip").dataset.video, /b2xK4EpuWog/);
+
+  select(app, 2);                                   // decor has no video → hidden
+  assert.equal(doc.querySelector("#ut-video").hidden, true);
+
+  const h3 = [...doc.querySelectorAll("#bom h3")].find((h) => h.textContent.includes("Wall Mount"));
+  assert.ok(h3.querySelector(".video-chip"), "wall-mount section carries the install video chip");
+
+  // faceplate-style surface: EdgeLabel shows its assembly video, Essential doesn't
+  app.state.faceStyle = "edgelabel";
+  app.refresh();
+  assert.equal(doc.querySelector("#faceplate-video").hidden, false);
+  assert.match(doc.querySelector("#faceplate-video .video-chip").dataset.video, /3rPmE_q4KH0/);
+  app.state.faceStyle = "essential";
+  app.refresh();
+  assert.equal(doc.querySelector("#faceplate-video").hidden, true);
+});
+
+test("drawer closures: per-drawer opt-in billing, default none", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  place(app, { id: 2, x: 1, y: 0, w: 1, hh: 2, fill: "classic" });
+  assert.equal(bomQty(app, "Magnet Clip"), 0);          // default none → nothing billed
+  assert.equal(bomQty(app, "Magnets 10"), 0);
+
+  app.state.placed[0].closure = "magnet";               // opt one drawer in
+  assert.equal(bomQty(app, "Magnet Clip"), 1);
+  assert.equal(bomQty(app, "Magnets 10"), 2);
+
+  // toolbar: picker shows for drawers with Push-Click disabled ("soon")
+  select(app, 1);
+  assert.equal(doc.querySelector("#ut-closure").hidden, false);
+  const btns = [...doc.querySelectorAll("#ut-closure-seg button")];
+  assert.equal(btns.length, 3);
+  assert.ok(btns[2].classList.contains("disabled"));    // Push-Click
+  assert.ok(btns[2].dataset.tip.includes("wall"));      // carries the wall caveat
+
+  // clicking Magnets sets the closure through the real handler
+  select(app, 2);
+  [...doc.querySelectorAll("#ut-closure-seg button")].find((b) => b.textContent.includes("Magnets")).click();
+  assert.equal(app.state.placed[1].closure, "magnet");
+  assert.equal(bomQty(app, "Magnet Clip"), 2);
+
+  // hidden for non-drawers
+  place(app, { id: 3, x: 2, y: 0, w: 1, hh: 2, fill: "cabinet" });
+  select(app, 3);
+  assert.equal(doc.querySelector("#ut-closure").hidden, true);
+});
+
+test("sanitizer whitelists closures (drawers only, released options only)", () => {
+  const { app } = boot();
+  const p = baseBuild();
+  p.placed = [
+    { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor", closure: "magnet" },
+    { id: 2, x: 1, y: 0, w: 1, hh: 2, fill: "decor", closure: "pushclick" },  // unreleased
+    { id: 3, x: 2, y: 0, w: 1, hh: 2, fill: "classic", closure: "banana" },   // garbage
+  ];
+  app.applyBuildHash(encodeHash(p));
+  assert.equal(app.state.placed[0].closure, "magnet");
+  assert.equal("closure" in app.state.placed[1], false);
+  assert.equal("closure" in app.state.placed[2], false);
+});
+
+test("board colors default to product and toggle to schematic", () => {
+  // (persistence rides the store wrapper — no localStorage in this jsdom origin)
+  const { app, doc } = boot();
+  const svg = doc.querySelector("#board");
+  assert.equal(svg.classList.contains("product"), true);      // default on
+
+  doc.querySelector('#board-colors-seg [data-colors="schematic"]').click();
+  assert.equal(svg.classList.contains("product"), false);
+
+  doc.querySelector('#board-colors-seg [data-colors="product"]').click();
+  assert.equal(svg.classList.contains("product"), true);
+
+  // drawer-front shades derive from the chosen length's lineup color and live
+  // inline on the svg (185 = #ff8a40 → face is its 0.88 darken)
+  assert.equal(svg.style.getPropertyValue("--len-face"), "rgb(224, 121, 56)");
+  app.state.length = 165;                                     // lineup blue #3aa0e8
+  app.refresh();
+  assert.equal(svg.style.getPropertyValue("--len-face"), "rgb(51, 141, 204)");
+});
+
+test("labels export button appears only when a drawer has a label", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "classic" });
+  app.refresh();
+  assert.equal(doc.querySelector("#labels-txt").hidden, true);   // no labels yet
+
+  app.state.placed[0].label = "M3 SCREWS";
+  app.refresh();
+  assert.equal(doc.querySelector("#labels-txt").hidden, false);
+});
+
+test("sagRisks flags units resting mid-span on an open case (tabletop)", () => {
+  const { app, doc } = boot();
+  app.state.mount = "tabletop";
+  // 4W-2H on the tabletop (half-rows 4-7); its open top is at half-row 3,
+  // with walls only at columns 1 and 5
+  place(app, { id: 1, x: 1, y: 4, w: 4, hh: 4 });
+  // mid-span 1W — NEITHER side wall lands on the case's walls → sags
+  place(app, { id: 2, x: 2, y: 3, w: 1, hh: 1 });
+  // end-aligned 1W — one wall on the case wall QuickLocks it → no sag
+  place(app, { id: 3, x: 4, y: 3, w: 1, hh: 1 });
+  app.refresh();
+
+  assert.deepEqual([...app.sagRisks()], [2]);
+  // board outlines it and the warning box explains
+  assert.equal(doc.querySelector('g.drawer[data-id="2"]').getAttribute("class").includes("sag"), true);
+  assert.equal(doc.querySelector('g.drawer[data-id="3"]').getAttribute("class").includes("sag"), false);
+  assert.equal(doc.querySelector("#board-warnings").textContent.includes("would sag"), true);
+});
+
+test("sagRisks: matched widths, edge-aligned spans, and empty-below cases don't fire", () => {
+  const { app } = boot();
+  app.state.mount = "tabletop";
+  place(app, { id: 1, x: 1, y: 4, w: 4, hh: 4 });
+  // same span directly on top: both walls land on the case walls → fine
+  place(app, { id: 2, x: 1, y: 3, w: 4, hh: 1 });
+  app.refresh();
+  assert.equal(app.sagRisks().size, 0);
+
+  // a 2W mid-span on the 4W sags just like two 1Ws would
+  app.state.placed.pop();
+  place(app, { id: 3, x: 2, y: 3, w: 2, hh: 1 });
+  assert.deepEqual([...app.sagRisks()], [3]);
+
+  // an end over EMPTY space belongs to the both-ends support warning, not sag
+  app.state.placed.pop();
+  place(app, { id: 4, x: 0, y: 3, w: 2, hh: 1 }); // col 0 below is empty
+  assert.equal(app.sagRisks().size, 0);
+});
+
+test("sagRisks mirrors toward the mount surface for hanging mounts", () => {
+  const { app } = boot(); // under-table: units hang from the top
+  place(app, { id: 1, x: 1, y: 0, w: 4, hh: 4 }); // on the surface
+  // hanging mid-span from the 4W's open underside → sags
+  place(app, { id: 2, x: 2, y: 4, w: 1, hh: 1 });
+  assert.deepEqual([...app.sagRisks()], [2]);
+
+  // edge-aligned full span below → fine
+  app.state.placed.pop();
+  place(app, { id: 3, x: 1, y: 4, w: 4, hh: 1 });
+  assert.equal(app.sagRisks().size, 0);
+});
+
+/* ---------------- 59 length is not offered for Table Top builds ---------------- */
+
+// find a length card in the DOM by its number label ("59", "185", …)
+const lenCard = (doc, label) =>
+  [...doc.querySelectorAll("#length-cards .len-card")]
+    .find((c) => c.querySelector(".len-num")?.textContent === label);
+
+test("mountBlocksLength: 59 blocked on tabletop, allowed on hanging mounts", () => {
+  const { app } = boot();
+  app.state.mount = "tabletop";
+  assert.equal(app.mountBlocksLength(59), true);
+  assert.equal(app.mountBlocksLength(185), false);   // only 59 carries noTabletop
+  app.state.mount = "under-table";
+  assert.equal(app.mountBlocksLength(59), false);
+  app.state.mount = "wall";
+  assert.equal(app.mountBlocksLength(59), false);
+});
+
+test("the 59 length card greys out (with a reason) only under tabletop", () => {
+  const { app, doc } = boot();
+  app.state.mount = "under-table";
+  app.refresh();
+  assert.equal(lenCard(doc, "59").classList.contains("disabled"), false);
+
+  app.state.mount = "tabletop";
+  app.refresh();
+  const c59 = lenCard(doc, "59");
+  assert.equal(c59.classList.contains("disabled"), true);
+  assert.equal(c59.getAttribute("aria-disabled"), "true");
+  assert.match(c59.dataset.tip, /foot rails and no feet slots/);
+  assert.match(c59.textContent, /no tabletop/);
+  // a normal length stays available
+  assert.equal(lenCard(doc, "185").classList.contains("disabled"), false);
+});
+
+test("switching to tabletop clears a chosen 59 length so the layout can't unlock on it", () => {
+  const { app } = boot();
+  app.state.mount = "under-table";
+  app.state.length = 59;
+  app.enforceMountLength();
+  assert.equal(app.state.length, 59);   // fine while hanging
+
+  app.state.mount = "tabletop";
+  app.enforceMountLength();
+  assert.equal(app.state.length, null); // cleared → user re-picks a valid length
+});
+
+test("a restored tabletop + 59 build drops the invalid length", () => {
+  const { app } = boot();
+  app.applyBuildHash(encodeHash({
+    mount: "tabletop", length: 59, printer: "any", gridW: 6, gridH: 4, placed: [],
+  }));
+  assert.equal(app.state.mount, "tabletop");
+  assert.equal(app.state.length, null);
 });

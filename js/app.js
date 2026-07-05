@@ -81,6 +81,17 @@
     return fitsBed(GEN2.units.widthMM, len);
   }
 
+  // A length can be catalog-blocked for the chosen mount (e.g. 59 has no foot
+  // rails / feet, so it can't be a Table Top build). Clear an invalid pairing
+  // so the layout can't unlock on it — the user re-picks a valid length.
+  function mountBlocksLength(len) {
+    const l = GEN2.lengths.find((x) => x.id === len);
+    return !!(l && state.mount === "tabletop" && l.noTabletop);
+  }
+  function enforceMountLength() {
+    if (state.length && mountBlocksLength(state.length)) state.length = null;
+  }
+
   // Can `fill` be printed at width w? The case is the limiting part, except
   // Classic drawers whose print-in-place handle overhangs the front.
   function fillFits(w, fill) {
@@ -215,6 +226,7 @@
       btn.addEventListener("click", () => {
         state.mount = m.id;
         track("mount:" + m.id);
+        enforceMountLength(); // e.g. switching to Tabletop with 59 chosen
         renderMountCards();
         refresh();
       });
@@ -228,13 +240,16 @@
     GEN2.lengths.forEach((l) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      const ok = lengthFits(l.id);
+      const fits = lengthFits(l.id);
+      const noTT = state.mount === "tabletop" && !!l.noTabletop; // catalog rule, e.g. 59
+      const ok = fits && !noTT;
       btn.className = "card slim len-card" + (state.length === l.id ? " active" : "") + (ok ? "" : " disabled");
       btn.style.setProperty("--len-color", l.color);
       btn.innerHTML =
         `<div class="card-title"><span class="len-num">${l.label}</span><span class="mm">mm</span>` +
         (l.recommended ? `<span class="badge">recommended</span>` : "") +
-        (ok ? "" : `<span class="badge nofit">won't fit</span>`) +
+        (!fits ? `<span class="badge nofit">won't fit</span>`
+               : noTT ? `<span class="badge nomount">no tabletop</span>` : "") +
         `</div>` +
         `<div class="card-blurb">${l.tagline}</div>`;
       if (ok) {
@@ -254,11 +269,16 @@
           }
         });
       } else {
-        const bed = bedSize();
         // data-tip (not title): reveals the reason on hover AND on focus, so a
         // tap on touch devices shows it too (native title= is hover-only).
+        // Bed fit is the harder blocker, so it wins the tip when both apply.
         btn.setAttribute("aria-disabled", "true");
-        btn.dataset.tip = `Even a 1W case (${GEN2.units.widthMM}×${l.id}mm) won't fit your ${bed.x}×${bed.y}mm bed`;
+        if (!fits) {
+          const bed = bedSize();
+          btn.dataset.tip = `Even a 1W case (${GEN2.units.widthMM}×${l.id}mm) won't fit your ${bed.x}×${bed.y}mm bed`;
+        } else {
+          btn.dataset.tip = l.noTabletop;
+        }
       }
       wrap.appendChild(btn);
     });
@@ -836,7 +856,8 @@
       el("line", { x1: gx, y1: gy + r * (CH / 2), x2: gx + state.gridW * CW, y2: gy + r * (CH / 2), class: r % 2 ? "g-line faint" : "g-line" }, svg);
 
     const bows = bowRisks();
-    state.placed.forEach((p) => drawUnit(svg, p, bows));
+    const sags = sagRisks();
+    state.placed.forEach((p) => drawUnit(svg, p, bows, sags));
 
     // One-shot placement animation (Load example / Surprise me): units settle
     // into place in sequence, toward the mount surface.
@@ -900,14 +921,14 @@
       b.classList.toggle("active", b.dataset.colors === mode));
   }
 
-  function drawUnit(svg, p, bows) {
+  function drawUnit(svg, p, bows, sags) {
     const x = PAD.left + p.x * CW, y = PAD.top + p.y * (CH / 2);
     const w = p.w * CW, h = p.hh * (CH / 2);
     const sel = state.selectedUnit === p.id;
     const dragging = drag && drag.moved && drag.id === p.id;
     const g = el("g", {
       class: "drawer" + (sel ? " selected" : "") + (dragging ? " dragging" : "")
-        + (bows && bows.has(p.id) ? " bow" : ""),
+        + (bows && bows.has(p.id) ? " bow" : "") + (sags && sags.has(p.id) ? " sag" : ""),
       "data-id": p.id,
     }, svg);
     // an advanced cabinet whose interior isn't fully tiled flags red on the board
@@ -1515,6 +1536,7 @@
     data = JSON.parse(JSON.stringify(data));   // isolate from the source (no shared refs)
     const dropped = sanitizeBuild(data);
     BUILD_FIELDS.forEach((k) => { if (k in data) state[k] = data[k]; });
+    enforceMountLength(); // a stale/edited link can't restore an invalid mount+length (e.g. tabletop + 59)
     state.selectedUnit = null;
     // Reflect the restored setup back into the controls.
     $("#printer-select").value = state.printer;
@@ -1577,6 +1599,17 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(flash, fallback);
     } else fallback();
+  }
+
+  /* 3D assembly instructions: hand the build to the GEN2 instructions viewer
+     using the same #build= encoding as share links. The viewer generates the
+     step-by-step 3D manifest from planner state at runtime — no backend.
+     Update the URL when the viewer deploys to Pages. */
+  const INSTRUCTIONS_VIEWER_URL = "http://localhost:8123/";
+  function open3DInstructions() {
+    if (!state.placed.length) return;
+    track("3d-instructions:" + state.mount + "-" + state.length);
+    window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank", "noopener");
   }
 
   function importBuild(file) {
@@ -1695,9 +1728,56 @@
     return flagged;
   }
 
+  /* Sag risk: rigidity flows from the mount surface — a tabletop pushes up
+     from below, under-table/wall rails hold from above. A unit still
+     QuickLocks into the female dovetails of its neighbors on the far side
+     (case/covers above on a tabletop, units below when hanging), but if
+     NEITHER of its side walls lands on a wall of the case in the row toward
+     the mount — an open case or drawer spans there instead — that dovetail
+     connection is all that carries it, and it droops. E.g. 1W drawers
+     mid-span over a 4W-2H's open top in a tabletop kit, or a 1W-1H hanging
+     mid-span under a 3W in an under-table kit. One aligned wall locks
+     solid, so it doesn't flag. Ends over EMPTY cells toward the mount are
+     the both-ends support warning's job. Returns sagging unit ids. */
+  function sagRisks() {
+    const flagged = new Set();
+    const occ = occupancy();
+    const fromTop = state.mount !== "tabletop";
+    state.placed.forEach((p) => {
+      if (fromTop ? p.y === 0 : p.y + p.hh === rows()) return; // on the mount surface
+      const supRow = fromTop ? p.y - 1 : p.y + p.hh;
+      // an end over empty space is the other warning's case — skip it here
+      if (!occ.has(p.x + "," + supRow) || !occ.has((p.x + p.w - 1) + "," + supRow)) return;
+      // wall positions offered by the units it rests against
+      const walls = new Set();
+      state.placed.forEach((u) => {
+        if (fromTop ? u.y + u.hh === p.y : u.y === supRow) { walls.add(u.x); walls.add(u.x + u.w); }
+      });
+      if (!walls.has(p.x) && !walls.has(p.x + p.w)) flagged.add(p.id);
+    });
+    return flagged;
+  }
+
+  // The 3D-instructions button greys out (with the reason as its tooltip)
+  // whenever the layout isn't instructions-ready — same conditions as the
+  // board warnings, so the two never disagree.
+  function updateInstructionsButton() {
+    const btn = $("#instructions-3d");
+    if (!btn) return;
+    let reason = null;
+    if (!state.placed.length) {
+      reason = "Place some units first.";
+    } else if (state.mount === "tabletop" && new Set(Object.values(columnTops())).size > 1) {
+      reason = "Fix the build first · Table Top covers need a flat top, every column must stack to the same height.";
+    }
+    btn.disabled = !!reason;
+    btn.title = reason || "Open step-by-step 3D assembly instructions for this build";
+  }
+
   function renderWarnings() {
     const box = $("#board-warnings");
     box.innerHTML = "";
+    updateInstructionsButton();
     if (!state.placed.length) return;
 
     // Support toward the mount surface (top for under-table & wall, bottom for
@@ -1731,6 +1811,14 @@
         $("#board-warnings").prepend(note);
       });
       div.appendChild(btn);
+    }
+
+    // side walls landing on a wider case's open top (or hanging under one) sag in
+    const sags = sagRisks();
+    if (sags.size) {
+      warn(box, fromTop
+        ? `${sags.size} unit(s) would sag · this kit hangs from its rails, so rigidity comes from above — and these sit under an open case or drawer, with neither side wall meeting a wall of the case above. They'd hang mid-span off the dovetails alone and droop. Align at least one edge with a wall above, or match widths. (One wider drawer mid-span sags the same way.)`
+        : `${sags.size} unit(s) would sag · a Table Top kit is only rigid from the table surface up — and these sit over an open case or drawer, with neither side wall landing on a wall of the case below. They'd hang off the dovetails of the case and covers above and droop down. Align at least one edge with a wall below, or match widths. (One wider drawer mid-span sags the same way.)`);
     }
 
     // placed units that no longer fit the selected printer
@@ -2843,6 +2931,17 @@
     $("#csv-bom").addEventListener("click", downloadCsv);
     $("#print-bom").addEventListener("click", () => window.print());
     $("#save-image").addEventListener("click", saveBuildImage);
+    $("#instructions-3d").addEventListener("click", open3DInstructions);
+    // Live sync FROM the 3D instructions viewer: swapping the handle style
+    // there posts {gen2:"handleStyle", style} back to this (opener) tab.
+    // Payload is validated against the catalog before touching state.
+    window.addEventListener("message", (e) => {
+      const d = e.data;
+      if (!d || d.gen2 !== "handleStyle") return;
+      if (!GEN2.handleStyles.some((h) => h.id === d.style) || state.handleStyle === d.style) return;
+      state.handleStyle = d.style;
+      refresh();
+    });
     $("#labels-txt").addEventListener("click", downloadLabelList);
     // Conversion clicks (the money events): the label-generator handoff and the
     // Club join links. Delegated because both re-render. Tagged with the chosen
@@ -2948,6 +3047,7 @@
 
   function refresh() {
     const ready = state.mount && state.length;
+    updateInstructionsButton();
     // Palette icon accents (size boxes, active fill details) wear the chosen
     // length's lineup color — same idea as the board's kit title. Selection
     // chrome stays accent orange. Cleared when no length is picked, so the
@@ -3028,7 +3128,8 @@
     window.__GEN2_PLANNER_TEST__ = {
       state, refresh, nudgeSelected, canPlace, selectable, heightsForFill,
       computeBom, selectedUnit, interiorFill, interiorComplete, interiorCellsLeft, placeCompartment,
-      fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks,
+      fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks, sagRisks,
+      mountBlocksLength, enforceMountLength,
       encodeBuildHash, applyBuildHash,
     };
   }

@@ -321,6 +321,7 @@
       <button type="button" class="btn" id="csv-bom">Download CSV</button>
       <button type="button" class="btn" id="print-bom">Print</button>
       <button type="button" class="btn" id="save-image">Save build image</button>
+      <button type="button" class="btn" id="instructions-3d">🧊 3D assembly instructions</button>
       <button type="button" class="btn" id="labels-txt" hidden>Download labels</button>
     </div>
     <p class="fineprint">
@@ -363,7 +364,9 @@
 <!-- GoatCounter analytics: cookieless, no consent banner. Counts a pageview on
      load; app.js's track() sends custom events (mount/length/faceplate/share…).
      Loads async and fails silent — the planner never depends on it. -->
+<!-- Absolute https (not protocol-relative): a //-URL opened via file://
+     resolves to a Windows network share and hangs the page for minutes. -->
 <script data-goatcounter="https://jerrari.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
+        async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

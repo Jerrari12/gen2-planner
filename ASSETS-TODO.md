@@ -5,43 +5,53 @@ Everything here is drop-in — no code changes required unless noted.
 ## 1. Part render PNGs → `img/parts/`
 
 The parts list shows a thumbnail per line. It looks for a PNG named after the
-part (lowercased, anything that isn't a letter/number/dot becomes `-`), and
-falls back to `placeholder.svg` when the file doesn't exist. So you can add
-them in any order, a few at a time.
+part, and falls back to `placeholder.svg` when the file doesn't exist — so you
+can add them in any order, a few at a time.
+
+**Naming rule** (what `partImage()` in `js/data.js` looks for): take the part
+name, change the leading `GEN2 ` to `GEN2_`, drop every `.` (so `0.5H`→`05H`,
+`1.5H`→`15H`), keep the rest verbatim — spaces and capitalization included —
+and append `_256p.png`. Case must match on disk (case-sensitive once hosted).
 
 **Spec:** square, ~256×256px, transparent background, consistent camera angle
-across the set. PNG (or rename the extension in `partImage()` in `js/data.js`
-if you prefer WebP).
+across the set. Different resolution suffix? Change `RENDER_SUFFIX` in
+`js/data.js` (or use WebP by also changing the extension there).
 
 Representative filenames (the pattern extends to every size/length):
 
-| Part | Filename |
+| Part | Filename in `img/parts/` |
 | --- | --- |
-| GEN2 185-2W-1H Decor Drawer | `gen2-185-2w-1h-decor-drawer.png` |
-| GEN2 185-1W-0.5H Classic Drawer | `gen2-185-1w-0.5h-classic-drawer.png` |
-| GEN2 185 Case - 2W-1H | `gen2-185-case-2w-1h.png` |
-| GEN2 185 Case Extender - 2W-1H | `gen2-185-case-extender-2w-1h.png` |
-| GEN2 185 Shelf Insert - 2W | `gen2-185-shelf-insert-2w.png` |
-| GEN2 185 Side Cover - 1H | `gen2-185-side-cover-1h.png` |
-| GEN2 185 Essential Decor Faceplate - 2W-1H | `gen2-185-essential-decor-faceplate-2w-1h.png` |
-| GEN2 185 EdgeLabel Door - 2W-2H | `gen2-185-edgelabel-door-2w-2h.png` |
-| GEN2 Cabinet Hinge (1H) | `gen2-cabinet-hinge-1h.png` |
-| GEN2 Door Latch (1H) | `gen2-door-latch-1h.png` |
-| GEN2 QuickLock - Left | `gen2-quicklock-left.png` |
-| GEN2 QuickLock - Right | `gen2-quicklock-right.png` |
-| GEN2 Rails - 185 | `gen2-rails-185.png` |
-| GEN2 Table Top Kit V2 - 185 | `gen2-table-top-kit-v2-185.png` |
-| GEN2 Wall Mount Kit - Lite - 185 | `gen2-wall-mount-kit-lite-185.png` |
+| GEN2 240-3W-1H Decor Drawer | `GEN2_240-3W-1H Decor Drawer_256p.png` |
+| GEN2 240-3W-0.5H Classic Drawer | `GEN2_240-3W-05H Classic Drawer_256p.png` |
+| GEN2 185 Case - 2W-1H | `GEN2_185 Case - 2W-1H_256p.png` |
+| GEN2 185 Case Extender - 2W-1H | `GEN2_185 Case Extender - 2W-1H_256p.png` |
+| GEN2 185 Shelf Insert - 2W | `GEN2_185 Shelf Insert - 2W_256p.png` |
+| GEN2 185 Side Cover - 1H | `GEN2_185 Side Cover - 1H_256p.png` |
+| GEN2 185 Essential Decor Faceplate - 2W-1H | `GEN2_185 Essential Decor Faceplate - 2W-1H_256p.png` |
+| GEN2 185 EdgeLabel Door - 2W-2H | `GEN2_185 EdgeLabel Door - 2W-2H_256p.png` |
+| GEN2 Cabinet Hinge (1H) | `GEN2_Cabinet Hinge (1H)_256p.png` |
+| GEN2 Door Latch (1H) | `GEN2_Door Latch (1H)_256p.png` |
+| GEN2 Rails - 185 | `GEN2_Rails - 185_256p.png` |
+| GEN2 Table Top Kit V2 - 185 | `GEN2_Table Top Kit V2 - 185_256p.png` |
+| GEN2 Wall Mount Kit - Lite - 185 | `GEN2_Wall Mount Kit - Lite - 185_256p.png` |
 
 You don't need every variant — one render per family reads fine next to the
 size in the part name. Priority order for impact: drawers (one per style),
 cases, rails, the three mount kits, QuickLocks.
 
-> **Note:** parts that share a render or use a filename that doesn't follow
-> the naming rule get a line in `IMAGE_OVERRIDES` in `js/data.js` — that's
-> how `QuickLock.png` (both sides) and `185-1W-1H Decor Drawer.png` are
-> wired up. Either name new renders by the rule above, or add an override.
-> Filenames are case-sensitive once hosted, even though Windows isn't.
+> **Overrides:** parts that share one render, or use an off-pattern filename,
+> get a line in `IMAGE_OVERRIDES` in `js/data.js` instead — that's how
+> `QuickLock.png` (both Left and Right) is wired, and how full render batches
+> (e.g. the 185 Drawers/Cases) are wired when they land in their own
+> `img/parts/<length>/` subfolder rather than following the auto-pattern
+> exactly. So either name new renders by the rule above (they auto-resolve, no
+> code change), or send a batch + I'll wire the overrides. Filenames are
+> case-sensitive once hosted, even though Windows isn't.
+>
+> **Partial batches are fine.** You don't have to render all 18 sizes in one
+> pass — send what you have. Any size you *don't* send is assumed to not be
+> modeled yet and gets listed in `GEN2.unreleasedParts` (shows "coming soon",
+> no download links) until a render for it arrives.
 
 ## 2. Explainer image → `img/explainer.png` (optional)
 
@@ -70,7 +80,7 @@ Format: `"GEN2 Rails - 240": { p: "https://...", t: "https://..." },`
 
 ## 4. Numbers & names to confirm (all in `js/data.js`)
 
-- **Classic handle overhang:** `classicHandleExtraMM` = 20mm (you said you'd confirm)
+- **Classic handle overhang:** `classicHandleExtraMM` = **10mm** (confirmed via slicer: a 240 Classic 1W edge-fits a 250×220 Core One bed; was 20mm, which wrongly excluded 240 Classic 1W/2W)
 - **Wall mount 3W diagonal fit:** encoded as bed ≥ 250×220mm (`GEN2.wallMount.maxW`)
 - **Tabletop kit quantity:** 1 kit per 1W of structure — correct?
 - **Do case extenders need QuickLocks?** Currently assumed no

@@ -24,6 +24,7 @@
     selectedUnit: null,     // id of placed unit shown in the inspector
     nextId: 1,
     wallStagger: false,     // wall covers: false = per-column (default), true = staggered top
+    removedStoppers: [],    // "<unitId>:<localCol>" keys — stopper pairs removed in the 3D viewer
   };
 
   const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 10 };
@@ -1449,7 +1450,7 @@
 
   // The fields that make a build reproducible (setup + layout).
   const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
-    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "gridW", "gridH", "placed", "nextId"];
+    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "removedStoppers", "gridW", "gridH", "placed", "nextId"];
 
   const serializeBuild = () => {
     const o = {};
@@ -1480,6 +1481,11 @@
     d.doorStyle = idIn(GEN2.doorStyles, d.doorStyle, GEN2.doorStyles[0].id);
     d.handleStyle = idIn(GEN2.handleStyles, d.handleStyle, GEN2.handleStyles[0].id);
     d.wallStagger = !!d.wallStagger;
+    // removedStoppers: dedupe + keep only well-formed "<unitId>:<localCol>" keys
+    // (stale keys for since-deleted columns are harmless — the BOM/generator ignore them)
+    d.removedStoppers = Array.isArray(d.removedStoppers)
+      ? [...new Set(d.removedStoppers.filter((k) => typeof k === "string" && /^\d+:\d+$/.test(k)))]
+      : [];
     d.gridW = int(d.gridW, GRID_LIMITS.wMin, GRID_LIMITS.wMax, 6);
     d.gridH = int(d.gridH, GRID_LIMITS.hMin, GRID_LIMITS.hMax, 4);
     // clamps mirror the space/bed inputs' min/max attributes
@@ -1614,10 +1620,25 @@
     (location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname))
       ? "http://localhost:8123/"
       : "https://jerrari12.github.io/gen2-visual-animator/";
+  // keep the child ref (NO noopener) so build-option changes sync both ways;
+  // cross-origin still limits the child to postMessage, so it's safe first-party.
+  let viewerWin = null, applyingRemoteOpts = false, lastSentOpts = null;
   function open3DInstructions() {
     if (!state.placed.length) return;
     track("3d-instructions:" + state.mount + "-" + state.length);
-    window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank", "noopener");
+    viewerWin = window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank");
+  }
+  // push the current build options to an open viewer tab, but only when they've
+  // actually changed (and never while applying a change the viewer just sent).
+  function syncOptionsToViewer() {
+    if (applyingRemoteOpts || !viewerWin || viewerWin.closed) return;
+    const closures = {};
+    state.placed.forEach((u) => { if (u.fill === "decor" || u.fill === "classic") closures[u.id] = u.closure === "magnet" ? "magnet" : "none"; });
+    const opts = { closures, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle };
+    const json = JSON.stringify(opts);
+    if (json === lastSentOpts) return;
+    lastSentOpts = json;
+    try { viewerWin.postMessage({ gen2: "buildOptions", opts }, "*"); } catch (e) { /* tab closed */ }
   }
 
   function importBuild(file) {
@@ -2401,10 +2422,13 @@
         for (let cx = p.x; cx < p.x + p.w; cx++) if (unitAt(cx, p.y - 1)) return true;
         return false;
       };
+      // per-1W stopper pairs the user removed in the 3D viewer drop out of the count
+      const removedStop = new Set(state.removedStoppers || []);
+      const keptCols = (p) => { let n = 0; for (let k = 0; k < p.w; k++) if (!removedStop.has(`${p.id}:${k}`)) n++; return n; };
       const stopperW = state.placed
         .filter((p) => (p.fill === "classic" || p.fill === "decor") &&
                        (state.mount !== "under-table" || hasUnitAbove(p)))
-        .reduce((sum, p) => sum + p.w, 0);
+        .reduce((sum, p) => sum + keptCols(p), 0);
       if (stopperW) items.push(
         {
           name: "GEN2 Drawer Stopper - Left",
@@ -3016,15 +3040,29 @@
     $("#print-bom").addEventListener("click", () => window.print());
     $("#save-image").addEventListener("click", saveBuildImage);
     $("#instructions-3d").addEventListener("click", open3DInstructions);
-    // Live sync FROM the 3D instructions viewer: swapping the handle style
-    // there posts {gen2:"handleStyle", style} back to this (opener) tab.
-    // Payload is validated against the catalog before touching state.
+    // Live sync FROM the 3D instructions viewer: it posts {gen2:"buildOptions",
+    // opts} whenever the user changes drawer closure, stoppers, handle, or the
+    // wall stagger there. Everything is validated against the catalog before it
+    // touches state; applying it must not echo back (applyingRemoteOpts guard).
     window.addEventListener("message", (e) => {
       const d = e.data;
-      if (!d || d.gen2 !== "handleStyle") return;
-      if (!GEN2.handleStyles.some((h) => h.id === d.style) || state.handleStyle === d.style) return;
-      state.handleStyle = d.style;
-      refresh();
+      if (!d || d.gen2 !== "buildOptions" || !d.opts) return;
+      const o = d.opts;
+      applyingRemoteOpts = true;
+      try {
+        if (o.closures) state.placed.forEach((u) => {
+          const c = o.closures[u.id];
+          if (!c) return;
+          if (c === "none") delete u.closure;
+          else if (GEN2.closures.some((x) => x.id === c && x.parts && !x.soon)) u.closure = c;
+        });
+        if (Array.isArray(o.removedStoppers))
+          state.removedStoppers = o.removedStoppers.filter((k) => typeof k === "string" && /^\d+:\d+$/.test(k));
+        if (typeof o.wallStagger === "boolean") state.wallStagger = o.wallStagger;
+        if (o.handleStyle && GEN2.handleStyles.some((h) => h.id === o.handleStyle)) state.handleStyle = o.handleStyle;
+        lastSentOpts = JSON.stringify(o); // we're now in sync with the viewer — don't echo
+        refresh();
+      } finally { applyingRemoteOpts = false; }
     });
     $("#labels-txt").addEventListener("click", downloadLabelList);
     // Conversion clicks (the money events): the label-generator handoff and the
@@ -3132,6 +3170,8 @@
   function refresh() {
     const ready = state.mount && state.length;
     updateInstructionsButton();
+    syncOptionsToViewer(); // mirror any option change into an open 3D viewer tab
+
     // Palette icon accents (size boxes, active fill details) wear the chosen
     // length's lineup color — same idea as the board's kit title. Selection
     // chrome stays accent orange. Cleared when no length is picked, so the

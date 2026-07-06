@@ -564,6 +564,34 @@ test("3D instructions button targets the local viewer from localhost, the deploy
   assert.match(openedFrom("https://gen2planner.jerrari3d.com/"), /^https:\/\/jerrari12\.github\.io\/gen2-visual-animator\//);
 });
 
+test("removedStoppers drops the stopper BOM count and round-trips through the hash", () => {
+  const { app } = boot();
+  app.state.mount = "tabletop";
+  app.state.length = 185;
+  place(app, { id: 1, x: 0, y: 6, w: 2, hh: 2, fill: "decor" }); // bottom 2W
+  place(app, { id: 2, x: 0, y: 4, w: 2, hh: 2, fill: "decor" }); // 2W above it
+  app.refresh();
+  assert.equal(bomQty(app, "Drawer Stopper - Left"), 4);   // 2 drawers × 2 cols
+  assert.equal(bomQty(app, "Drawer Stopper - Right"), 4);
+
+  app.state.removedStoppers = ["1:0"];                     // drop one 1W pair
+  app.refresh();
+  assert.equal(bomQty(app, "Drawer Stopper - Left"), 3);
+  assert.equal(bomQty(app, "Drawer Stopper - Right"), 3);
+
+  const hash = app.encodeBuildHash();                      // survives a share link
+  app.state.removedStoppers = [];
+  assert.equal(app.applyBuildHash(hash), true);
+  assert.deepEqual([...app.state.removedStoppers], ["1:0"]);
+});
+
+test("sanitizer keeps only well-formed, de-duped removedStoppers keys", () => {
+  const { app } = boot();
+  app.applyBuild({ mount: "tabletop", length: 185, gridW: 6, gridH: 4, placed: [],
+    removedStoppers: ["1:0", "1:0", "2:3", "bogus", 42, "x:y", null] });
+  assert.deepEqual([...app.state.removedStoppers].sort(), ["1:0", "2:3"]);
+});
+
 test("Share link encodes the build and restores it from the hash", () => {
   const { app } = boot();
   app.state.mount = "wall";

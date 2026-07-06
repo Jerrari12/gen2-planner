@@ -1606,8 +1606,14 @@
   /* 3D assembly instructions: hand the build to the GEN2 instructions viewer
      using the same #build= encoding as share links. The viewer generates the
      step-by-step 3D manifest from planner state at runtime — no backend.
-     Deployed to GitHub Pages; use http://localhost:8123/ for local viewer dev. */
-  const INSTRUCTIONS_VIEWER_URL = "https://jerrari12.github.io/gen2-visual-animator/";
+     Environment-aware: a planner running from localhost (or opened as a file)
+     links to the LOCAL viewer dev server (viewer/ on :8123) so both tools can
+     be tested together before deploying; anywhere else links to the deployed
+     viewer on GitHub Pages. */
+  const INSTRUCTIONS_VIEWER_URL =
+    (location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname))
+      ? "http://localhost:8123/"
+      : "https://jerrari12.github.io/gen2-visual-animator/";
   function open3DInstructions() {
     if (!state.placed.length) return;
     track("3d-instructions:" + state.mount + "-" + state.length);

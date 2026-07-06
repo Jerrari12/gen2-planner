@@ -542,6 +542,28 @@ test("Drawer labels are stored on the unit and survive save/load", () => {
   assert.equal(app.state.placed[0].label, "M3 screws");
 });
 
+test("3D instructions button targets the local viewer from localhost, the deployed one elsewhere", () => {
+  // boot a fresh planner at a given page URL and capture where the button opens
+  const openedFrom = (pageUrl) => {
+    const dom = new JSDOM(read("index.html"), { runScripts: "outside-only", url: pageUrl });
+    const { window } = dom;
+    window.__GEN2_PLANNER_TEST__ = true;
+    let opened = null;
+    window.open = (u) => { opened = u; return null; };
+    window.eval(read("js/data.js") + "\n" + read("js/app.js"));
+    const app = window.__GEN2_PLANNER_TEST__;
+    app.state.mount = "wall";
+    app.state.length = 185;
+    app.state.placed.push({ id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor", shelves: 0 });
+    app.refresh();
+    window.document.querySelector("#instructions-3d").click();
+    return opened;
+  };
+  assert.match(openedFrom("http://localhost:8123/"), /^http:\/\/localhost:8123\//);
+  assert.match(openedFrom("http://127.0.0.1:5500/index.html"), /^http:\/\/localhost:8123\//);
+  assert.match(openedFrom("https://gen2planner.jerrari3d.com/"), /^https:\/\/jerrari12\.github\.io\/gen2-visual-animator\//);
+});
+
 test("Share link encodes the build and restores it from the hash", () => {
   const { app } = boot();
   app.state.mount = "wall";

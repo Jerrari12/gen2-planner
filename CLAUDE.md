@@ -24,7 +24,7 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   `INSTRUCTIONS_VIEWER_URL` in app.js points at its GitHub Pages deploy
   (https://jerrari12.github.io/gen2-visual-animator/; swap for localhost:8123
   for local viewer dev). The viewer generates its own step-by-step manifest from the build
-  (v1: tabletop + 185 only; it shows a friendly message otherwise).
+  (v1: tabletop + wall + under-table, 185 only; it shows a friendly message otherwise).
   `updateInstructionsButton()` (called from refresh) greys the button out with
   the reason as tooltip when the build isn't instructions-ready — currently:
   nothing placed, or a tabletop without a flat top (same `columnTops()`

@@ -53,7 +53,12 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   or a unit hanging mid-span under a wider case on under-table/wall. Sag is
   a hard warning + `.drawer.sag` red dashed outline; one aligned wall =
   locked = allowed. Ends over EMPTY cells toward the mount belong to the
-  both-ends warning, not sag. All three are exported to tests.
+  both-ends warning, not sag. Plus `wallTopHalfHeight()` — a **wall** build can't
+  put a 0.5H case (`hh === 1`) in the exposed top row (`topCases()`): 0.5H cases
+  are too low-profile for wall-mount holes, so they can't hang from the bracket
+  course (hard warning + `.drawer.lowtop` solid-red outline; also greys the 3D
+  instructions button; cap a 0.5H with a taller unit above and it's no longer a
+  top case). All exported to tests.
 - `GEN2.unavailableSizes` (3W-3H, 4W-3H) are rendered as **blank gaps** in the
   palette, not greyed tiles.
 - **Mount ✕ length rules** live on the length in `data.js`: the `59` length

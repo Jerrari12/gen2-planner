@@ -893,6 +893,33 @@ test("sagRisks mirrors toward the mount surface for hanging mounts", () => {
   assert.equal(app.sagRisks().size, 0);
 });
 
+test("wall top row can't use 0.5H cases (no wall-mount holes)", () => {
+  const { app } = boot();
+  app.state.mount = "wall";
+  app.state.length = 185;
+
+  // a 0.5H (hh=1) case exposed on the top row → illegal
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 1, fill: "classic" });
+  assert.deepEqual([...app.wallTopHalfHeight()], [1]);
+
+  // a 1H top-row case is fine
+  app.state.placed = [];
+  place(app, { id: 2, x: 0, y: 0, w: 2, hh: 2, fill: "classic" });
+  assert.equal(app.wallTopHalfHeight().size, 0);
+
+  // a 0.5H capped by a taller unit above is no longer a top case → fine
+  app.state.placed = [];
+  place(app, { id: 3, x: 0, y: 0, w: 2, hh: 2, fill: "classic" }); // 1H on top
+  place(app, { id: 4, x: 0, y: 2, w: 2, hh: 1, fill: "classic" }); // 0.5H beneath it
+  assert.equal(app.wallTopHalfHeight().size, 0);
+
+  // the rule is wall-only — a 0.5H top on tabletop doesn't flag
+  app.state.placed = [];
+  app.state.mount = "tabletop";
+  place(app, { id: 5, x: 0, y: 0, w: 2, hh: 1, fill: "classic" });
+  assert.equal(app.wallTopHalfHeight().size, 0);
+});
+
 /* ---------------- 59 length is not offered for Table Top builds ---------------- */
 
 // find a length card in the DOM by its number label ("59", "185", …)

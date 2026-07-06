@@ -857,7 +857,8 @@
 
     const bows = bowRisks();
     const sags = sagRisks();
-    state.placed.forEach((p) => drawUnit(svg, p, bows, sags));
+    const lowTops = wallTopHalfHeight();
+    state.placed.forEach((p) => drawUnit(svg, p, bows, sags, lowTops));
 
     // One-shot placement animation (Load example / Surprise me): units settle
     // into place in sequence, toward the mount surface.
@@ -921,14 +922,15 @@
       b.classList.toggle("active", b.dataset.colors === mode));
   }
 
-  function drawUnit(svg, p, bows, sags) {
+  function drawUnit(svg, p, bows, sags, lowTops) {
     const x = PAD.left + p.x * CW, y = PAD.top + p.y * (CH / 2);
     const w = p.w * CW, h = p.hh * (CH / 2);
     const sel = state.selectedUnit === p.id;
     const dragging = drag && drag.moved && drag.id === p.id;
     const g = el("g", {
       class: "drawer" + (sel ? " selected" : "") + (dragging ? " dragging" : "")
-        + (bows && bows.has(p.id) ? " bow" : "") + (sags && sags.has(p.id) ? " sag" : ""),
+        + (bows && bows.has(p.id) ? " bow" : "") + (sags && sags.has(p.id) ? " sag" : "")
+        + (lowTops && lowTops.has(p.id) ? " lowtop" : ""),
       "data-id": p.id,
     }, svg);
     // an advanced cabinet whose interior isn't fully tiled flags red on the board
@@ -1758,6 +1760,17 @@
     return flagged;
   }
 
+  /* Wall mounts hang the exposed top row from a single bracket course, but a
+     0.5H case (hh === 1 half-row) is too low-profile to carry wall-mount holes
+     — so no top-row case on a wall build can be 0.5H. Capping a 0.5H unit with a
+     taller unit above makes it no longer a top case, which is fine. Wall-only:
+     tabletop stacks from the surface and under-table hangs from rails, neither
+     of which needs holes in the case itself. Returns the offending top-row ids. */
+  function wallTopHalfHeight() {
+    if (state.mount !== "wall") return new Set();
+    return new Set(topCases().filter((p) => p.hh === 1).map((p) => p.id));
+  }
+
   // The 3D-instructions button greys out (with the reason as its tooltip)
   // whenever the layout isn't instructions-ready — same conditions as the
   // board warnings, so the two never disagree.
@@ -1769,6 +1782,8 @@
       reason = "Place some units first.";
     } else if (state.mount === "tabletop" && new Set(Object.values(columnTops())).size > 1) {
       reason = "Fix the build first · Table Top covers need a flat top, every column must stack to the same height.";
+    } else if (state.mount === "wall" && wallTopHalfHeight().size) {
+      reason = "Fix the build first · Wall Mount top-row cases can't be 0.5H — they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top.";
     }
     btn.disabled = !!reason;
     btn.title = reason || "Open step-by-step 3D assembly instructions for this build";
@@ -1840,6 +1855,13 @@
     if (untiled.length) {
       const cells = untiled.reduce((n, p) => n + interiorCellsLeft(p), 0);
       warn(box, `${untiled.length} cabinet(s) have an unfinished interior · fill the whole cabinet (${cells} cell${cells > 1 ? "s" : ""} left).`);
+    }
+
+    // wall mounts hang the exposed top row from a bracket course; 0.5H cases are
+    // too low-profile for wall-mount holes, so a 0.5H case can't be a top-row case
+    const lowTops = wallTopHalfHeight();
+    if (lowTops.size) {
+      warn(box, `${lowTops.size} top-row case(s) are 0.5H · a Wall Mount hangs the top row from a bracket course, but 0.5H cases are too low-profile to have wall-mount holes. Put a 1H (or taller) case on top, or cap these with a taller unit above.`);
     }
 
     // tabletop covers need every column to stack to the same height
@@ -3129,7 +3151,7 @@
       state, refresh, nudgeSelected, canPlace, selectable, heightsForFill,
       computeBom, selectedUnit, interiorFill, interiorComplete, interiorCellsLeft, placeCompartment,
       fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks, sagRisks,
-      mountBlocksLength, enforceMountLength,
+      mountBlocksLength, enforceMountLength, wallTopHalfHeight,
       encodeBuildHash, applyBuildHash,
     };
   }

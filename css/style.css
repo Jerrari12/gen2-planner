@@ -977,6 +977,8 @@ details.builds > summary:hover { color: var(--text); }
 .drawer.bow .d-case { stroke: #e8b04b; stroke-width: 2.5; stroke-dasharray: 6 3; }
 .drawer.sag .d-case { stroke: var(--bad); stroke-width: 2.5; stroke-dasharray: 4 3; }
 .drawer.sag:hover .d-case, .drawer.sag.selected .d-case { stroke: var(--bad); } /* sag outranks hover/selection */
+.drawer.lowtop .d-case { stroke: var(--bad); stroke-width: 3; stroke-dasharray: none; } /* illegal: 0.5H can't be a wall top row */
+.drawer.lowtop:hover .d-case, .drawer.lowtop.selected .d-case { stroke: var(--bad); }
 .drawer.dragging { opacity: 0.35; }
 .drawer { cursor: grab; }
 .ghost.ok { fill: rgba(76, 195, 138, 0.25); stroke: var(--good); stroke-dasharray: 5 4; }

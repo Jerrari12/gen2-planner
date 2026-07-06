@@ -920,6 +920,48 @@ test("wall top row can't use 0.5H cases (no wall-mount holes)", () => {
   assert.equal(app.wallTopHalfHeight().size, 0);
 });
 
+test("fixWallTops grows 0.5H wall tops to 1H, keeping labels and cascading below", () => {
+  const { app } = boot();
+  app.state.mount = "wall";
+  app.state.length = 185;
+  app.state.gridH = 4;                                   // rows() = 8, room to grow
+
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 1, fill: "decor" });   // 0.5H top, named
+  app.state.placed[0].label = "Screws";
+  place(app, { id: 2, x: 0, y: 1, w: 2, hh: 2, fill: "classic" }); // 1H directly below
+
+  const r = app.fixWallTops();
+  assert.ok(r);
+  assert.equal(r.grown, 1);
+  assert.equal(r.moved, 1);
+
+  const top = app.state.placed.find((p) => p.id === 1);
+  assert.equal(top.hh, 2);                    // grown 0.5H → 1H
+  assert.equal(top.label, "Screws");          // label survives (same unit object)
+  assert.equal(top.fill, "decor");            // fill survives
+  assert.equal(app.state.placed.find((p) => p.id === 2).y, 2); // stack below shifted down
+  assert.equal(app.wallTopHalfHeight().size, 0);               // resolved
+  assert.equal(app.state.placed.length, 2);                   // nothing lost
+});
+
+test("fixWallTops bails out (null) when the space cap is reached, losing nothing", () => {
+  const { app } = boot();
+  app.state.mount = "wall";
+  app.state.length = 185;
+  app.state.spaceH = 56;                                 // wall askSpace: 56mm = 1-row cap
+  app.state.gridH = 1;
+
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 1, fill: "decor" });
+  app.state.placed[0].label = "Bits";
+  place(app, { id: 2, x: 0, y: 1, w: 1, hh: 1, fill: "classic" });
+
+  const snapshot = JSON.stringify(app.state.placed);
+  const r = app.fixWallTops();
+  assert.equal(r, null);                                 // no room to grow past the cap
+  assert.equal(JSON.stringify(app.state.placed), snapshot); // fully reverted
+  assert.equal(app.state.placed.find((p) => p.id === 1).label, "Bits");
+});
+
 /* ---------------- 59 length is not offered for Table Top builds ---------------- */
 
 // find a length card in the DOM by its number label ("59", "185", …)

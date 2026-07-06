@@ -1771,6 +1771,44 @@
     return new Set(topCases().filter((p) => p.hh === 1).map((p) => p.id));
   }
 
+  /* Auto-correct the wall top row: grow each offending 0.5H case to 1H IN PLACE
+     (same unit object — its label, fill, and closure all survive), cascading
+     everything below it down one half-row to make room. Grows the grid if the
+     cascade needs it; if the grid is already at its max, reverts everything and
+     returns null (clampGrid() deletes off-board units, and a fix must never
+     silently eat someone's named drawer). Returns a tally for the fix note. */
+  function fixWallTops() {
+    const ids = wallTopHalfHeight();
+    if (!ids.size) return { grown: 0, moved: 0 };
+    const before = state.placed.map((p) => ({ ...p }));
+    const overlap = (a, b) =>
+      a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.hh && b.y < a.y + a.hh;
+    const movedIds = new Set();
+    ids.forEach((id) => {
+      const p = state.placed.find((u) => u.id === id);
+      p.hh = 2;
+      // everything the grown case now overlaps shifts down one half-row —
+      // transitively, so the whole stack below keeps its relative spacing
+      const pushed = new Set([p.id]);
+      let changed = true, guard = 0;
+      while (changed && guard++ < 300) {
+        changed = false;
+        state.placed.forEach((v) => {
+          if (pushed.has(v.id)) return;
+          if (state.placed.some((u) => pushed.has(u.id) && overlap(u, v))) {
+            v.y += 1; pushed.add(v.id); movedIds.add(v.id); changed = true;
+          }
+        });
+      }
+    });
+    const maxY = Math.max(...state.placed.map((p) => p.y + p.hh));
+    // don't push past the grid cap — clampGrid() would then delete the off-grid
+    // units (and a named drawer with them). Bail out cleanly instead.
+    if (maxY > capH() * 2) { state.placed = before; return null; }
+    state.gridH = Math.max(state.gridH, Math.ceil(maxY / 2));
+    return { grown: ids.size, moved: movedIds.size };
+  }
+
   // The 3D-instructions button greys out (with the reason as its tooltip)
   // whenever the layout isn't instructions-ready — same conditions as the
   // board warnings, so the two never disagree.
@@ -1858,10 +1896,28 @@
     }
 
     // wall mounts hang the exposed top row from a bracket course; 0.5H cases are
-    // too low-profile for wall-mount holes, so a 0.5H case can't be a top-row case
+    // too low-profile for wall-mount holes, so a 0.5H case CAN'T attach to the
+    // wall at all — a hard blocker (unlike sag), offered a one-click grow-to-1H fix
     const lowTops = wallTopHalfHeight();
     if (lowTops.size) {
-      warn(box, `${lowTops.size} top-row case(s) are 0.5H · a Wall Mount hangs the top row from a bracket course, but 0.5H cases are too low-profile to have wall-mount holes. Put a 1H (or taller) case on top, or cap these with a taller unit above.`);
+      const div = warn(box, `${lowTops.size} top-row case(s) are 0.5H · a Wall Mount hangs the top row from a bracket course, but 0.5H cases are too low-profile to have wall-mount holes — they can't attach to the wall at all. Grow them to 1H, or cap them with a taller unit above.`);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn small warn-fix";
+      btn.textContent = "Grow top row to 1H";
+      btn.addEventListener("click", () => {
+        const r = fixWallTops();
+        refresh();
+        const note = document.createElement("div");
+        note.className = "fix-note";
+        note.textContent = r
+          ? `✓ Top row fixed · ${r.grown} case${r.grown === 1 ? "" : "s"} grown to 1H`
+            + (r.moved ? `, ${r.moved} unit${r.moved === 1 ? "" : "s"} shifted down` : "")
+            + " · names and drawer contents kept."
+          : "⚠ Can't grow the top row · the grid is already at its max height. Remove a row below (or raise the space height), then try again.";
+        $("#board-warnings").prepend(note);
+      });
+      div.appendChild(btn);
     }
 
     // tabletop covers need every column to stack to the same height
@@ -3151,7 +3207,7 @@
       state, refresh, nudgeSelected, canPlace, selectable, heightsForFill,
       computeBom, selectedUnit, interiorFill, interiorComplete, interiorCellsLeft, placeCompartment,
       fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks, sagRisks,
-      mountBlocksLength, enforceMountLength, wallTopHalfHeight,
+      mountBlocksLength, enforceMountLength, wallTopHalfHeight, fixWallTops,
       encodeBuildHash, applyBuildHash,
     };
   }

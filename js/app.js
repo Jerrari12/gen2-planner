@@ -25,6 +25,7 @@
     nextId: 1,
     wallStagger: false,     // wall covers: false = per-column (default), true = staggered top
     removedStoppers: [],    // "<unitId>:<localCol>" keys — stopper pairs removed in the 3D viewer
+    backCover: false,       // optional decor-faceplate back cover (every faceplate style seats the same part)
   };
 
   const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 10 };
@@ -557,6 +558,24 @@
     };
     wrap.appendChild(groupEl("Core System", GEN2.faceplateStyles.filter((s) => !s.club), false));
     wrap.appendChild(groupEl("Club Expansions", GEN2.faceplateStyles.filter((s) => s.club), true));
+    // Faceplate back cover — a universal decor-faceplate accessory (every style
+    // seats the same per-size part): fills the open-front Decor drawer's gap
+    // behind the plate. Off = backwards-compatible with closed-front drawers.
+    const bc = document.createElement("div");
+    bc.className = "wall-opt fp-backcover";
+    bc.innerHTML =
+      '<span class="wall-opt-label">Faceplate back cover</span>' +
+      '<div class="seg" role="group" aria-label="Faceplate back cover">' +
+      `<button type="button" data-backcover="off"${state.backCover ? "" : ' class="active"'}>Off</button>` +
+      `<button type="button" data-backcover="on"${state.backCover ? ' class="active"' : ""}>On</button>` +
+      "</div>" +
+      '<span class="wall-opt-hint">Closes the open-front Decor drawer behind the plate — works with every faceplate style.</span>';
+    bc.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      state.backCover = b.dataset.backcover === "on";
+      track("backcover:" + (state.backCover ? "on" : "off"));
+      refresh();
+    }));
+    wrap.appendChild(bc);
     updateClubNote();
   }
 
@@ -1450,7 +1469,7 @@
 
   // The fields that make a build reproducible (setup + layout).
   const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
-    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "removedStoppers", "gridW", "gridH", "placed", "nextId"];
+    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "removedStoppers", "gridW", "gridH", "placed", "nextId"];
 
   const serializeBuild = () => {
     const o = {};
@@ -1481,6 +1500,7 @@
     d.doorStyle = idIn(GEN2.doorStyles, d.doorStyle, GEN2.doorStyles[0].id);
     d.handleStyle = idIn(GEN2.handleStyles, d.handleStyle, GEN2.handleStyles[0].id);
     d.wallStagger = !!d.wallStagger;
+    d.backCover = !!d.backCover;
     // removedStoppers: dedupe + keep only well-formed "<unitId>:<localCol>" keys
     // (stale keys for since-deleted columns are harmless — the BOM/generator ignore them)
     d.removedStoppers = Array.isArray(d.removedStoppers)
@@ -1634,7 +1654,7 @@
     if (applyingRemoteOpts || !viewerWin || viewerWin.closed) return;
     const closures = {};
     state.placed.forEach((u) => { if (u.fill === "decor" || u.fill === "classic") closures[u.id] = u.closure === "magnet" ? "magnet" : "none"; });
-    const opts = { closures, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle };
+    const opts = { closures, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover };
     const json = JSON.stringify(opts);
     if (json === lastSentOpts) return;
     lastSentOpts = json;
@@ -2359,6 +2379,13 @@
         return map;
       }, new Map()).forEach((qty, size) => {
         items.push({ name: P.faceplate(len, size, faceStyle), qty, club: faceDef.club });
+        // optional back cover: one per faceplate, same size — every style seats it
+        if (state.backCover) items.push({
+          name: P.backCover(len, size), qty,
+          note: "Optional · clips in behind the faceplate to close the open-front Decor drawer.",
+          optional: true,
+          unreleased: GEN2.unreleased.includes("backCover"),
+        });
       });
       items.sort((a, b) => a.name.localeCompare(b.name));
       GEN2.decorExtras.forEach((x) => {
@@ -3060,6 +3087,8 @@
           state.removedStoppers = o.removedStoppers.filter((k) => typeof k === "string" && /^\d+:\d+$/.test(k));
         if (typeof o.wallStagger === "boolean") state.wallStagger = o.wallStagger;
         if (o.handleStyle && GEN2.handleStyles.some((h) => h.id === o.handleStyle)) state.handleStyle = o.handleStyle;
+        if (o.faceStyle && GEN2.faceplateStyles.some((s) => s.id === o.faceStyle)) state.faceStyle = o.faceStyle;
+        if (typeof o.backCover === "boolean") state.backCover = o.backCover;
         lastSentOpts = JSON.stringify(o); // we're now in sync with the viewer — don't echo
         refresh();
       } finally { applyingRemoteOpts = false; }

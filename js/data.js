@@ -364,6 +364,7 @@ const GEN2 = {
     extender:    (len, w)               => `GEN2 ${len} Case Extender - ${w}W-1H`,
     shelfInsert: (len, w)               => `GEN2 ${len} Shelf Insert - ${w}W`,
     faceplate:   (len, size, style)     => `GEN2 ${len} ${style} Decor Faceplate - ${size}`,
+    backCover:   (len, size)            => `GEN2 ${len} Decor Faceplate Back Cover - ${size}`,
     door:        (len, size, style)     => `GEN2 ${len} ${style} Door - ${size}`,
     sideCover:   (len, h)               => `GEN2 ${len} Side Cover - ${h}H`,
     coverUpper:    (len, w)             => `GEN2 ${len} Cover Upper (CU) - ${w}W`,
@@ -379,7 +380,7 @@ const GEN2 = {
 
   // Parts that aren't published yet — shown with a "coming soon" tag
   // instead of download links. Remove entries as they're released.
-  unreleased: ["shelfInsert", "door", "hinge", "latch", "sideCover"],
+  unreleased: ["shelfInsert", "door", "hinge", "latch", "sideCover", "backCover"],
 
   // Exact part names not modeled yet, same "coming soon" treatment as
   // `unreleased` above but for SPECIFIC size/length combos rather than a whole

@@ -1213,6 +1213,15 @@ details.builds > summary:hover { color: var(--text); }
   .stepper b { min-width: 34px; }
   .ut-pad { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 44px); }
 
+  /* selected-unit toolbar: the actions row was flex:0 0 auto, so on a phone it
+     sized to (closure + Remove) and pushed the Remove button ~120px off-screen,
+     with the closure seg clipping too. Give it a full, shrinkable row so its
+     children wrap in-view, and let the closure + its segmented buttons wrap. */
+  .ut-actions { flex: 1 1 100%; }
+  .ut-closure { flex-wrap: wrap; }
+  .ut-closure .seg { flex-wrap: wrap; }
+  #ut-remove { margin-left: auto; }   /* keep Remove reachable at the row's end */
+
   /* Parts-list rows adapt to width instead of overflowing: smaller thumb, and
      the store links wrap under the name rather than holding a fixed column. */
   .bom-table .thumb { width: 42px; padding-left: 8px; }

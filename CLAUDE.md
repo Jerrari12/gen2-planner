@@ -28,7 +28,15 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   `updateInstructionsButton()` (called from refresh) greys the button out with
   the reason as tooltip when the build isn't instructions-ready — currently:
   nothing placed, or a tabletop without a flat top (same `columnTops()`
-  condition as the board warning).
+  condition as the board warning). **Live options sync** (both ways, echo-
+  guarded): `syncOptionsToViewer()` posts {gen2:"buildOptions"} with closures/
+  removedStoppers/wallStagger/handleStyle/**faceStyle/backCover** (last two
+  added 2026-07-08 — the viewer now models EdgeLabel natively and renders the
+  optional back cover); the message listener validates + applies the same
+  fields coming back. `state.backCover` (BUILD_FIELDS + sanitized `!!`) drives
+  an Off/On toggle under the faceplate style cards (renderFaceplateCards) and
+  per-size `P.backCover` BOM rows (optional, `unreleased` "coming soon" until
+  the files are published — remove from GEN2.unreleased then).
 - `test/planner.test.mjs` — headless jsdom tests (see Testing).
 
 ## Key model details (so you don't relearn them)

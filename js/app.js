@@ -127,10 +127,21 @@
   // GEN2.unavailableSizes (3W-3H, 4W-3H) don't exist as a single DRAWER, but
   // shelves and cabinets build from 1H cases + extenders, so any footprint is
   // buildable for them — the restriction is drawer-only.
-  function sizeExists(w, h, fill) {
+  // GEN2.collectionCases adds per-LENGTH limits on top: the 59 mini collection
+  // ships only 4 cases (1W/2W × 0.5H/1H) — its width cap applies to every fill
+  // (no wider case exists to build on); its height cap applies to the drawer
+  // fills only (shelves/cabinets stack extenders above a 1H case).
+  // `length` defaults to the current selection — sanitizeBuild passes the
+  // INCOMING build's length instead (its units must be judged against the
+  // catalog they were built for, not whatever is selected pre-restore).
+  function sizeExists(w, h, fill, length) {
     const f = fill || state.fill;
-    if (f === "classic" || f === "decor")
+    const cc = GEN2.collectionCases[length || state.length];
+    if (cc && w > cc.maxW) return false;
+    if (f === "classic" || f === "decor") {
+      if (cc && h > cc.maxDrawerH) return false;
       return !GEN2.unavailableSizes.includes(sizeToken(w, h));
+    }
     return true;
   }
 
@@ -327,7 +338,7 @@
       }
       $("#space-readout").textContent = parts.join(" · ");
       $("#space-summary-status").textContent = (state.spaceW || state.spaceH)
-        ? `${state.spaceW || "—"} × ${state.spaceH || "—"} mm`
+        ? `${state.spaceW || "·"} × ${state.spaceH || "·"} mm`
         : "optional · caps the grid to your space";
       renderSpaceGraphic();
     }
@@ -569,7 +580,7 @@
       `<button type="button" data-backcover="off"${state.backCover ? "" : ' class="active"'}>Off</button>` +
       `<button type="button" data-backcover="on"${state.backCover ? ' class="active"' : ""}>On</button>` +
       "</div>" +
-      '<span class="wall-opt-hint">Closes the open-front Decor drawer behind the plate — works with every faceplate style.</span>';
+      '<span class="wall-opt-hint">Closes the open-front Decor drawer behind the plate · works with every faceplate style.</span>';
     bc.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
       state.backCover = b.dataset.backcover === "on";
       track("backcover:" + (state.backCover ? "on" : "off"));
@@ -587,9 +598,9 @@
     const def = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
     if (def && def.club) {
       note.innerHTML =
-        `<strong>${def.label} is included with the GEN2 Club</strong> — or buy it once on Printables or Thangs. ` +
+        `<strong>${def.label} is included with the GEN2 Club</strong> · or buy it once on Printables or Thangs. ` +
         "Your parts list now lists the matching faceplate files. " +
-        "Join the Club to support GEN2 — " +
+        "Join the Club to support GEN2 · " +
         `<a href="${CLUB_URL_PRINTABLES}" target="_blank" rel="noopener">on Printables</a> or ` +
         `<a href="${CLUB_URL_THANGS}" target="_blank" rel="noopener">on Thangs</a>.`;
       note.hidden = false;
@@ -614,17 +625,23 @@
     renderFaceplateCards();
     build("#door-style-seg", GEN2.doorStyles, state.doorStyle, (id) => { state.doorStyle = id; });
     build("#handle-style-seg", GEN2.handleStyles, state.handleStyle, (id) => { state.handleStyle = id; });
+    renderHardwareMasters();
     const hasDecor = state.placed.some((p) => p.fill === "decor");
     const faceDef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
     $("#faceplate-style-pick").hidden = !hasDecor;
     $("#door-style-pick").hidden = !state.placed.some((p) => p.fill === "cabinet");
     // Handles only apply to Decor drawers whose faceplate has no built-in handle
     // (EdgeLabel / Classic Pro include one) — so mirror the BOM handle-row rule.
+    // The picker nests under the faceplate cards, so it reads as a follow-up to
+    // that choice; more handled faceplates will arrive, keeping this dynamic.
     $("#handle-style-pick").hidden = !(hasDecor && faceDef && !faceDef.integratedHandle);
-    // Hide the whole style card when no pick applies, so it doesn't render as an
-    // empty highlighted box at the top of the parts list.
+    $("#hardware-pick").hidden = !state.placed.some((p) => p.fill === "decor" || p.fill === "classic");
+    // Hide the whole Customize step when no pick applies, so it doesn't render
+    // as an empty highlighted box between the board and the parts list.
     const styleRow = document.querySelector(".bom-style-row");
-    if (styleRow) styleRow.hidden = $("#faceplate-style-pick").hidden && $("#door-style-pick").hidden && $("#handle-style-pick").hidden;
+    const nothingToCustomize = $("#faceplate-style-pick").hidden && $("#door-style-pick").hidden && $("#hardware-pick").hidden;
+    if (styleRow) styleRow.hidden = nothingToCustomize;
+    if (nothingToCustomize) $("#step-customize").hidden = true;
     updateLabelGenLink();
     // "▶ Watch" chips for videos tied to the chosen faceplate style (e.g. the
     // EdgeLabel assembly video) — they live next to the label-generator link,
@@ -634,6 +651,60 @@
       const vids = GEN2.videos.filter((v) => v.faceStyles && v.faceStyles.includes(state.faceStyle));
       fpv.hidden = !vids.length;
       fpv.innerHTML = vids.map(videoChipHtml).join("");
+    }
+  }
+
+  /* Master drawer-hardware toggles (Customize step): set every drawer's
+     closure / stopper state in one click — the same bulk controls the 3D
+     viewer's Build options offers, so the two stay in sync through the normal
+     options round-trip. A button lights up only when EVERY drawer already
+     matches it (a mixed build lights nothing — clicking unifies it). The
+     per-drawer picker in the unit toolbar stays the fine-tune path. */
+  function renderHardwareMasters() {
+    const drawers = state.placed.filter((p) => p.fill === "decor" || p.fill === "classic");
+    // closures: same option set as the per-unit picker (soon = disabled + tip)
+    const cseg = $("#closure-master-seg");
+    if (cseg) {
+      cseg.innerHTML = "";
+      GEN2.closures.forEach((c) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = c.label;
+        const uniform = drawers.length && drawers.every((p) => (p.closure || "none") === c.id);
+        btn.className = uniform ? "active" : "";
+        if (c.soon) {
+          btn.disabled = true;
+          btn.dataset.tip = c.tip || "Coming soon";
+        } else {
+          if (c.tip) btn.dataset.tip = c.tip;
+          btn.addEventListener("click", () => {
+            drawers.forEach((p) => { if (c.id === "none") delete p.closure; else p.closure = c.id; });
+            refresh();
+          });
+        }
+        cseg.appendChild(btn);
+      });
+    }
+    // stoppers: All / None over every drawer's per-1W pair keys ("<id>:<col>",
+    // the exact keys the viewer's removedStoppers protocol uses)
+    const sseg = $("#stopper-master-seg");
+    if (sseg) {
+      sseg.innerHTML = "";
+      const allKeys = drawers.flatMap((p) => Array.from({ length: p.w }, (_, c) => `${p.id}:${c}`));
+      const removed = new Set(state.removedStoppers || []);
+      [
+        { label: "All", active: allKeys.length && !allKeys.some((k) => removed.has(k)),
+          apply: () => { state.removedStoppers = []; } },
+        { label: "None", active: allKeys.length && allKeys.every((k) => removed.has(k)),
+          apply: () => { state.removedStoppers = allKeys; } },
+      ].forEach((o) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = o.label;
+        btn.className = o.active ? "active" : "";
+        btn.addEventListener("click", () => { o.apply(); refresh(); });
+        sseg.appendChild(btn);
+      });
     }
   }
 
@@ -713,6 +784,9 @@
     const wrap = $("#palette-items");
     wrap.innerHTML = "";
     heightsForFill().forEach((h) => {
+      // a height with NO existing size at this length (59 drawers past 1H)
+      // drops its whole row — blank-gap rows would just be empty air
+      if (!GEN2.drawerWidths.some((w) => sizeExists(w, h))) return;
       const row = document.createElement("div");
       row.className = "palette-row";
       GEN2.drawerWidths.forEach((w) => {
@@ -931,15 +1005,12 @@
     ghostEl.setAttribute("class", spec.ok ? "ghost ok" : "ghost bad");
   }
 
-  /* Board colors: "product" paints drawer fronts in the signature GEN2 orange
-     (the default — screenshots and share cards read as the real system);
-     "schematic" keeps the neutral grays. The class lives on the persistent
-     <svg>, so it survives re-renders and rides into the share-card clone. */
-  function applyBoardColors(mode) {
-    store.set("gen2-board-colors", mode);
-    $("#board").classList.toggle("product", mode === "product");
-    $("#board-colors-seg").querySelectorAll("[data-colors]").forEach((b) =>
-      b.classList.toggle("active", b.dataset.colors === mode));
+  /* Board colors: product colors ARE the look (the schematic-gray toggle was
+     removed 2026-07-10 — nobody wants the drab board once they've seen the
+     real one). The class lives on the persistent <svg>, so it survives
+     re-renders and rides into the share-card clone. */
+  function applyBoardColors() {
+    $("#board").classList.add("product");
   }
 
   function drawUnit(svg, p, bows, sags, lowTops) {
@@ -1152,14 +1223,14 @@
       el("rect", { x: 0, y: gy - 26, width: W, height: 18, class: "s-wood" }, svg);
       el("text", { x: W / 2, y: gy - 32, class: "s-label", "text-anchor": "middle" }, svg)
         .textContent = "table / desk underside" + (state.spaceW ? ` · ${state.spaceW}mm available` : "");
-      // one bar per rail section, spanning the section's full width
+      // one bar per rail section, spanning the section's full width. The
+      // section size lives in a native SVG <title> hover tooltip — a big bold
+      // rail summary under the grid read as page text and felt out of place
+      // (Joey 2026-07-10); the full mix is in the parts list anyway.
       railSections().forEach((s) => {
-        el("rect", { x: PAD.left + s.start * CW + 8, y: gy - 8, width: s.w * CW - 16, height: 8, rx: 2, class: "s-part s-rail" }, svg);
+        const bar = el("rect", { x: PAD.left + s.start * CW + 8, y: gy - 8, width: s.w * CW - 16, height: 8, rx: 2, class: "s-part s-rail" }, svg);
+        el("title", {}, bar).textContent = `GEN2 Rails - ${state.length ?? ""} · ${s.w}W section`;
       });
-      if (cols.length) {
-        el("text", titleAttrs(PAD.left, gridBottom + 24), svg)
-          .textContent = `▮ GEN2 Rails - ${state.length ?? ""}: ${mixText(railMix())}`;
-      }
     } else if (state.mount === "tabletop") {
       const COV = 6, GAP = 2.5;
       const cuY = gy - 26, clY = gy - 17;                    // cover layers, above the grid (the lid)
@@ -1422,14 +1493,20 @@
     const maxW = Math.max(1, Math.min(capW(), 5));
     const W = randInt(Math.min(2, maxW), maxW);
 
+    // Wide units should read as occasional accents, not every other case —
+    // 3W/4W get a third of the draw weight of 1W/2W (Joey 2026-07-10).
+    const pickWidth = (ws) => pick(ws.flatMap((w) => Array(w >= 3 ? 1 : 3).fill(w)));
+
     // Tile one row of height hh across width W, all of the chosen drawer type.
+    // (sizeExists gets buildFill explicitly — state.fill may be a shelf while
+    // the surprise build rolls drawers, and per-length catalogs differ by fill.)
     const tileRow = (hh) => {
       const cases = [];
       for (let x = 0; x < W; ) {
         const widths = [];
         for (let w = 1; w <= Math.min(maxFitW, W - x); w++)
-          if (sizeExists(w, hh / 2) && fillFits(w, buildFill)) widths.push(w);
-        const w = widths.length ? pick(widths) : 1;
+          if (sizeExists(w, hh / 2, buildFill) && fillFits(w, buildFill)) widths.push(w);
+        const w = widths.length ? pickWidth(widths) : 1;
         cases.push({ x, w, fill: buildFill });
         x += w;
       }
@@ -1441,7 +1518,7 @@
     const rowsArr = [];
     let totalHH = 0;
     for (let i = 0, n = randInt(1, 3); i < n; i++) {
-      const cand = [2, 4].filter((hh) => totalHH + hh <= maxHH && sizeExists(1, hh / 2));
+      const cand = [2, 4].filter((hh) => totalHH + hh <= maxHH && sizeExists(1, hh / 2, buildFill));
       if (!cand.length) break;
       const hh = pick(cand);
       rowsArr.push(tileRow(hh));
@@ -1526,7 +1603,7 @@
       if (![w, hh, x, y].every(Number.isFinite)) continue;
       const h = hh / 2;
       if (w < 1 || w > 4 || !heightsForFill(u.fill).includes(h)) continue;
-      if (!sizeExists(w, h, u.fill)) continue;
+      if (!sizeExists(w, h, u.fill, d.length)) continue;
       if (x < 0 || y < 0 || x + w > d.gridW || y + hh > gridRows) continue;
       // no overlaps: first valid unit wins the cells
       if (kept.some((k) => x < k.x + k.w && k.x < x + w && y < k.y + k.hh && k.y < y + hh)) continue;
@@ -1578,6 +1655,72 @@
     return true;
   }
 
+  /* ---------------------------- Undo / redo ----------------------------
+     Snapshot history over the WHOLE build state (BUILD_FIELDS via
+     serializeBuild), captured at the end of every refresh() — no per-action
+     instrumentation, so every mutation path (place, drag, nudge, remove,
+     clear, surprise, masters, style picks, even a viewer-synced change) is
+     automatically undoable. Snapshots coalesce over a short idle window so a
+     drag across five cells lands as ONE history entry, not five. Restores go
+     through applyBuild (sanitize + full re-render) with a guard so the
+     restore's own refresh doesn't re-snapshot. */
+  const HISTORY_MAX = 50;
+  const history = { stack: [], idx: -1, timer: null, restoring: false };
+  // Last session's build, captured at script load — init's own baseline
+  // snapshot writes to the same key moments later, so reading it any later
+  // would find the fresh empty state instead of what the user left behind.
+  const LAST_BUILD_RAW = store.get("gen2-last-build");
+  function pushHistoryNow() {
+    clearTimeout(history.timer); history.timer = null;
+    const snap = JSON.stringify(serializeBuild());
+    if (history.stack[history.idx] === snap) return;
+    history.stack = history.stack.slice(0, history.idx + 1);   // a new change clears redo
+    history.stack.push(snap);
+    if (history.stack.length > HISTORY_MAX) history.stack.shift();
+    history.idx = history.stack.length - 1;
+    store.set("gen2-last-build", snap);   // auto-save: a closed tab costs nothing
+    updateHistoryButtons();
+  }
+  function snapshotHistory() {
+    if (history.restoring) return;
+    // the first state is the undo BASELINE — capture it immediately, or a
+    // quick first action inside the coalesce window would overwrite it
+    if (history.idx < 0) return pushHistoryNow();
+    clearTimeout(history.timer);
+    history.timer = setTimeout(pushHistoryNow, 350);
+  }
+  function undoRedo(step) {
+    pushHistoryNow();                       // flush any pending change first
+    const to = history.idx + step;
+    if (to < 0 || to >= history.stack.length) return;
+    history.idx = to;
+    history.restoring = true;
+    try { applyBuild(JSON.parse(history.stack[to])); } finally { history.restoring = false; }
+    // applyBuild normalizes what it restores (sanitize reassigns nextId etc.),
+    // so resync the entry to the ACTUAL post-restore state — otherwise the
+    // next undo's flush sees a "change" and pushes a phantom entry, making
+    // every second undo press a no-op.
+    history.stack[history.idx] = JSON.stringify(serializeBuild());
+    updateHistoryButtons();
+  }
+  function updateHistoryButtons() {
+    const u = $("#undo-btn"), r = $("#redo-btn");
+    if (u) u.disabled = history.idx <= 0;
+    if (r) r.disabled = history.idx >= history.stack.length - 1;
+  }
+  function bindHistory() {
+    $("#undo-btn").addEventListener("click", () => undoRedo(-1));
+    $("#redo-btn").addEventListener("click", () => undoRedo(+1));
+    document.addEventListener("keydown", (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); undoRedo(-1); }
+      else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); undoRedo(+1); }
+    });
+  }
+
   /* Save = download the build as a file (bumpmesh-style): no in-app list, no
      name prompt. exportBuild() gives it a sensible default filename; the
      browser's "ask where to save" dialog (if the user has it on) is then the
@@ -1620,7 +1763,7 @@
     const flash = () => {
       const b = $("#build-share"), t = b.dataset.label || b.textContent;
       b.dataset.label = t;
-      b.textContent = big ? "✓ Copied · big build — an exported file is safer" : "✓ Link copied!";
+      b.textContent = big ? "✓ Copied · big build · an exported file is safer" : "✓ Link copied!";
       setTimeout(() => { b.textContent = t; }, big ? 3500 : 1800);
     };
     const fallback = () => { const i = $("#share-url"); i.hidden = false; i.value = url; i.focus(); i.select(); };
@@ -1865,13 +2008,29 @@
     let reason = null;
     if (!state.placed.length) {
       reason = "Place some units first.";
+    } else if (state.placed.some((p) => !sizeExists(p.w, p.hh / 2, p.fill))) {
+      reason = "Fix the build first · some placed units don't exist in the " + state.length + " collection (see the board warning).";
     } else if (state.mount === "tabletop" && new Set(Object.values(columnTops())).size > 1) {
       reason = "Fix the build first · Table Top covers need a flat top, every column must stack to the same height.";
     } else if (state.mount === "wall" && wallTopHalfHeight().size) {
-      reason = "Fix the build first · Wall Mount top-row cases can't be 0.5H — they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top.";
+      reason = "Fix the build first · Wall Mount top-row cases can't be 0.5H · they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top.";
+    } else if (state.mount === "under-table" && ![165, 185].includes(+state.length)) {
+      // the viewer has under-table rail models only for 165/185 so far — every
+      // collection works for Table Top and Wall Mount (viewer generate.js COLL)
+      reason = "3D instructions can't show under-table " + state.length + " builds yet · the rail models aren't in the 3D part library. Table Top and Wall Mount work for every collection.";
     }
     btn.disabled = !!reason;
-    btn.title = reason || "Open step-by-step 3D assembly instructions for this build";
+    btn.title = reason || "Open the 3D Build Studio · step-by-step assembly for this exact build, plus colors and hardware options";
+    // the floating twin follows the same readiness: hidden until something is
+    // placed (nothing to open), greyed with the reason while the build isn't
+    // legal, live the moment it is — the feature stays present without the
+    // user having to find the button at the very bottom of the page.
+    const fab = $("#fab-3d");
+    if (fab) {
+      fab.hidden = !state.placed.length;
+      fab.disabled = !!reason;
+      fab.title = btn.title;
+    }
   }
 
   function renderWarnings() {
@@ -1917,8 +2076,8 @@
     const sags = sagRisks();
     if (sags.size) {
       warn(box, fromTop
-        ? `${sags.size} unit(s) would sag · this kit hangs from its rails, so rigidity comes from above — and these sit under an open case or drawer, with neither side wall meeting a wall of the case above. They'd hang mid-span off the dovetails alone and droop. Align at least one edge with a wall above, or match widths. (One wider drawer mid-span sags the same way.)`
-        : `${sags.size} unit(s) would sag · a Table Top kit is only rigid from the table surface up — and these sit over an open case or drawer, with neither side wall landing on a wall of the case below. They'd hang off the dovetails of the case and covers above and droop down. Align at least one edge with a wall below, or match widths. (One wider drawer mid-span sags the same way.)`);
+        ? `${sags.size} unit(s) would sag · this kit hangs from its rails, so rigidity comes from above · and these sit under an open case or drawer, with neither side wall meeting a wall of the case above. They'd hang mid-span off the dovetails alone and droop. Align at least one edge with a wall above, or match widths. (One wider drawer mid-span sags the same way.)`
+        : `${sags.size} unit(s) would sag · a Table Top kit is only rigid from the table surface up · and these sit over an open case or drawer, with neither side wall landing on a wall of the case below. They'd hang off the dovetails of the case and covers above and droop down. Align at least one edge with a wall below, or match widths. (One wider drawer mid-span sags the same way.)`);
     }
 
     // placed units that no longer fit the selected printer
@@ -1926,6 +2085,15 @@
     if (misfits.length) {
       const sizes = [...new Set(misfits.map((p) => `${sizeToken(p.w, p.hh / 2)} ${fillDef(p.fill).label}`))];
       warn(box, `${misfits.length} placed unit(s) won't print on the selected printer: ${sizes.join(", ")}.`);
+    }
+
+    // placed units whose size doesn't exist at the selected length (e.g. the
+    // 59 mini collection only ships 1W/2W × 0.5H/1H cases) — switching length
+    // under an existing layout is the only way in, so warn instead of deleting
+    const ghosts = state.placed.filter((p) => !sizeExists(p.w, p.hh / 2, p.fill));
+    if (ghosts.length) {
+      const sizes = [...new Set(ghosts.map((p) => `${sizeToken(p.w, p.hh / 2)} ${fillDef(p.fill).label}`))];
+      warn(box, `${ghosts.length} placed unit(s) don't exist in the ${state.length} collection: ${sizes.join(", ")} · swap them for available sizes or pick another length.`);
     }
 
     // soft bow/stress advisory — never blocks, just a heads-up
@@ -1947,7 +2115,7 @@
     // wall at all — a hard blocker (unlike sag), offered a one-click grow-to-1H fix
     const lowTops = wallTopHalfHeight();
     if (lowTops.size) {
-      const div = warn(box, `${lowTops.size} top-row case(s) are 0.5H · a Wall Mount hangs the top row from a bracket course, but 0.5H cases are too low-profile to have wall-mount holes — they can't attach to the wall at all. Grow them to 1H, or cap them with a taller unit above.`);
+      const div = warn(box, `${lowTops.size} top-row case(s) are 0.5H · a Wall Mount hangs the top row from a bracket course, but 0.5H cases are too low-profile to have wall-mount holes · they can't attach to the wall at all. Grow them to 1H, or cap them with a taller unit above.`);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn small warn-fix";
@@ -2460,7 +2628,7 @@
         {
           name: "GEN2 Drawer Stopper - Left",
           qty: stopperW,
-          note: "Optional but recommended · a Left + Right pair per 1W stops a drawer from pulling all the way out. They snap into the base of the case above (or the covers over a top row). Under-table top-row drawers don't need them — the rail has stoppers built in.",
+          note: "Optional but recommended · a Left + Right pair per 1W stops a drawer from pulling all the way out. They snap into the base of the case above (or the covers over a top row). Under-table top-row drawers don't need them · the rail has stoppers built in.",
           linkAs: "GEN2 Hardware",
           optional: true,
         },
@@ -2502,6 +2670,58 @@
     return sections;
   }
 
+  /* Build tracker: per-row "done" checkboxes over the BOM, persisted locally so
+     progress survives reloads. Keyed by part name+variant (not build id) — a
+     layout tweak mid-build must not wipe what's already printed. */
+  const tracker = Object.assign({ on: false, done: {} }, (() => {
+    try { return JSON.parse(store.get("gen2-bom-tracker")) || {}; } catch (e) { return {}; }
+  })());
+  const trackerKey = (it) => it.name + (it.variant ? ` · ${it.variant}` : "");
+  const saveTracker = () => store.set("gen2-bom-tracker", JSON.stringify({ on: tracker.on, done: tracker.done }));
+
+  /* The completion card: what this build IS and what getting it takes — total
+     printed pieces vs unique files, the shopping list, and whether everything
+     required is actually downloadable today. The BOM's two real questions
+     ("what do I print, what do I buy") get answered before the long list. */
+  function bomSummaryHtml(sections) {
+    const rows = sections.flatMap((s) => s.items.filter((it) => it.qty > 0));
+    const printed = rows.filter((it) => !it.hardware);
+    const pieces = printed.reduce((n, it) => n + it.qty, 0);
+    const files = new Set(printed.filter((it) => !it.unreleased).map((it) => it.linkAs || it.name)).size;
+    const buy = rows.filter((it) => it.hardware)
+      .map((it) => `${it.qty}× ${it.name.replace(/\s*\(.*$/, "").replace(/Countersunk wood screws/i, "wood screws").toLowerCase()}`);
+    const missingReq = printed.filter((it) => it.unreleased && !it.optional).length;
+    const missingOpt = printed.filter((it) => it.unreleased && it.optional).length;
+    const drawers = state.placed.filter((p) => p.fill === "decor" || p.fill === "classic").length;
+    const m = mountDef();
+    // overall envelope, same numbers the board meta shows
+    const minX = Math.min(...state.placed.map((p) => p.x)), maxX = Math.max(...state.placed.map((p) => p.x + p.w));
+    const minY = Math.min(...state.placed.map((p) => p.y)), maxY = Math.max(...state.placed.map((p) => p.y + p.hh));
+    const dims = state.placed.length
+      ? `${(maxX - minX) * GEN2.units.widthMM} × ${(maxY - minY) * GEN2.units.heightMM / 2} × ${state.length} mm`
+      : "";
+    const avail = missingReq
+      ? `<span class="avail warn">⚠ ${missingReq} required part${missingReq > 1 ? "s aren't" : " isn't"} released yet.</span>`
+      : `<span class="avail ok">✓ All required parts are available.</span>` +
+        (missingOpt ? ` <span class="avail muted">${missingOpt} optional part${missingOpt > 1 ? "s are" : " is"} still in development.</span>` : "");
+    const doneQty = rows.reduce((n, it) => n + (tracker.done[trackerKey(it)] ? it.qty : 0), 0);
+    const totalQty = rows.reduce((n, it) => n + it.qty, 0);
+    return `<div class="bom-summary">
+      <div class="bs-head"><strong>Your GEN2 build is ready</strong>
+        <span class="bs-sub">${m ? m.label : ""} · ${state.length} mm · ${drawers} drawer${drawers === 1 ? "" : "s"}${dims ? ` · ${dims}` : ""}</span></div>
+      <div class="bs-stats">
+        <span class="bs-stat"><b>${pieces}</b> printed pieces from <b>${files}</b> model files</span>
+        ${buy.length ? `<span class="bs-stat">buy: <b>${buy.join(" · ")}</b></span>` : ""}
+      </div>
+      <div class="bs-avail">${avail}</div>
+      <div class="bs-track">
+        <button type="button" class="btn small${tracker.on ? " active" : ""}" id="bom-track-toggle">${tracker.on ? "☑ Tracking build" : "☐ Track my build"}</button>
+        ${tracker.on ? `<span class="bs-progress">${doneQty} of ${totalQty} pieces done</span>
+          <button type="button" class="btn small ghost" id="bom-track-reset">Reset progress</button>` : ""}
+      </div>
+    </div>`;
+  }
+
   function renderBom() {
     const wrap = $("#bom");
     // the labels export only earns a button when there's a label to export
@@ -2511,8 +2731,8 @@
       wrap.innerHTML = `<p class="hint">Choose a location and length, then place units in the layout · your parts list builds itself here.</p>`;
       return;
     }
-    // starter-kit tip leads the list for first-build-sized layouts
-    let html = "";
+    // completion card first: the payoff, summarized before the long list
+    let html = bomSummaryHtml(sections);
     const starter = `GEN2 Under Table Starter Kit - ${state.length}`;
     if (state.mount === "under-table" && LINK_OVERRIDES[starter] && state.placed.length <= 4) {
       html += `<p class="tip">💡 New to GEN2? The <a href="${partLinks(starter).printables}" target="_blank" rel="noopener">${starter}</a> bundles everything for a first install.</p>`;
@@ -2529,12 +2749,14 @@
         // IMAGE_OVERRIDES has one for that exact item, else the generic
         // wrench icon — never the "coming soon" placeholder, which means
         // something else (a printed part not designed yet).
-        const img = it.hardware ? (IMAGE_OVERRIDES[it.name] || "img/parts/hardware.svg") : partImage(it.name);
+        const img = it.hardware ? (IMAGE_OVERRIDES[it.name] || "img/parts/hardware.svg") : partImage(it.name, it.variant);
         const zoomable = it.hardware ? !!IMAGE_OVERRIDES[it.name] : true;
         // real photos/renders get the magnifier (see bindThumbZoom); generic
         // icons don't, and a load failure drops the affordance along with it
         const fallbackImg = it.hardware ? "img/parts/hardware.svg" : "img/parts/placeholder.svg";
-        html += `<tr class="${it.optional ? "optional" : ""}">
+        const tk = trackerKey(it), tkDone = !!tracker.done[tk];
+        html += `<tr class="${it.optional ? "optional" : ""}${tracker.on && tkDone ? " done" : ""}">
+          ${tracker.on ? `<td class="trk"><input type="checkbox" data-trk="${tk.replace(/"/g, "&quot;")}"${tkDone ? " checked" : ""} aria-label="done"></td>` : ""}
           <td class="thumb"><img src="${img}" alt="" loading="lazy"${zoomable ? ` class="zoomable" data-name="${it.name.replace(/"/g, "&quot;")}"` : ""}
             onerror="this.onerror=null;this.src='${fallbackImg}';this.classList.remove('zoomable')"></td>
           <td class="qty">${it.qty}×</td>
@@ -2560,6 +2782,23 @@
      (touch) a real render shows it enlarged in the shared #thumb-zoom card.
      Listeners are delegated on #bom so they survive every re-render, and the
      card is position:fixed so the table's scroll container can't clip it. */
+  /* Tracker controls live inside string-rendered BOM HTML, so both listeners
+     are delegated on #bom and survive every re-render. */
+  function bindBomTracker() {
+    const bom = $("#bom");
+    bom.addEventListener("click", (e) => {
+      if (e.target.id === "bom-track-toggle") { tracker.on = !tracker.on; saveTracker(); track("bom-track:" + (tracker.on ? "on" : "off")); renderBom(); }
+      else if (e.target.id === "bom-track-reset") { tracker.done = {}; saveTracker(); renderBom(); }
+    });
+    bom.addEventListener("change", (e) => {
+      const cb = e.target.closest("input[data-trk]");
+      if (!cb) return;
+      if (cb.checked) tracker.done[cb.dataset.trk] = true; else delete tracker.done[cb.dataset.trk];
+      saveTracker();
+      renderBom(); // progress count + row dim follow
+    });
+  }
+
   function bindThumbZoom() {
     const pop = $("#thumb-zoom");
     if (!pop) return;
@@ -2654,11 +2893,36 @@
     return out;
   }
 
+  /* Metadata header shared by the text + CSV exports: enough to identify the
+     build months later and reopen it (the share link IS the configuration). */
+  function buildMeta() {
+    const m = mountDef();
+    const fdef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    const hdef = GEN2.handleStyles.find((s) => s.id === state.handleStyle);
+    const dims = state.placed.length
+      ? `${(Math.max(...state.placed.map((p) => p.x + p.w)) - Math.min(...state.placed.map((p) => p.x))) * GEN2.units.widthMM} × ` +
+        `${(Math.max(...state.placed.map((p) => p.y + p.hh)) - Math.min(...state.placed.map((p) => p.y))) * (GEN2.units.heightMM / 2)} × ${state.length} mm`
+      : "";
+    return {
+      date: new Date().toISOString().slice(0, 10),
+      mount: m ? m.label : "",
+      length: `${state.length} mm`,
+      printer: state.printer === "custom" ? "Custom bed" : ((GEN2.printers.find((p) => p.id === state.printer) || {}).label || state.printer),
+      dims,
+      faceplate: fdef ? fdef.label : "",
+      handle: hdef ? hdef.label : "",
+      link: location.origin.startsWith("http") ? location.origin + location.pathname + "#build=" + encodeBuildHash() : "",
+    };
+  }
+
   function copyBom() {
     track("export:copy");
-    const m = mountDef();
-    let txt = `GEN2 ${state.length} · ${m ? m.label : ""} setup\n`;
-    txt += `Planned with the GEN2 Planner · jerrari3d.com\n\n`;
+    const m = buildMeta();
+    let txt = `GEN2 ${state.length} · ${m.mount} setup · ${m.date}\n`;
+    txt += `Planned with the GEN2 Planner · jerrari3d.com\n`;
+    if (m.dims) txt += `Overall: ${m.dims} · Faceplate: ${m.faceplate} · Printer: ${m.printer}\n`;
+    if (m.link) txt += `Reopen this build: ${m.link}\n`;
+    txt += "\n";
     let lastSection = "";
     bomAsRows().forEach((r) => {
       if (r.section !== lastSection) { txt += `\n[${r.section}]\n`; lastSection = r.section; }
@@ -2672,7 +2936,14 @@
   function downloadCsv() {
     track("export:csv");
     const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
-    let csv = "Section,Qty,Part,Printables,Thangs\n";
+    // metadata header block first — a saved CSV should identify its build and
+    // carry the link that reopens the exact configuration
+    const m = buildMeta();
+    let csv = "GEN2 Planner build export\n";
+    [["Date", m.date], ["Mount", m.mount], ["Length", m.length], ["Printer", m.printer],
+     ["Overall W×H×D", m.dims], ["Faceplate", m.faceplate], ["Handle", m.handle],
+     ["Reopen link", m.link]].forEach(([k, v]) => { if (v) csv += `${esc(k)},${esc(v)}\n`; });
+    csv += "\nSection,Qty,Part,Printables,Thangs\n";
     bomAsRows().forEach((r) => {
       csv += [esc(r.section), r.qty, esc(r.name), esc(r.printables), esc(r.thangs)].join(",") + "\n";
     });
@@ -2829,7 +3100,7 @@
       URL.revokeObjectURL(a.href);
       flash("#save-image", "✓ Saved!");
     } catch (e) {
-      flash("#save-image", "Couldn't render — try again");
+      flash("#save-image", "Couldn't render · try again");
     } finally {
       URL.revokeObjectURL(svgUrl);
     }
@@ -3067,6 +3338,7 @@
     $("#print-bom").addEventListener("click", () => window.print());
     $("#save-image").addEventListener("click", saveBuildImage);
     $("#instructions-3d").addEventListener("click", open3DInstructions);
+    $("#fab-3d").addEventListener("click", open3DInstructions);
     // Live sync FROM the 3D instructions viewer: it posts {gen2:"buildOptions",
     // opts} whenever the user changes drawer closure, stoppers, handle, or the
     // wall stagger there. Everything is validated against the catalog before it
@@ -3104,9 +3376,6 @@
       else if (a.href === CLUB_URL_PRINTABLES) track("club:printables");
       else if (a.href === CLUB_URL_THANGS) track("club:thangs");
     });
-    $("#board-colors-seg").querySelectorAll("[data-colors]").forEach((btn) =>
-      btn.addEventListener("click", () => applyBoardColors(btn.dataset.colors)));
-
     // Selected-unit toolbar: arrow pad nudges, remove deletes, stepper edits
     // cabinet shelves. The markup is static, so these bind once.
     document.querySelectorAll(".ut-arrow").forEach((btn) => {
@@ -3200,6 +3469,7 @@
     const ready = state.mount && state.length;
     updateInstructionsButton();
     syncOptionsToViewer(); // mirror any option change into an open 3D viewer tab
+    snapshotHistory();     // every settled state becomes an undo step (coalesced)
 
     // Palette icon accents (size boxes, active fill details) wear the chosen
     // length's lineup color — same idea as the board's kit title. Selection
@@ -3229,6 +3499,7 @@
         .forEach((p) => boardStyle.removeProperty(p));
     }
     $("#step-layout").hidden = !ready;
+    $("#step-customize").hidden = !ready; // renderStyleSegs may re-hide it when nothing applies
     $("#step-parts").hidden = !ready;
     renderStepSummaries();
     syncStepCollapse(ready);
@@ -3267,23 +3538,36 @@
   buildPrinterSelect();
   bindBoard();
   bindControls();
+  bindBomTracker();
+  bindHistory();
   bindThumbZoom();
   bindVideoModal();
   bindStepCollapse();
-  applyBoardColors(store.get("gen2-board-colors") || "product");
+  applyBoardColors();
   refresh();
   loadBuildFromHash();   // open a shared #build=… link, if present
+  // Resume the previous session's build — closing the tab shouldn't cost the
+  // layout. Anything explicit wins: if the hash restored a build (or the page
+  // somehow starts non-empty), skip. An empty saved state means the user
+  // deliberately cleared before leaving — respect it and start blank.
+  if (!state.placed.length && LAST_BUILD_RAW) {
+    try {
+      const last = JSON.parse(LAST_BUILD_RAW);
+      if (last && Array.isArray(last.placed) && last.placed.length && applyBuild(last)) track("resume-build");
+    } catch (e) { /* corrupt stored build — start fresh */ }
+  }
 
   /* Headless test hook. Attaches the live state and a few pure helpers to the
      window ONLY when a harness opts in by setting this flag truthy before the
      script runs (see test/planner.test.mjs). It is absent in normal use. */
   if (typeof window !== "undefined" && window.__GEN2_PLANNER_TEST__) {
     window.__GEN2_PLANNER_TEST__ = {
-      state, refresh, nudgeSelected, canPlace, selectable, heightsForFill,
+      state, refresh, nudgeSelected, canPlace, selectable, sizeExists, heightsForFill,
       computeBom, selectedUnit, interiorFill, interiorComplete, interiorCellsLeft, placeCompartment,
       fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks, sagRisks,
       mountBlocksLength, enforceMountLength, wallTopHalfHeight, fixWallTops,
       encodeBuildHash, applyBuildHash,
+      undoRedo, pushHistoryNow, history, buildMeta,
     };
   }
 })();

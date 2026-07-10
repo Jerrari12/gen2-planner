@@ -39,9 +39,41 @@ a { color: var(--accent); }
    slower than the page as you scroll (see js/hero.js), revealing more of it. */
 .hero {
   position: relative;
-  height: 190px;
+  height: 250px;
   overflow: hidden;
   border-bottom: 1px solid var(--line);
+}
+/* The value statement — the hero earns its height by stating the payoff. */
+.hero-tagline {
+  position: absolute;
+  left: 28px; right: 28px; bottom: 18px;
+  z-index: 2;
+}
+.hero-tagline h1 {
+  margin: 0 0 6px;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.8);
+}
+.hero-tagline p {
+  margin: 0 0 10px;
+  max-width: 620px;
+  font-size: 0.92rem;
+  color: #d7d8db;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+}
+/* plain checked facts, NOT pills — bordered chips read as buttons that don't
+   do anything (Joey 2026-07-10) */
+.hero-chips { display: flex; gap: 18px; flex-wrap: wrap; }
+.hero-chips span {
+  font-size: 0.82rem; font-weight: 600;
+  color: #d7d8db;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+}
+.hero-chips span::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+@media (max-width: 560px) {
+  .hero { height: 300px; }
+  .hero-tagline h1 { font-size: 1.2rem; }
 }
 .hero-bg {
   position: absolute;
@@ -123,7 +155,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 }
 .length-help > summary::-webkit-details-marker { display: none; }
 .length-help > summary::before {
-  content: "\25B8"; color: var(--accent); font-size: 0.7rem; transition: transform 0.15s ease;
+  content: "\25B8"; color: var(--accent); font-size: 1.4rem; line-height: 1; transition: transform 0.15s ease;
 }
 .length-help[open] > summary::before { transform: rotate(90deg); }
 .length-help > summary:hover { color: var(--text); }
@@ -219,7 +251,7 @@ details.space-box > summary {
 details.space-box > summary::-webkit-details-marker { display: none; }
 details.space-box > summary::before {
   content: "\25B8";
-  font-size: 0.7rem;
+  font-size: 1.4rem; line-height: 1;
   color: var(--accent);
   transition: transform 0.15s ease;
   align-self: center;
@@ -378,7 +410,7 @@ details.space-box[open] .sb-sum-status { display: none; }
 .explainer-primer summary::-webkit-details-marker { display: none; }
 .explainer-primer summary::before {
   content: "\25B8";
-  font-size: 0.7rem;
+  font-size: 1.4rem; line-height: 1;
   color: var(--accent);
   transition: transform 0.15s ease;
 }
@@ -495,6 +527,96 @@ details.space-box[open] .sb-sum-status { display: none; }
 .bom-style-row .style-help { font-size: 0.8rem; color: var(--muted); margin: 0 0 8px; max-width: 320px; }
 .bom-style-row .seg { margin-bottom: 0; background: var(--panel-2); }
 .bom-style-row .seg button { text-align: center; padding: 8px 12px; }
+/* Undo/redo sit right above the workspace they act on. */
+.board-tools { display: flex; gap: 8px; margin: 0 0 8px; }
+
+/* Floating Build Studio button: bottom-right, above everything, greyed (with
+   the reason as tooltip) until the layout is legal. */
+.fab-3d {
+  position: fixed;
+  right: 20px; bottom: 20px;
+  z-index: 60;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+}
+.fab-3d:hover:not(:disabled) { filter: brightness(1.1); }
+.fab-3d:disabled {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Build summary card: the completion moment above the parts list. */
+.bom-summary {
+  margin: 6px 0 18px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+}
+.bom-summary .bs-head strong { font-size: 1.05rem; }
+.bom-summary .bs-sub { margin-left: 10px; color: var(--muted); font-size: 0.9rem; }
+.bom-summary .bs-stats { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; font-size: 0.9rem; }
+.bom-summary .bs-stat b { color: var(--accent); }
+.bom-summary .bs-avail { margin-top: 8px; font-size: 0.85rem; }
+.bom-summary .avail.ok { color: #6fcf6f; }
+.bom-summary .avail.warn { color: #f2c14e; }
+.bom-summary .avail.muted { color: var(--muted); }
+.bom-summary .bs-track { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.bom-summary .bs-progress { font-size: 0.85rem; color: var(--accent); font-weight: 600; }
+/* off = ghost (invites the click), on = solid — .btn's base is already solid
+   accent, so the off state must override it or the toggle reads always-on
+   (and accent text on the accent base rendered the label invisible). */
+.bom-summary #bom-track-toggle { background: transparent; color: var(--accent); }
+.bom-summary #bom-track-toggle.active { background: var(--accent); color: var(--on-accent); }
+
+/* Build tracker rows: the checkbox leads, done rows recede. */
+.bom-table td.trk { width: 30px; text-align: center; }
+.bom-table td.trk input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.bom-table tr.done td { opacity: 0.45; }
+.bom-table tr.done td.trk { opacity: 1; }
+
+/* One primary action: the custom 3D guide leads the export row. */
+.bom-actions .primary-action {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1b1e;
+  font-weight: 700;
+}
+.bom-actions .primary-action:hover:not(:disabled) { filter: brightness(1.1); }
+.bom-actions-sub { font-size: 0.8rem; color: var(--muted); margin: 6px 0 0; }
+
+/* Selected cards carry a checkmark, not just the orange outline (a11y:
+   selection must not be communicated by color alone). */
+#mount-cards .card, .len-card, .fp-card { position: relative; }
+#mount-cards .card.active::after, .len-card.active::after, .fp-card.active::after {
+  content: "✓";
+  position: absolute; top: 6px; right: 8px;
+  width: 20px; height: 20px; line-height: 20px;
+  text-align: center; border-radius: 50%;
+  background: var(--accent); color: #1a1b1e;
+  font-size: 0.8rem; font-weight: 700;
+  pointer-events: none;
+}
+/* club cards keep their sparkle top-right — the check moves to the left */
+.fp-card.active::after { right: auto; left: 8px; }
+
+/* Handle picker nests under the faceplate cards (it's a follow-up to that
+   choice — only faceplates without a built-in handle need one). */
+.bom-style-row .nested-pick { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+/* Drawer-hardware master toggles: one labeled seg per row. */
+.hw-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.hw-lbl { font-size: 0.85rem; color: var(--text); min-width: 118px; }
 /* The label-generator handoff is the highest-value click for an EdgeLabel /
    Classic Pro user (it carries their typed drawer labels, pre-filled) — so
    it's the one SOLID accent button in this card; the ghost video chip below
@@ -764,20 +886,10 @@ details.space-box[open] .sb-sum-status { display: none; }
 .tool-row { display: flex; gap: 6px; }
 .tool-row .btn { flex: 1; }
 
-/* Save & share — tucked into a collapsible so the default view stays clean. */
-details.builds { margin-top: 12px; }
-details.builds > summary {
-  cursor: pointer; list-style: none;
-  font-size: 0.82rem; font-weight: 600; color: var(--muted);
-  display: flex; align-items: center; gap: 7px; padding: 4px 0;
-}
-details.builds > summary::-webkit-details-marker { display: none; }
-details.builds > summary::before {
-  content: "\25B8"; color: var(--accent); font-size: 0.7rem; transition: transform 0.15s ease;
-}
-details.builds[open] > summary::before { transform: rotate(90deg); }
-details.builds > summary:hover { color: var(--text); }
-.builds-body .build-import { display: block; text-align: center; }
+/* Save & share — always in the open (a collapsible hid them too well),
+   separated from the layout tools by a thin rule. */
+.builds { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.builds .build-import { display: block; text-align: center; }
 .share-url {
   width: 100%; margin-top: 6px; font-size: 0.72rem; padding: 6px 8px;
   background: var(--panel-2); border: 1px solid var(--accent); border-radius: 8px; color: var(--text);
@@ -884,7 +996,7 @@ details.builds > summary:hover { color: var(--text); }
   list-style: none;
 }
 .cover-guide summary::-webkit-details-marker { display: none; }
-.cover-guide summary::before { content: "\25B8"; color: var(--accent); font-size: 0.7rem; transition: transform 0.15s ease; }
+.cover-guide summary::before { content: "\25B8"; color: var(--accent); font-size: 1.4rem; line-height: 1; transition: transform 0.15s ease; }
 .cover-guide[open] summary::before { transform: rotate(90deg); }
 .cg-tag { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); border: 1px solid var(--accent-dim); border-radius: 20px; padding: 1px 8px; }
 .cg-body { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
@@ -1184,8 +1296,8 @@ details.builds > summary:hover { color: var(--text); }
      summary so the design board is reachable without a long scroll. */
   .step.collapsible > h2 { cursor: pointer; }
   .step.collapsible > h2::after {
-    content: "\25BE"; float: right; margin-top: 3px;
-    color: var(--accent); font-size: 0.8rem; transition: transform 0.15s ease;
+    content: "\25BE"; float: right; margin-top: -2px;
+    color: var(--accent); font-size: 1.6rem; line-height: 1; transition: transform 0.15s ease;
   }
   .step.collapsed > h2::after { content: "\25B8"; }
   .step.collapsed { margin-top: 16px; }
@@ -1236,7 +1348,8 @@ details.builds > summary:hover { color: var(--text); }
 @media print {
   body { background: #fff; color: #000; }
   .hero, .palette, .board-warnings, .bom-actions, .footer, .explainer,
-  .board-helper, .unit-toolbar, #step-mount, #step-length, #step-printer { display: none !important; }
+  .board-helper, .unit-toolbar, #step-mount, #step-length, #step-printer,
+  #step-customize, .fab-3d, .board-tools, .bom-actions-sub { display: none !important; }
   .bom-table, .bom-table td { border-color: #ccc; background: #fff; color: #000; }
   #bom h3 { color: #000; }
   a { color: #000; }

@@ -860,22 +860,16 @@ test("sanitizer whitelists closures (drawers only, released options only)", () =
   assert.equal("closure" in app.state.placed[2], false);
 });
 
-test("board colors default to product and toggle to schematic", () => {
-  // (persistence rides the store wrapper — no localStorage in this jsdom origin)
+test("board colors are permanently product (the schematic toggle is gone)", () => {
   const { app, doc } = boot();
   const svg = doc.querySelector("#board");
-  assert.equal(svg.classList.contains("product"), true);      // default on
-
-  doc.querySelector('#board-colors-seg [data-colors="schematic"]').click();
-  assert.equal(svg.classList.contains("product"), false);
-
-  doc.querySelector('#board-colors-seg [data-colors="product"]').click();
-  assert.equal(svg.classList.contains("product"), true);
+  assert.equal(svg.classList.contains("product"), true);       // always on
+  assert.equal(doc.querySelector("#board-colors-seg"), null);  // no toggle to turn it off
 
   // drawer-front shades derive from the chosen length's lineup color and live
   // inline on the svg (185 = #ff8a40 → face is its 0.88 darken)
   assert.equal(svg.style.getPropertyValue("--len-face"), "rgb(224, 121, 56)");
-  app.state.length = 165;                                     // lineup blue #3aa0e8
+  app.state.length = 165;                                      // lineup blue #3aa0e8
   app.refresh();
   assert.equal(svg.style.getPropertyValue("--len-face"), "rgb(51, 141, 204)");
 });
@@ -1067,3 +1061,207 @@ test("a restored tabletop + 59 build drops the invalid length", () => {
   assert.equal(app.state.mount, "tabletop");
   assert.equal(app.state.length, null);
 });
+
+/* ---------------- 59 mini collection: only 4 case sizes ---------------- */
+
+test("59 catalog: drawers only 1W/2W × 0.5H/1H; shelves keep tall heights but cap width", () => {
+  const { app } = boot();
+  app.state.mount = "wall";
+  app.state.length = 59;
+  app.refresh();
+  for (const [w, h, want] of [
+    [1, 0.5, true], [1, 1, true], [2, 0.5, true], [2, 1, true],
+    [3, 0.5, false], [4, 1, false], [1, 1.5, false], [2, 2, false], [1, 3, false],
+  ]) assert.equal(app.sizeExists(w, h, "decor"), want, `${w}W-${h}H decor`);
+  // shelves/cabinets stack extenders above a 1H case (59 extenders exist), so
+  // heights stay open — but no case is wider than 2W, so width still caps
+  assert.equal(app.sizeExists(1, 3, "shelf"), true);
+  assert.equal(app.sizeExists(3, 1, "shelf"), false);
+  // other lengths keep the full catalog
+  app.state.length = 185;
+  assert.equal(app.sizeExists(4, 2, "decor"), true);
+  assert.equal(app.sizeExists(3, 3, "decor"), false); // unavailableSizes still applies
+});
+
+test("59 palette shows exactly the four mini sizes (missing rows dropped, not blanked)", () => {
+  const { app, doc } = boot();
+  app.state.mount = "wall";
+  app.state.length = 59;
+  app.state.fill = "decor";
+  app.refresh();
+  const labels = [...doc.querySelectorAll("#palette-items .palette-label")].map((e) => e.textContent).sort();
+  assert.deepEqual(labels, ["1W-0.5H", "1W-1H", "2W-0.5H", "2W-1H"]);
+  app.state.length = 115;
+  app.refresh();
+  assert.ok(doc.querySelectorAll("#palette-items .palette-label").length > 10, "full catalog returns on other lengths");
+});
+
+test("switching to 59 under an oversize layout warns and greys the 3D button", () => {
+  const { app, doc } = boot();
+  app.state.mount = "wall";
+  app.state.length = 185;
+  place(app, { id: 1, x: 0, y: 0, w: 3, hh: 2, fill: "decor" });
+  app.refresh();
+  assert.equal(doc.querySelector("#instructions-3d").disabled, false);
+
+  app.state.length = 59;
+  app.refresh();
+  const warns = [...doc.querySelectorAll("#board-warnings .warn")].map((d) => d.textContent).join(" ");
+  assert.match(warns, /don't exist in the 59 collection/);
+  const btn = doc.querySelector("#instructions-3d");
+  assert.equal(btn.disabled, true);
+  assert.match(btn.title, /don't exist in the 59 collection/);
+});
+
+test("a 59 build restored over another length keeps its (valid) mini-size units", () => {
+  const { app } = boot();
+  app.state.length = 270;                 // sanitize must judge units by the
+  app.refresh();                          // INCOMING length, not this one
+  assert.equal(app.applyBuildHash(encodeHash({
+    mount: "wall", length: 59, printer: "any", gridW: 6, gridH: 4,
+    placed: [{ id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" },
+             { id: 2, x: 2, y: 0, w: 3, hh: 2, fill: "decor" }], // 3W doesn't exist at 59 → dropped
+  })), true);
+  assert.equal(app.state.length, 59);
+  assert.equal(app.state.placed.length, 1);
+  assert.equal(app.state.placed[0].w, 2);
+});
+
+/* ---------------- Surprise me: wide units are occasional ---------------- */
+
+test("surprise me downweights 3W/4W units (measured ~10% of units; was ~21% unweighted)", () => {
+  const { app } = boot();
+  app.state.mount = "tabletop";
+  app.state.length = 185;
+  app.state.printer = "any";
+  app.refresh();
+  let narrow = 0, wide = 0;
+  for (let i = 0; i < 100; i++) {
+    app.surpriseMe();
+    for (const p of app.state.placed) p.w >= 3 ? wide++ : narrow++;
+  }
+  const share = wide / (narrow + wide);
+  // new weighting measures ~10.6% wide over 500 runs; uniform picking measured
+  // ~20.9%. 16% sits >3σ from both, so this fails on a regression, not on luck.
+  assert.ok(share < 0.16, `3W/4W share ${(share * 100).toFixed(1)}% should stay well under 16%`);
+  assert.ok(wide > 0, "wide units still appear (downweighted, not banned)");
+});
+
+/* ---------------- Undo / redo ---------------- */
+
+test("undo steps back through layout changes and redo replays them", () => {
+  const { app } = boot();
+  app.history.stack.length = 0; app.history.idx = -1; // drop boot-time entries
+  app.pushHistoryNow();                              // baseline: empty layout
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2 });
+  app.refresh(); app.pushHistoryNow();               // state A: one unit
+  place(app, { id: 2, x: 1, y: 0, w: 2, hh: 2 });
+  app.refresh(); app.pushHistoryNow();               // state B: two units
+
+  app.undoRedo(-1);
+  assert.equal(app.state.placed.length, 1);          // back to A
+  app.undoRedo(-1);
+  assert.equal(app.state.placed.length, 0);          // back to baseline
+  app.undoRedo(-1);
+  assert.equal(app.state.placed.length, 0);          // floor: no-op
+  app.undoRedo(+1);
+  assert.equal(app.state.placed.length, 1);          // forward to A
+  app.undoRedo(+1);
+  assert.equal(app.state.placed.length, 2);          // forward to B
+  app.undoRedo(+1);
+  assert.equal(app.state.placed.length, 2);          // ceiling: no-op
+});
+
+test("a new change after undo clears the redo branch", () => {
+  const { app } = boot();
+  app.history.stack.length = 0; app.history.idx = -1; // drop boot-time entries
+  app.pushHistoryNow();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2 });
+  app.refresh(); app.pushHistoryNow();
+  place(app, { id: 2, x: 1, y: 0, w: 1, hh: 2 });
+  app.refresh(); app.pushHistoryNow();
+
+  app.undoRedo(-1);                                  // back to one unit
+  place(app, { id: 3, x: 2, y: 0, w: 2, hh: 2 });    // diverge
+  app.refresh(); app.pushHistoryNow();
+  app.undoRedo(+1);                                  // redo must be dead
+  assert.equal(app.state.placed.length, 2);          // stays on the new branch
+  assert.equal(app.state.placed.some((p) => p.w === 2), true);
+});
+
+test("undo restores non-layout state too (faceplate style)", () => {
+  const { app } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.refresh(); app.pushHistoryNow();
+  app.state.faceStyle = "edgelabel";
+  app.refresh(); app.pushHistoryNow();
+  app.undoRedo(-1);
+  assert.equal(app.state.faceStyle, "essential");
+});
+
+/* ---------------- Export metadata ---------------- */
+
+test("buildMeta carries real dimensions and a dated stamp", () => {
+  const { app } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" });
+  app.refresh();
+  const m = app.buildMeta();
+  assert.equal(m.length, "185 mm");
+  assert.match(m.dims, /^176 . 56 . 185 mm$/); // separator left loose — the glyph is cosmetic
+  assert.match(m.date, /^\d{4}-\d{2}-\d{2}$/);
+});
+
+
+/* ---------------- Session resume (auto-saved build) ---------------- */
+
+// boot variant with control over localStorage and the URL BEFORE app.js runs â€”
+// the resume path reads both during init.
+function bootWith({ lastBuild, url } = {}) {
+  const dom = new JSDOM(read("index.html"), { runScripts: "outside-only", url: url || "http://localhost/" });
+  const { window } = dom;
+  if (lastBuild) window.localStorage.setItem("gen2-last-build", JSON.stringify(lastBuild));
+  window.__GEN2_PLANNER_TEST__ = true;
+  window.eval(read("js/data.js") + "\n" + read("js/app.js"));
+  return { window, app: window.__GEN2_PLANNER_TEST__, doc: window.document };
+}
+
+const RESUME_BUILD = {
+  mount: "wall", length: 240, printer: "any", gridW: 6, gridH: 4, nextId: 3,
+  placed: [{ id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" },
+           { id: 2, x: 2, y: 0, w: 1, hh: 2, fill: "decor" }],
+};
+
+test("a closed session's build auto-restores on the next visit", () => {
+  const { app } = bootWith({ lastBuild: RESUME_BUILD });
+  assert.equal(app.state.placed.length, 2);
+  assert.equal(app.state.mount, "wall");
+  assert.equal(app.state.length, 240);
+});
+
+test("a deliberately cleared layout stays blank on the next visit", () => {
+  const { app } = bootWith({ lastBuild: { ...RESUME_BUILD, placed: [] } });
+  assert.equal(app.state.placed.length, 0);
+});
+
+test("a #build= link beats the auto-saved session", () => {
+  const hashBuild = { mount: "under-table", length: 185, printer: "any", gridW: 6, gridH: 4,
+    placed: [{ id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" }] };
+  const hash = Buffer.from(JSON.stringify(hashBuild), "utf8").toString("base64");
+  const { app } = bootWith({ lastBuild: RESUME_BUILD, url: "http://localhost/#build=" + hash });
+  assert.equal(app.state.length, 185);          // the link's build, not the saved one
+  assert.equal(app.state.placed.length, 1);
+});
+
+test("changes auto-save: the stored build tracks the latest settled state", () => {
+  const { app, window } = bootWith({});
+  app.state.mount = "tabletop";
+  app.state.length = 185;
+  app.refresh();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2 });
+  app.refresh();
+  app.pushHistoryNow();                          // settle (the coalesce timer, flushed)
+  const stored = JSON.parse(window.localStorage.getItem("gen2-last-build"));
+  assert.equal(stored.placed.length, 1);
+  assert.equal(stored.length, 185);
+});
+

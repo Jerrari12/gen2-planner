@@ -6,8 +6,67 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
 
 ## Files
 
-- `index.html` — markup and the step structure (mount → printer → length →
-  layout → parts list).
+- `index.html` — markup and the step structure (1 mount → 2 printer → 3 length
+  → 4 layout → **5 Customize** → 6 parts list). **2026-07-10 "payoff" pass**
+  (from a UI review Joey ran; the theme: surface the BOM+guide as the product):
+  hero carries a value statement + outcome chips (`.hero-tagline`, hero grew to
+  250px); the parts list opens with a **build summary card** (`bomSummaryHtml`:
+  mount/length/drawers/dims, printed pieces vs UNIQUE model files, the
+  buy-list, and an availability line that says whether every REQUIRED part is
+  downloadable — optional/unreleased don't scare the build); the 3D button is
+  the one solid `primary-action` ("Generate my 3D assembly guide"), exports
+  are utilities after it; selected mount/length/faceplate cards get a ✓ badge
+  (a11y — the fp-card ✓ sits top-LEFT, the club sparkle owns top-right);
+  copy/CSV exports open with a `buildMeta()` header (date, mount, length,
+  printer, dims, faceplate, handle, reopen-#build link). **Undo/redo**
+  (`history` in app.js): snapshots of serializeBuild() captured at the end of
+  every refresh() — coalesced 350ms so drags land as one entry; baseline
+  snapshots immediately; restore via applyBuild + a `restoring` guard, then
+  the entry is RESYNCED to the post-restore state (sanitize reassigns nextId —
+  without the resync every second undo press was a no-op); buttons above the
+  board + Ctrl+Z/Y/Shift+Z (inputs exempt); exported to tests. **Session
+  auto-resume** rides the same snapshot: pushHistoryNow also writes
+  localStorage `gen2-last-build`; on boot (after loadBuildFromHash) the build
+  restores IF nothing else loaded one — a #build= hash wins, an empty saved
+  state (deliberate pre-close clear) stays blank. NB the stored value is
+  captured at SCRIPT LOAD (`LAST_BUILD_RAW`) because init's own baseline
+  snapshot overwrites the key before the resume code runs — reading it later
+  would always find the fresh empty state. This + the tracker's by-part-name
+  keying = the whole session (layout, options, checklist) survives a closed
+  tab. **Build tracker** (`tracker`/`bindBomTracker`): per-row done-checkboxes over the
+  BOM, piece-weighted progress in the summary card, keyed by part
+  name+variant (NOT build id — a layout tweak mid-build must not wipe
+  progress), persisted as JSON in localStorage `gen2-bom-tracker`, delegated
+  listeners so re-renders keep working. Toggle styling: off = ghost, on =
+  solid (`.btn`'s base is already solid accent — an accent-text active state
+  rendered the label invisible, Joey's screenshot). **The 3D viewer is branded
+  "3D Build Studio"** (2026-07-10 — it customizes colors/faceplates/hardware,
+  not just instructions): primary button "🧊 Open my 3D Build Studio", plus a
+  **floating `#fab-3d` twin** (fixed bottom-right, `updateInstructionsButton`
+  drives it: hidden until units are placed, greyed with the reason until the
+  layout is legal, print-hidden) so the star feature isn't only at the page
+  bottom. Hero chips are plain ✓-prefixed text, NOT pills (they read as dead
+  buttons). **Palette panel tidy-up (Joey 2026-07-10):** the Product/Schematic
+  board-colors toggle is GONE — product colors are permanent
+  (`applyBoardColors()` just adds the class; the schematic CSS grays remain
+  but unreachable; localStorage `gen2-board-colors` is orphaned). Save & share
+  lost its collapsible summary — the block sits open under a thin rule: SAVE +
+  LOAD side by side (a `.tool-row`, same flex pattern as Load example/Clear),
+  "🔗 Copy share link" full-width below. Step 5 (added 2026-07-10) holds
+  everything that changes WHICH parts get billed: the faceplate style cards
+  (+ back-cover toggle), the **handle picker NESTED under the faceplate cards**
+  (`#handle-style-pick` inside `#faceplate-style-pick`, `.nested-pick` — it
+  only shows when the chosen faceplate has no built-in handle, so it reads as
+  a follow-up to that choice; more handled faceplates are coming), the cabinet
+  door style, and **master drawer-hardware toggles** (`renderHardwareMasters`
+  in app.js): Drawer closures (None/Magnets/Push-Click-soon) + Drawer stoppers
+  (All/None) — bulk-set every drawer, mirroring the 3D viewer's Build options;
+  a button lights only when EVERY drawer matches (mixed lights nothing); the
+  per-drawer picker in the unit toolbar stays the fine-tune path; stopper keys
+  are the viewer's `"<unitId>:<localCol>"` removedStoppers protocol. The whole
+  step hides when nothing applies (no drawers/cabinets placed) and is
+  print-hidden. refresh() ends with syncOptionsToViewer(), so master changes
+  live-sync to an open viewer tab like any option change.
 - `css/style.css` — all styles. CSS variables for the JERRARI brand palette at
   the top (`--accent` is the orange `#ff8a40`).
 - `js/data.js` — **the catalog and single source of truth.** Sizes, fills,
@@ -24,11 +83,15 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   `INSTRUCTIONS_VIEWER_URL` in app.js points at its GitHub Pages deploy
   (https://jerrari12.github.io/gen2-visual-animator/; swap for localhost:8123
   for local viewer dev). The viewer generates its own step-by-step manifest from the build
-  (v1: tabletop + wall + under-table, 185 only; it shows a friendly message otherwise).
+  (2026-07-10: tabletop + wall for ALL SIX lengths; under-table only 165/185 —
+  no rail GLBs for the rest; 59 is hanging-only per mountBlocksLength, which the
+  viewer mirrors; it shows a friendly message otherwise).
   `updateInstructionsButton()` (called from refresh) greys the button out with
   the reason as tooltip when the build isn't instructions-ready — currently:
-  nothing placed, or a tabletop without a flat top (same `columnTops()`
-  condition as the board warning). **Live options sync** (both ways, echo-
+  nothing placed, a tabletop without a flat top (same `columnTops()`
+  condition as the board warning), a wall build with a 0.5H top row, or an
+  under-table build on a length other than 165/185 (viewer has no rail GLBs
+  yet — added 2026-07-10). **Live options sync** (both ways, echo-
   guarded): `syncOptionsToViewer()` posts {gen2:"buildOptions"} with closures/
   removedStoppers/wallStagger/handleStyle/**faceStyle/backCover** (last two
   added 2026-07-08 — the viewer now models EdgeLabel natively and renders the
@@ -73,6 +136,22 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   exported to tests.
 - `GEN2.unavailableSizes` (3W-3H, 4W-3H) are rendered as **blank gaps** in the
   palette, not greyed tiles.
+- **Per-collection catalogs** (`GEN2.collectionCases`, 2026-07-10): the 59 mini
+  collection ships only 4 cases (1W/2W × 0.5H/1H). `sizeExists(w, h, fill,
+  length?)` enforces it — width caps EVERY fill (no wider case exists), height
+  caps only the drawer fills (shelves/cabinets stack extenders above a 1H case;
+  59 extenders exist). The palette drops fully-missing height rows entirely
+  (renderPalette bail) so 59 shows exactly 4 tiles. Placed units that stop
+  existing after a length switch get a board warning + grey the 3D button
+  (never auto-deleted); `sanitizeBuild` judges restored units against the
+  INCOMING build's length (the optional `length` param — restoring a 270 link
+  while 59 is selected must not drop its 3W units). `sizeExists` is exported to
+  tests.
+- **Surprise me weights widths** (2026-07-10): 3W/4W units draw at ⅓ the weight
+  of 1W/2W (`pickWidth` in surpriseMe) — measured share fell ~21% → ~11% of
+  units; tweak the `Array(w >= 3 ? 1 : 3)` weight to taste. It also passes its
+  `buildFill` into `sizeExists` (state.fill may be a shelf while the surprise
+  rolls drawers — matters for per-collection drawer caps).
 - **Mount ✕ length rules** live on the length in `data.js`: the `59` length
   carries `noTabletop` (a reason string) because the 59 collection is too
   shallow to stand as a rigid free-standing unit — it has **no foot rails and

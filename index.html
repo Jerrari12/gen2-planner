@@ -19,6 +19,13 @@
     </div>
     <a class="brand-link" href="https://www.jerrari3d.com/gen2-modular-system" target="_blank" rel="noopener">JERRARI3D.com →</a>
   </div>
+  <!-- The promise up front: the planner's real product is the calculated build
+       package (exact BOM + custom 3D guide), not the drawing board. -->
+  <div class="hero-tagline">
+    <h1>Plan your GEN2 build &middot; get the exact parts list.</h1>
+    <p>Arrange your storage visually &middot; the planner works out every printable part, hardware quantity and download link, plus a 3D assembly guide built for your exact layout.</p>
+    <div class="hero-chips"><span>Visual layout</span><span>Exact parts list</span><span>Custom 3D guide</span></div>
+  </div>
 </header>
 
 <main>
@@ -71,11 +78,11 @@
     <details class="length-help">
       <summary>Unsure which length to choose?</summary>
       <div class="length-help-body">
-        <p><b>Length = depth only.</b> It sets how deep each drawer reaches front-to-back — it doesn't touch width or height, so you stay free to build as wide and tall as you like, and every drawer in one setup shares the same length.</p>
+        <p><b>Length = depth only.</b> It sets how deep each drawer reaches front-to-back · it doesn't touch width or height, so you stay free to build as wide and tall as you like, and every drawer in one setup shares the same length.</p>
         <ul>
           <li><b>Simple rule:</b> measure the deepest thing you'll store, then pick a length whose inside depth (shown in each description) is a little bigger.</li>
           <li><b>The trade-off:</b> shallow = less filament and print time, and you see everything at a glance; deep holds bigger and longer items but hides what's at the back.</li>
-          <li><b>Not locked in:</b> you can print a fresh set at a different depth later for a separate setup — nothing here is permanent.</li>
+          <li><b>Not locked in:</b> you can print a fresh set at a different depth later for a separate setup · nothing here is permanent.</li>
         </ul>
         <p>Truly torn? <b>185 (171mm inside)</b> is the versatile default that handles most everyday items.</p>
       </div>
@@ -163,35 +170,33 @@
             </label>
             <p class="hint" id="grid-h-auto" hidden>Height adjusts automatically as you build.</p>
           </div>
-          <div class="board-colors">
-            <span class="bc-label">Board colors</span>
-            <div class="seg" id="board-colors-seg" role="group" aria-label="Board colors">
-              <button type="button" data-colors="product">Product</button>
-              <button type="button" data-colors="schematic">Schematic</button>
-            </div>
-          </div>
           <button type="button" class="btn" id="surprise-me">🎲 Surprise me</button>
           <div class="tool-row">
             <button type="button" class="btn ghost small" id="load-example">Load example</button>
             <button type="button" class="btn ghost small" id="clear-layout">Clear</button>
           </div>
 
-          <details class="builds">
-            <summary>💾 Save &amp; share builds</summary>
-            <div class="builds-body">
-              <button type="button" class="btn ghost small" id="build-save">⭳ Save build to file</button>
-              <label class="btn ghost small build-import">⭱ Load build from file
+          <!-- Save/share sit in the open (the collapsible hid them too well);
+               SAVE = build file down, LOAD = build file in. -->
+          <div class="builds">
+            <div class="tool-row">
+              <button type="button" class="btn ghost small" id="build-save" title="Download this build as a file">SAVE</button>
+              <label class="btn ghost small build-import" title="Open a saved build file">LOAD
                 <input type="file" id="build-import" accept="application/json,.json" hidden />
               </label>
-              <button type="button" class="btn ghost small" id="build-share">🔗 Copy share link</button>
-              <input type="text" class="share-url" id="share-url" readonly hidden aria-label="Shareable build link" />
             </div>
-          </details>
+            <button type="button" class="btn ghost small" id="build-share">🔗 Copy share link</button>
+            <input type="text" class="share-url" id="share-url" readonly hidden aria-label="Shareable build link" />
+          </div>
         </div>
       </aside>
 
       <div class="board-area">
         <p class="board-helper" id="board-helper"></p>
+        <div class="board-tools">
+          <button type="button" class="btn ghost small" id="undo-btn" disabled title="Undo (Ctrl+Z)">↺ Undo</button>
+          <button type="button" class="btn ghost small" id="redo-btn" disabled title="Redo (Ctrl+Y)">↻ Redo</button>
+        </div>
         <div class="board-scroll">
           <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>
@@ -293,9 +298,12 @@
     </div>
   </section>
 
-  <!-- STEP 5: Parts list -->
-  <section class="step" id="step-parts" hidden>
-    <h2><span class="step-num">5</span> Your parts list</h2>
+  <!-- STEP 5: Customize · everything that changes WHICH parts get billed,
+       before the list itself. The handle picker nests under the faceplate
+       cards: it only applies when the chosen faceplate has no built-in handle,
+       so it reads as a follow-up question to that choice. -->
+  <section class="step" id="step-customize" hidden>
+    <h2><span class="step-num">5</span> Customize your build</h2>
     <div class="bom-style-row">
       <div class="style-pick faceplate-pick" id="faceplate-style-pick" hidden>
         <label>Decor faceplate style</label>
@@ -304,26 +312,40 @@
         <p class="club-note" id="club-note" hidden></p>
         <a class="label-gen" id="label-gen-link" target="_blank" rel="noopener" hidden></a>
         <div class="fp-video" id="faceplate-video" hidden></div>
-      </div>
-      <div class="style-pick" id="handle-style-pick" hidden>
-        <label>Handle style</label>
-        <p class="style-help">For Decor drawers whose faceplate has no built-in handle.</p>
-        <div class="seg" id="handle-style-seg"></div>
+        <div class="style-pick nested-pick" id="handle-style-pick" hidden>
+          <label>Handle style</label>
+          <p class="style-help">For Decor drawers whose faceplate has no built-in handle.</p>
+          <div class="seg" id="handle-style-seg"></div>
+        </div>
       </div>
       <div class="style-pick" id="door-style-pick" hidden>
         <label>Cabinet door style</label>
         <div class="seg" id="door-style-seg"></div>
       </div>
+      <div class="style-pick" id="hardware-pick" hidden>
+        <label>Drawer hardware</label>
+        <p class="style-help">Sets every drawer at once &middot; fine-tune a single drawer by selecting it on the grid.</p>
+        <div class="hw-row"><span class="hw-lbl">Drawer closures</span><div class="seg" id="closure-master-seg"></div></div>
+        <div class="hw-row"><span class="hw-lbl">Drawer stoppers</span><div class="seg" id="stopper-master-seg"></div></div>
+      </div>
     </div>
+  </section>
+
+  <!-- STEP 6: Parts list -->
+  <section class="step" id="step-parts" hidden>
+    <h2><span class="step-num">6</span> Your parts list</h2>
     <div id="bom"></div>
+    <!-- The custom 3D guide is the star deliverable · it leads, solid accent;
+         the exports follow as utilities. -->
     <div class="bom-actions">
+      <button type="button" class="btn primary-action" id="instructions-3d">🧊 Open my 3D Build Studio</button>
       <button type="button" class="btn" id="copy-bom">Copy as text</button>
       <button type="button" class="btn" id="csv-bom">Download CSV</button>
       <button type="button" class="btn" id="print-bom">Print</button>
       <button type="button" class="btn" id="save-image">Save build image</button>
-      <button type="button" class="btn" id="instructions-3d">🧊 3D assembly instructions</button>
       <button type="button" class="btn" id="labels-txt" hidden>Download labels</button>
     </div>
+    <p class="bom-actions-sub">Step-by-step assembly built for this exact layout · plus filament colors, faceplate swaps and hardware options in full 3D.</p>
     <p class="fineprint">
       Quantities for mount hardware are estimates · always confirm against the instructions at
       <a href="https://www.jerrari3d.com/gen2-modular-system/instructions" target="_blank" rel="noopener">the GEN2 Instruction Hub</a>.
@@ -332,12 +354,17 @@
 
 </main>
 
+<!-- Floating twin of the Build Studio button: present as soon as units are
+     placed, greyed (with the reason) until the layout is legal · the star
+     feature shouldn't live only at the very bottom of a long page. -->
+<button type="button" class="fab-3d" id="fab-3d" hidden>🧊 3D Build Studio</button>
+
 <!-- Shared magnifier card for the parts-list thumbnails (hover/tap to enlarge).
      Fixed-position so it can escape the BOM table's scroll clipping. -->
 <div class="thumb-zoom" id="thumb-zoom" hidden aria-hidden="true"><img alt="" /><span class="tz-name" id="thumb-zoom-name"></span></div>
 
 <!-- Shared player for the "▶ Watch" instructional-video chips. The iframe src
-     is set on open and cleared on close — nothing loads until a chip is
+     is set on open and cleared on close · nothing loads until a chip is
      clicked, and clearing the src stops playback. -->
 <dialog class="video-modal" id="video-modal">
   <div class="vm-head">
@@ -363,7 +390,7 @@
 <script src="js/hero.js"></script>
 <!-- GoatCounter analytics: cookieless, no consent banner. Counts a pageview on
      load; app.js's track() sends custom events (mount/length/faceplate/share…).
-     Loads async and fails silent — the planner never depends on it. -->
+     Loads async and fails silent · the planner never depends on it. -->
 <!-- Absolute https (not protocol-relative): a //-URL opened via file://
      resolves to a Windows network share and hangs the page for minutes. -->
 <script data-goatcounter="https://jerrari.goatcounter.com/count"

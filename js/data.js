@@ -44,6 +44,15 @@ const GEN2 = {
   // palette entirely (rendered as blank gaps) rather than greyed out.
   unavailableSizes: ["3W-3H", "4W-3H"],
 
+  // Per-collection case catalogs, where a length ships fewer sizes than the
+  // full lineup. The 59 mini collection has only 4 cases (1W/2W × 0.5H/1H):
+  // maxW caps EVERY fill's width (no wider case exists to build on), while
+  // maxDrawerH caps only the drawer fills — shelves/cabinets stack extenders
+  // above a 1H case (59 extenders exist), so their heights stay open.
+  collectionCases: {
+    59: { maxW: 2, maxDrawerH: 1 },
+  },
+
   // What a case can be filled with
   fills: [
     {
@@ -82,13 +91,13 @@ const GEN2 = {
     // background + the full-image hover preview.
     { id: "essential",  label: "Essential",   sub: "Free core faceplate",
       img: "img/parts/Faceplate-Essential.jpg",
-      blurb: "The free core faceplate — a clean, complete drawer front. No labels or accents, just the standard GEN2 look." },
+      blurb: "The free core faceplate · a clean, complete drawer front. No labels or accents, just the standard GEN2 look." },
     { id: "edgelabel",  label: "EdgeLabel",   integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://edgelabel.jerrari3d.com/",
       img: "img/parts/Faceplate-EdgeLabel.jpg",
-      blurb: "Swappable labels and accents with the signature edge-label look — restyle and relabel any drawer in seconds. Built-in handle. Included with the GEN2 Club." },
+      blurb: "Swappable labels and accents with the signature edge-label look · restyle and relabel any drawer in seconds. Built-in handle. Included with the GEN2 Club." },
     { id: "classicpro", label: "Classic Pro", integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://classic.jerrari3d.com/",
       img: "img/parts/Faceplate-ClassicPro.jpg",
-      blurb: "Swappable labels and accents with a classic, premium finish — restyle and relabel any drawer in seconds. Built-in handle. Included with the GEN2 Club." },
+      blurb: "Swappable labels and accents with a classic, premium finish · restyle and relabel any drawer in seconds. Built-in handle. Included with the GEN2 Club." },
   ],
   doorStyles: [
     { id: "essential",  label: "Essential" },
@@ -164,7 +173,7 @@ const GEN2 = {
       // collection has no foot rails and no feet slots in the case undersides,
       // so there's nothing to make a Table Top build stable. Under-Table / Wall
       // only (those hang off rails / the wall, no feet needed).
-      noTabletop: "The 59 collection is too shallow for a Table Top build — its cases have no foot rails and no feet slots to stand on. Use Under-Table or Wall mount.",
+      noTabletop: "The 59 collection is too shallow for a Table Top build · its cases have no foot rails and no feet slots to stand on. Use Under-Table or Wall mount.",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
     { id: 115, label: "115", color: "#9ea3a8", tagline: "Medium · 101mm inside · pens, cables, tape, small parts & tins",
       page: "https://www.jerrari3d.com/gen2-modular-system" },
@@ -237,7 +246,7 @@ const GEN2 = {
     "tabletop": (ctx) => {
       const P = GEN2.partNames;
       const kit = `GEN2 Table Top Kit V2 - ${ctx.len}`;
-      const cov = buildCoverItems(ctx.len, ctx.runs, kit);
+      const cov = buildCoverItems(ctx.len, ctx.runs);
       const items = cov.items.slice();
 
       // Foot rails only where a run's bottom row is more than one case (separate
@@ -255,9 +264,11 @@ const GEN2 = {
         }
       });
       if (frUsed) {
-        mixLines(fru, P.footRailUpper, ctx.len, { linkAs: kit, note: "From the Table Top Kit V2 download." })
+        // foot rails got their own per-length product pages 2026-07-11
+        const fr = `GEN2 ${ctx.len} Foot Rails`;
+        mixLines(fru, P.footRailUpper, ctx.len, { linkAs: fr, note: "Locks into the dovetail slots under the bottom cases." })
           .forEach((i) => items.push(i));
-        mixLines(frl, P.footRailLower, ctx.len, { linkAs: kit, note: "From the Table Top Kit V2 download. Needed when the bottom row is more than one case." })
+        mixLines(frl, P.footRailLower, ctx.len, { linkAs: fr, note: "Slides into the upper rail. Needed when the bottom row is more than one case." })
           .forEach((i) => items.push(i));
       }
 
@@ -292,15 +303,14 @@ const GEN2 = {
         note: "Hardware store item · 2 screws per 1W. Use anchors appropriate for your wall type.",
         hardware: true,
       });
-      // Wall builds cap the top with the same covers as the Table Top Kit (they
-      // close the exposed top and carry the top-row drawer-stopper slots). No
-      // foot rails or feet — a wall build hangs off the ground.
+      // Wall builds cap the top with the same covers (they close the exposed
+      // top and carry the top-row drawer-stopper slots). No foot rails or
+      // feet — a wall build hangs off the ground.
       // Staggered = one connected top (tile the whole run). Per-column = each
       // top case gets its own cover (1W/2W = a single piece; 3W/4W still tile
       // internally to reach the width), so columns lift off independently.
-      const kit = `GEN2 Table Top Kit V2 - ${ctx.len}`;
       const coverUnits = ctx.wallStagger ? ctx.runs : ctx.topCases.map((w) => ({ width: w }));
-      const cov = buildCoverItems(ctx.len, coverUnits, kit);
+      const cov = buildCoverItems(ctx.len, coverUnits);
       cov.items.forEach((i) => items.push(i));
       items.push({ name: "M3×6mm screw", qty: cov.screws, hardware: true, optional: true,
         note: "Optional · secures the covers, 1 per 1W." });
@@ -349,7 +359,7 @@ const GEN2 = {
     },
     {
       id: "pushclick", label: "Push-Click", soon: true, noWall: true,
-      tip: "PR-001 push-to-open — coming soon. Not for wall builds: it sticks out the back of the case.",
+      tip: "PR-001 push-to-open · coming soon. Not for wall builds: it sticks out the back of the case.",
     },
   ],
 
@@ -475,7 +485,9 @@ function mixLines(mix, nameFn, len, extra) {
 
 // Covers (CU + CL) tiled over each contiguous run. Shared by tabletop + wall.
 // Returns { items, screws } where screws = optional M3-6mm count (1 per W).
-function buildCoverItems(len, runs, kit) {
+// Covers got their own per-length product pages 2026-07-11 — rows link there
+// now, not to the Table Top Kit bundle.
+function buildCoverItems(len, runs) {
   const P = GEN2.partNames;
   const cu = {}, cl = {};
   let screws = 0;
@@ -485,10 +497,11 @@ function buildCoverItems(len, runs, kit) {
     addMix(cl, t.lower);
     screws += run.width;
   });
+  const covers = `GEN2 ${len} Covers`;
   const items = [];
-  mixLines(cu, P.coverUpper, len, { linkAs: kit, note: "From the GEN2 Table Top Kit V2 download." })
+  mixLines(cu, P.coverUpper, len, { linkAs: covers, note: "Snaps over the Cover Lower for a smooth finished top." })
     .forEach((i) => items.push(i));
-  mixLines(cl, P.coverLower, len, { linkAs: kit, note: "From the Table Top Kit V2 download. Optional on 1W/2W-only builds, but needed for drawer stoppers and rigidity." })
+  mixLines(cl, P.coverLower, len, { linkAs: covers, note: "Optional on 1W/2W-only builds, but needed for drawer stoppers and rigidity." })
     .forEach((i) => items.push(i));
   return { items, screws };
 }
@@ -511,12 +524,12 @@ const LINK_OVERRIDES = {
   "GEN2 Rails - 270": { t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20LARGE-1165816" },
 
   // ---- Cases — one "{len} Cases - All" collection page per length ----
-  "GEN2 59 Cases - All":  { p: "https://www.printables.com/model/1658749-gen2-59-cases-all" },
-  "GEN2 115 Cases - All": { p: "https://www.printables.com/model/1658744-gen2-115-cases-all" },
-  "GEN2 165 Cases - All": { p: "https://www.printables.com/model/1658722-gen2-165-cases-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Cases%20-%20All-1535457" },
-  "GEN2 185 Cases - All": { p: "https://www.printables.com/model/1658700-gen2-185-cases-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20Cases%20-%20All-1535455" },
-  "GEN2 240 Cases - All": { p: "https://www.printables.com/model/1658608-gen2-240-cases-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20240%20Cases%20-%20All-1535459" },
-  "GEN2 270 Cases - All": { p: "https://www.printables.com/model/1658688-gen2-270-cases-all" },
+  "GEN2 59 Cases - All":  { p: "https://www.printables.com/model/1658749-gen2-59-cases-all", t: "https://than.gs/m/1535454" },
+  "GEN2 115 Cases - All": { p: "https://www.printables.com/model/1658744-gen2-115-cases-all", t: "https://than.gs/m/1535435" },
+  "GEN2 165 Cases - All": { p: "https://www.printables.com/model/1658722-gen2-165-cases-all", t: "https://than.gs/m/1535457" },
+  "GEN2 185 Cases - All": { p: "https://www.printables.com/model/1658700-gen2-185-cases-all", t: "https://than.gs/m/1535455" },
+  "GEN2 240 Cases - All": { p: "https://www.printables.com/model/1658608-gen2-240-cases-all", t: "https://than.gs/m/1535459" },
+  "GEN2 270 Cases - All": { p: "https://www.printables.com/model/1658688-gen2-270-cases-all", t: "https://than.gs/m/1535458" },
 
   // ---- Case extenders ----
   "GEN2 59 Case Extenders":  { p: "https://www.printables.com/model/1563420-gen2-59-case-extenders" },
@@ -535,14 +548,30 @@ const LINK_OVERRIDES = {
   "GEN2 270 Classic Drawers - All": { p: "https://www.printables.com/model/1164306-gen2-270-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Drawers%20-%20Large-1093398" },
 
   // ---- Decor drawers — per-length "…Decor Drawers - All" collection ----
-  "GEN2 59 Decor Drawers - All":  { p: "https://www.printables.com/model/1070454-gen2-59-decor-drawers-all" },
-  "GEN2 115 Decor Drawers - All": { p: "https://www.printables.com/model/1307794-gen2-115-decor-drawers-all" },
-  "GEN2 165 Decor Drawers - All": { p: "https://www.printables.com/model/1100978-gen2-165-decor-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Decor%20Drawers%20-%20All-1493950" },
-  "GEN2 185 Decor Drawers - All": { t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20Decor%20Drawers%20-%20All-1116945" },
-  "GEN2 240 Decor Drawers - All": { p: "https://www.printables.com/model/1322479-gen2-240-decor-drawers-all" },
-  "GEN2 270 Decor Drawers - All": { p: "https://www.printables.com/model/1062961-gen2-270-decor-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20270%20Decor%20Drawers%20-%20All-1171387" },
+  "GEN2 59 Decor Drawers - All":  { p: "https://www.printables.com/model/1070454-gen2-59-decor-drawers-all", t: "https://than.gs/m/1481534" },
+  "GEN2 115 Decor Drawers - All": { p: "https://www.printables.com/model/1307794-gen2-115-decor-drawers-all", t: "https://than.gs/m/1158598" },
+  "GEN2 165 Decor Drawers - All": { p: "https://www.printables.com/model/1100978-gen2-165-decor-drawers-all", t: "https://than.gs/m/1493950" },
+  "GEN2 185 Decor Drawers - All": { p: "https://www.printables.com/model/964551-gen2-185-decor-drawers-all", t: "https://than.gs/m/1116945" },
+  "GEN2 240 Decor Drawers - All": { p: "https://www.printables.com/model/1322479-gen2-240-decor-drawers-all", t: "https://than.gs/m/1360074" },
+  "GEN2 270 Decor Drawers - All": { p: "https://www.printables.com/model/1062961-gen2-270-decor-drawers-all", t: "https://than.gs/m/1171387" },
 
-  // ---- Table Top Kit V2 (covers / foot rails / feet funnel here via linkAs) ----
+  // ---- Covers — dedicated per-length pages (2026-07-11; CL/CU rows funnel here) ----
+  "GEN2 59 Covers":  { p: "https://www.printables.com/model/1777881-gen2-59-cover" },
+  "GEN2 115 Covers": { p: "https://www.printables.com/model/1777837-gen2-115-cover" },
+  "GEN2 165 Covers": { p: "https://www.printables.com/model/1774498-gen2-165-covers" },
+  "GEN2 185 Covers": { p: "https://www.printables.com/model/1777844-gen2-185-cover" },
+  "GEN2 240 Covers": { p: "https://www.printables.com/model/1777846-gen2-240-cover" },
+  "GEN2 270 Covers": { p: "https://www.printables.com/model/1777849-gen2-270-cover" },
+
+  // ---- Foot Rails — dedicated per-length pages (2026-07-11; FR rows funnel here;
+  //      no 59 — that collection has no foot rails) ----
+  "GEN2 115 Foot Rails": { p: "https://www.printables.com/model/1777819-gen2-115-foot-rails" },
+  "GEN2 165 Foot Rails": { p: "https://www.printables.com/model/1775386-gen2-165-foot-rails" },
+  "GEN2 185 Foot Rails": { p: "https://www.printables.com/model/1777823-gen2-185-foot-rails" },
+  "GEN2 240 Foot Rails": { p: "https://www.printables.com/model/1777826-gen2-240-foot-rails" },
+  "GEN2 270 Foot Rails": { p: "https://www.printables.com/model/1777830-gen2-270-foot-rails" },
+
+  // ---- Table Top Kit V2 (feet still funnel here via linkAs) ----
   "GEN2 Table Top Kit V2 - 115": { p: "https://www.printables.com/model/1146353-gen2-table-top-kit-v2-115-medium", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20115-1245167" },
   "GEN2 Table Top Kit V2 - 165": { p: "https://www.printables.com/model/1124278-gen2-table-top-kit-v2-165-mini", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20165-1233752" },
   "GEN2 Table Top Kit V2 - 185": { p: "https://www.printables.com/model/1118906-gen2-table-top-kit-v2-185-standard", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20185-1231757" },
@@ -552,7 +581,7 @@ const LINK_OVERRIDES = {
   // ---- Wall Mount Kit – Lite ----
   "GEN2 Wall Mount Kit - Lite - 59":  { p: "https://www.printables.com/model/1513322-gen2-wall-mount-kit-lite-59" },
   "GEN2 Wall Mount Kit - Lite - 115": { p: "https://www.printables.com/model/1537169-gen2-wall-mount-kit-lite-115" },
-  "GEN2 Wall Mount Kit - Lite - 165": { p: "https://www.printables.com/model/1605963-gen2-wall-mount-kit-lite-165" },
+  "GEN2 Wall Mount Kit - Lite - 165": { p: "https://www.printables.com/model/1605963-gen2-wall-mount-kit-lite-165", t: "https://than.gs/m/1515711" },
 
   // ---- Universal hardware (QuickLocks funnel here via linkAs) ----
   "GEN2 Hardware": { p: "https://www.printables.com/model/1012796-gen2-hardware", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Hardware-1141439" },
@@ -621,9 +650,9 @@ function partLinks(name) {
    Windows doesn't care locally. */
 const IMAGE_OVERRIDES = {
   "GEN2 QuickLock - Left": "img/parts/QuickLock.png",
-  "GEN2 QuickLock - Right": "img/parts/QuickLock.png",
+  "GEN2 QuickLock - Right": "img/parts/QuickLock-R.png", // the Left render flipped horizontally (2026-07-10) — they're mirror parts
   "GEN2 Magnet Clip": "img/parts/Magnet Clip.png",
-  // L/R stoppers are mirrored parts sharing one render (like the QuickLocks)
+  // L/R stoppers are mirrored parts sharing one render
   "GEN2 Drawer Stopper - Left": "img/parts/Drawer Stopper.png",
   "GEN2 Drawer Stopper - Right": "img/parts/Drawer Stopper.png",
   // Hardware-store items (bought, not printed) — real reference photos instead
@@ -940,6 +969,54 @@ const IMAGE_OVERRIDES = {
   "GEN2 240 Case Extender - 2W-1H": "img/parts/240/Case Extender 240-2W.png",
   "GEN2 240 Case Extender - 3W-1H": "img/parts/240/Case Extender 240-3W.png",
   "GEN2 240 Case Extender - 4W-1H": "img/parts/240/Case Extender 240-4W.png",
+  // Cover renders (2026-07-10) — CL + CU, all six lengths × 1W/2W. Filenames
+  // are the library part codes, so images and GLBs share names.
+  "GEN2 59 Cover Lower (CL) - 1W": "img/parts/59/CL-59-1W.png",
+  "GEN2 59 Cover Lower (CL) - 2W": "img/parts/59/CL-59-2W.png",
+  "GEN2 59 Cover Upper (CU) - 1W": "img/parts/59/CU-59-1W.png",
+  "GEN2 59 Cover Upper (CU) - 2W": "img/parts/59/CU-59-2W.png",
+  "GEN2 115 Cover Lower (CL) - 1W": "img/parts/115/CL-115-1W.png",
+  "GEN2 115 Cover Lower (CL) - 2W": "img/parts/115/CL-115-2W.png",
+  "GEN2 115 Cover Upper (CU) - 1W": "img/parts/115/CU-115-1W.png",
+  "GEN2 115 Cover Upper (CU) - 2W": "img/parts/115/CU-115-2W.png",
+  "GEN2 165 Cover Lower (CL) - 1W": "img/parts/165/CL-165-1W.png",
+  "GEN2 165 Cover Lower (CL) - 2W": "img/parts/165/CL-165-2W.png",
+  "GEN2 165 Cover Upper (CU) - 1W": "img/parts/165/CU-165-1W.png",
+  "GEN2 165 Cover Upper (CU) - 2W": "img/parts/165/CU-165-2W.png",
+  "GEN2 185 Cover Lower (CL) - 1W": "img/parts/185/CL-185-1W.png",
+  "GEN2 185 Cover Lower (CL) - 2W": "img/parts/185/CL-185-2W.png",
+  "GEN2 185 Cover Upper (CU) - 1W": "img/parts/185/CU-185-1W.png",
+  "GEN2 185 Cover Upper (CU) - 2W": "img/parts/185/CU-185-2W.png",
+  "GEN2 240 Cover Lower (CL) - 1W": "img/parts/240/CL-240-1W.png",
+  "GEN2 240 Cover Lower (CL) - 2W": "img/parts/240/CL-240-2W.png",
+  "GEN2 240 Cover Upper (CU) - 1W": "img/parts/240/CU-240-1W.png",
+  "GEN2 240 Cover Upper (CU) - 2W": "img/parts/240/CU-240-2W.png",
+  "GEN2 270 Cover Lower (CL) - 1W": "img/parts/270/CL-270-1W.png",
+  "GEN2 270 Cover Lower (CL) - 2W": "img/parts/270/CL-270-2W.png",
+  "GEN2 270 Cover Upper (CU) - 1W": "img/parts/270/CU-270-1W.png",
+  "GEN2 270 Cover Upper (CU) - 2W": "img/parts/270/CU-270-2W.png",
+  // Foot Rail renders (2026-07-10) — FR-L + FR-U × 1W/2W, five lengths (the 59
+  // has no foot rails at all — hanging-only collection).
+  "GEN2 115 Foot Rail Lower (FR-L) - 1W": "img/parts/115/FR-L_115-1W.png",
+  "GEN2 115 Foot Rail Lower (FR-L) - 2W": "img/parts/115/FR-L_115-2W.png",
+  "GEN2 115 Foot Rail Upper (FR-U) - 1W": "img/parts/115/FR-U_115-1W.png",
+  "GEN2 115 Foot Rail Upper (FR-U) - 2W": "img/parts/115/FR-U_115-2W.png",
+  "GEN2 165 Foot Rail Lower (FR-L) - 1W": "img/parts/165/FR-L_165-1W.png",
+  "GEN2 165 Foot Rail Lower (FR-L) - 2W": "img/parts/165/FR-L_165-2W.png",
+  "GEN2 165 Foot Rail Upper (FR-U) - 1W": "img/parts/165/FR-U_165-1W.png",
+  "GEN2 165 Foot Rail Upper (FR-U) - 2W": "img/parts/165/FR-U_165-2W.png",
+  "GEN2 185 Foot Rail Lower (FR-L) - 1W": "img/parts/185/FR-L_185-1W.png",
+  "GEN2 185 Foot Rail Lower (FR-L) - 2W": "img/parts/185/FR-L_185-2W.png",
+  "GEN2 185 Foot Rail Upper (FR-U) - 1W": "img/parts/185/FR-U_185-1W.png",
+  "GEN2 185 Foot Rail Upper (FR-U) - 2W": "img/parts/185/FR-U_185-2W.png",
+  "GEN2 240 Foot Rail Lower (FR-L) - 1W": "img/parts/240/FR-L_240-1W.png",
+  "GEN2 240 Foot Rail Lower (FR-L) - 2W": "img/parts/240/FR-L_240-2W.png",
+  "GEN2 240 Foot Rail Upper (FR-U) - 1W": "img/parts/240/FR-U_240-1W.png",
+  "GEN2 240 Foot Rail Upper (FR-U) - 2W": "img/parts/240/FR-U_240-2W.png",
+  "GEN2 270 Foot Rail Lower (FR-L) - 1W": "img/parts/270/FR-L_270-1W.png",
+  "GEN2 270 Foot Rail Lower (FR-L) - 2W": "img/parts/270/FR-L_270-2W.png",
+  "GEN2 270 Foot Rail Upper (FR-U) - 1W": "img/parts/270/FR-U_270-1W.png",
+  "GEN2 270 Foot Rail Upper (FR-U) - 2W": "img/parts/270/FR-U_270-2W.png",
 };
 
 /* Thumbnail path for a part. Render files mirror the part name with "GEN2 " →
@@ -948,8 +1025,24 @@ const IMAGE_OVERRIDES = {
    → img/parts/GEN2_240-3W-05H Classic Drawer_256p.png. Off-pattern or shared art
    goes in IMAGE_OVERRIDES above; anything missing falls back to placeholder.svg. */
 const RENDER_SUFFIX = "_256p";
-function partImage(name) {
+function partImage(name, variant) {
   if (IMAGE_OVERRIDES[name]) return IMAGE_OVERRIDES[name];
+  // Wall Mount Lite rows share one name per length with a "<w>W section"
+  // variant — the render set (2026-07-11 batch) is per WIDTH, universal
+  // across lengths, so the variant picks the file.
+  if (variant && /^GEN2 Wall Mount Kit - Lite/.test(name)) {
+    const w = variant.match(/^(\d)W/);
+    if (w) return "img/parts/WallMount_Lite_" + w[1] + "W.png";
+  }
+  // Decor faceplates are SHARED hardware — one render set serves every length,
+  // so their files can't carry the length the auto-pattern expects. EdgeLabel
+  // has per-size renders (2026-07-08 batch, EdgeLabel_<size>.png, dots dropped
+  // like everywhere else); the other styles show their hero card art until
+  // per-size batches exist.
+  const fp = name.match(/^GEN2 \d+ (Essential|EdgeLabel|Classic Pro) Decor Faceplate - (.+)$/);
+  if (fp) return fp[1] === "EdgeLabel"
+    ? "img/parts/EdgeLabel_" + fp[2].replace(/\./g, "") + ".png"
+    : "img/parts/Faceplate-" + fp[1].replace(" ", "") + ".jpg";
   const file = name.replace(/^GEN2 /, "GEN2_").replace(/\./g, "") + RENDER_SUFFIX + ".png";
   return "img/parts/" + file;
 }

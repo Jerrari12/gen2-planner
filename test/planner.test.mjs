@@ -746,12 +746,15 @@ test("sanitizer discards a garbage cabinet interior (falls back to simple)", () 
 
 test("un-modeled drawer sizes show as coming soon with no download links", () => {
   const { app } = boot();
+  // the 2026-07-11 batch modeled every classic size except 3H at 115/240/270,
+  // so the un-modeled example lives at 240 now (3W-1.5H used to be the pick)
+  app.state.length = 240;
   place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "classic" });   // 1W-1H: modeled
-  place(app, { id: 2, x: 1, y: 0, w: 3, hh: 3, fill: "classic" });   // 3W-1.5H: not modeled
+  place(app, { id: 2, x: 1, y: 0, w: 1, hh: 6, fill: "classic" });   // 1W-3H: not modeled at 240
   const items = [];
   for (const s of app.computeBom()) items.push(...s.items.filter((i) => i.name.includes("Classic Drawer")));
   const modeled = items.find((i) => i.name.includes("1W-1H"));
-  const unmodeled = items.find((i) => i.name.includes("3W-1.5H"));
+  const unmodeled = items.find((i) => i.name.includes("1W-3H"));
   assert.equal(modeled.unreleased, false);
   assert.equal(unmodeled.unreleased, true);
 });

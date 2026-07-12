@@ -488,13 +488,13 @@ function buildCoverItems(len, runs) {
    URLs sourced from the verified GEN2 Printables/Thangs link inventory.
    --------------------------------------------------------------------------- */
 const LINK_OVERRIDES = {
-  // ---- Under-table rails (verified Thangs; Printables only where published) ----
-  "GEN2 Rails - 59":  { t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20SMALL-1165763" },
-  "GEN2 Rails - 115": { t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20MEDIUM-1165720" },
-  "GEN2 Rails - 165": { t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20165-1165793" },
+  // ---- Under-table rails (Printables pages for every length, 2026-07-12) ----
+  "GEN2 Rails - 59":  { p: "https://www.printables.com/model/1053797-gen2-rails-59-small", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20SMALL-1165763" },
+  "GEN2 Rails - 115": { p: "https://www.printables.com/model/1053795-gen2-rails-115-medium", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20MEDIUM-1165720" },
+  "GEN2 Rails - 165": { p: "https://www.printables.com/model/1053557-gen2-rails-165-mini", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20165-1165793" },
   "GEN2 Rails - 185": { p: "https://www.printables.com/model/1052357-gen2-rails-185-standard", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20STANDARD-1163830" },
-  "GEN2 Rails - 240": { t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20240%20Lite-1360077" },
-  "GEN2 Rails - 270": { t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20LARGE-1165816" },
+  "GEN2 Rails - 240": { p: "https://www.printables.com/model/1322484-gen2-rails-240", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20240%20Lite-1360077" },
+  "GEN2 Rails - 270": { p: "https://www.printables.com/model/1053793-gen2-rails-270-large", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20LARGE-1165816" },
 
   // ---- Cases — one "{len} Cases - All" collection page per length ----
   "GEN2 59 Cases - All":  { p: "https://www.printables.com/model/1658749-gen2-59-cases-all", t: "https://than.gs/m/1535454" },
@@ -517,7 +517,7 @@ const LINK_OVERRIDES = {
   "GEN2 115 Classic Drawers - All": { p: "https://www.printables.com/model/1143243-gen2-115-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20115%20Classic%20Drawers-1069181" },
   "GEN2 165 Classic Drawers - All": { p: "https://www.printables.com/model/625776-gen2-165-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Classic%20Drawers-1044262" },
   "GEN2 185 Classic Drawers - All": { p: "https://www.printables.com/model/278293-gen2-185-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20-%20Classic%20Drawers-1042322" },
-  "GEN2 240 Classic Drawers - All": { p: "https://www.printables.com/model/1324538-gen2-240-classic-drawers-all" },
+  "GEN2 240 Classic Drawers - All": { p: "https://www.printables.com/model/1324538-gen2-240-classic-drawers-all", t: "https://than.gs/m/1360091" },
   "GEN2 270 Classic Drawers - All": { p: "https://www.printables.com/model/1164306-gen2-270-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Drawers%20-%20Large-1093398" },
 
   // ---- Decor drawers — per-length "…Decor Drawers - All" collection ----
@@ -528,21 +528,21 @@ const LINK_OVERRIDES = {
   "GEN2 240 Decor Drawers - All": { p: "https://www.printables.com/model/1322479-gen2-240-decor-drawers-all", t: "https://than.gs/m/1360074" },
   "GEN2 270 Decor Drawers - All": { p: "https://www.printables.com/model/1062961-gen2-270-decor-drawers-all", t: "https://than.gs/m/1171387" },
 
-  // ---- Covers — dedicated per-length pages (2026-07-11; CL/CU rows funnel here) ----
-  "GEN2 59 Covers":  { p: "https://www.printables.com/model/1777881-gen2-59-cover" },
-  "GEN2 115 Covers": { p: "https://www.printables.com/model/1777837-gen2-115-cover" },
-  "GEN2 165 Covers": { p: "https://www.printables.com/model/1774498-gen2-165-covers" },
-  "GEN2 185 Covers": { p: "https://www.printables.com/model/1777844-gen2-185-cover" },
-  "GEN2 240 Covers": { p: "https://www.printables.com/model/1777846-gen2-240-cover" },
-  "GEN2 270 Covers": { p: "https://www.printables.com/model/1777849-gen2-270-cover" },
+  // ---- Covers — dedicated per-length pages (Thangs added 2026-07-12; CL/CU rows funnel here) ----
+  "GEN2 59 Covers":  { p: "https://www.printables.com/model/1777881-gen2-59-cover", t: "https://than.gs/m/1574324" },
+  "GEN2 115 Covers": { p: "https://www.printables.com/model/1777837-gen2-115-cover", t: "https://than.gs/m/1574330" },
+  "GEN2 165 Covers": { p: "https://www.printables.com/model/1774498-gen2-165-covers", t: "https://than.gs/m/1574320" },
+  "GEN2 185 Covers": { p: "https://www.printables.com/model/1777844-gen2-185-cover", t: "https://than.gs/m/1574319" },
+  "GEN2 240 Covers": { p: "https://www.printables.com/model/1777846-gen2-240-cover", t: "https://than.gs/m/1574326" },
+  "GEN2 270 Covers": { p: "https://www.printables.com/model/1777849-gen2-270-cover", t: "https://than.gs/m/1574325" },
 
-  // ---- Foot Rails — dedicated per-length pages (2026-07-11; FR rows funnel here;
-  //      no 59 — that collection has no foot rails) ----
-  "GEN2 115 Foot Rails": { p: "https://www.printables.com/model/1777819-gen2-115-foot-rails" },
-  "GEN2 165 Foot Rails": { p: "https://www.printables.com/model/1775386-gen2-165-foot-rails" },
-  "GEN2 185 Foot Rails": { p: "https://www.printables.com/model/1777823-gen2-185-foot-rails" },
-  "GEN2 240 Foot Rails": { p: "https://www.printables.com/model/1777826-gen2-240-foot-rails" },
-  "GEN2 270 Foot Rails": { p: "https://www.printables.com/model/1777830-gen2-270-foot-rails" },
+  // ---- Foot Rails — dedicated per-length pages (Thangs added 2026-07-12; FR rows
+  //      funnel here; no 59 — that collection has no foot rails) ----
+  "GEN2 115 Foot Rails": { p: "https://www.printables.com/model/1777819-gen2-115-foot-rails", t: "https://than.gs/m/1574331" },
+  "GEN2 165 Foot Rails": { p: "https://www.printables.com/model/1775386-gen2-165-foot-rails", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Foot%20Rails-1574329" },
+  "GEN2 185 Foot Rails": { p: "https://www.printables.com/model/1777823-gen2-185-foot-rails", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20Foot%20Rails-1574328" },
+  "GEN2 240 Foot Rails": { p: "https://www.printables.com/model/1777826-gen2-240-foot-rails", t: "https://than.gs/m/1574322" },
+  "GEN2 270 Foot Rails": { p: "https://www.printables.com/model/1777830-gen2-270-foot-rails", t: "https://than.gs/m/1574327" },
 
   // ---- Table Top Kit V2 (feet still funnel here via linkAs) ----
   "GEN2 Table Top Kit V2 - 115": { p: "https://www.printables.com/model/1146353-gen2-table-top-kit-v2-115-medium", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20115-1245167" },
@@ -551,10 +551,15 @@ const LINK_OVERRIDES = {
   "GEN2 Table Top Kit V2 - 240": { p: "https://www.printables.com/model/1324501-gen2-table-top-kit-v2-240", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20240-1360073" },
   "GEN2 Table Top Kit V2 - 270": { p: "https://www.printables.com/model/1163955-gen2-table-top-kit-v2-270-large", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20270-1253780" },
 
-  // ---- Wall Mount Kit – Lite ----
-  "GEN2 Wall Mount Kit - Lite - 59":  { p: "https://www.printables.com/model/1513322-gen2-wall-mount-kit-lite-59" },
-  "GEN2 Wall Mount Kit - Lite - 115": { p: "https://www.printables.com/model/1537169-gen2-wall-mount-kit-lite-115" },
-  "GEN2 Wall Mount Kit - Lite - 165": { p: "https://www.printables.com/model/1605963-gen2-wall-mount-kit-lite-165", t: "https://than.gs/m/1515711" },
+  // ---- Wall Mount Kit – Lite — ONE universal brackets page for every length
+  //      (2026-07-12, Joey: the 1W/2W/3W sections are shared hardware, so the
+  //      per-length pages were retired in favor of the single brackets page) ----
+  "GEN2 Wall Mount Kit - Lite - 59":  { p: "https://www.printables.com/model/1777719-gen2-wall-mount-brackets", t: "https://than.gs/m/1574321" },
+  "GEN2 Wall Mount Kit - Lite - 115": { p: "https://www.printables.com/model/1777719-gen2-wall-mount-brackets", t: "https://than.gs/m/1574321" },
+  "GEN2 Wall Mount Kit - Lite - 165": { p: "https://www.printables.com/model/1777719-gen2-wall-mount-brackets", t: "https://than.gs/m/1574321" },
+  "GEN2 Wall Mount Kit - Lite - 185": { p: "https://www.printables.com/model/1777719-gen2-wall-mount-brackets", t: "https://than.gs/m/1574321" },
+  "GEN2 Wall Mount Kit - Lite - 240": { p: "https://www.printables.com/model/1777719-gen2-wall-mount-brackets", t: "https://than.gs/m/1574321" },
+  "GEN2 Wall Mount Kit - Lite - 270": { p: "https://www.printables.com/model/1777719-gen2-wall-mount-brackets", t: "https://than.gs/m/1574321" },
 
   // ---- Universal hardware (QuickLocks funnel here via linkAs) ----
   "GEN2 Hardware": { p: "https://www.printables.com/model/1012796-gen2-hardware", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Hardware-1141439" },

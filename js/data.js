@@ -354,7 +354,7 @@ const GEN2 = {
         { name: () => "GEN2 Magnet Clip", qtyPerDrawer: 1, linkAs: "GEN2 Hardware",
           note: "Bridges the drawer and its case for a magnetic soft-close catch. Wider drawers have extra slots if you'd like to add more." },
         { name: () => "Magnets 10×2mm or 6×2mm", qtyPerDrawer: 2, hardware: true,
-          note: "Seat in the magnet clips." },
+          note: "Seat in the magnet clips. Standard strength suits most builds · the N52s hold noticeably harder (can be too strong for smaller drawers)." },
       ],
     },
     {
@@ -584,6 +584,34 @@ const LINK_OVERRIDES = {
   // ---- Starter kits (shown as a tip) ----
   "GEN2 Under Table Starter Kit - 185": { p: "https://www.printables.com/model/231288-gen2-under-table-starter-kit-185" },
   "GEN2 Under Table Starter Kit - 270": { p: "https://www.printables.com/model/312837-gen2-under-table-starter-kit-270" },
+};
+
+/* Amazon affiliate links for the hardware-store items (Joey's, 2026-07-12).
+   Keyed by the EXACT BOM row name; each entry renders as a labeled buy button
+   in the row's link cell (renderBom adds the affiliate disclosure line).
+   Magnets come in two strengths because people complained the standard ones
+   were too weak: standard suits most builds, the N52s hold noticeably harder
+   (can be too strong for smaller drawers) — the row note says so. No link for
+   the M3 hex nut yet — it keeps the plain "hardware store" tag. */
+const HARDWARE_BUY = {
+  "M3×6mm screw": [
+    { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
+    { label: "Steel", url: "https://amzn.to/4gA0NWl" },
+  ],
+  "M3×12mm screw": [
+    { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
+    { label: "Steel", url: "https://amzn.to/4gA0NWl" },
+  ],
+  "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)": [
+    { label: "#6", url: "https://amzn.to/4s487gc" },
+    { label: "#8", url: "https://amzn.to/4pTWDuq" },
+  ],
+  "Magnets 10×2mm or 6×2mm": [
+    { label: "10×2mm", url: "https://amzn.to/4sesPKm" },
+    { label: "6×2mm", url: "https://amzn.to/4aH1ASw" },
+    { label: "N52 10×2mm", url: "https://amzn.to/4q4JX3Z" },
+    { label: "N52 6×2mm", url: "https://amzn.to/49BZyC0" },
+  ],
 };
 
 /* Size-varying parts (cases, drawers, extenders, faceplates) all point at one

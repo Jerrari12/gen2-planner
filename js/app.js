@@ -2762,16 +2762,26 @@
           <td class="qty">${it.qty}×</td>
           <td class="name">${it.name}${it.variant ? ` — <em>${it.variant}</em>` : ""}${it.optional ? ' <span class="tag">optional</span>' : ""}${it.club ? ' <span class="tag club-tag">Club Expansion</span>' : ""}
             ${it.note ? `<div class="note">${it.note}</div>` : ""}</td>
-          <td class="link">${linkButtons(it)}</td>
+          <td class="link${it.hardware && HARDWARE_BUY[it.name] ? " buy" : ""}">${linkButtons(it)}</td>
         </tr>`;
       });
       html += `</tbody></table></div>`;
     });
+    // affiliate disclosure whenever any rendered hardware row carries buy buttons
+    if (sections.some((sec) => sec.items.some((it) => it.qty > 0 && it.hardware && HARDWARE_BUY[it.name])))
+      html += `<p class="affiliate-note">Hardware links are Amazon affiliate links — buying through them supports GEN2 development at no extra cost to you.</p>`;
     wrap.innerHTML = html;
   }
 
   function linkButtons(it) {
-    if (it.hardware) return `<span class="tag">hardware store</span>`;
+    if (it.hardware) {
+      // Amazon affiliate buy buttons where Joey has a vetted link (HARDWARE_BUY
+      // in data.js); rel="sponsored" marks the affiliate relationship. Items
+      // without one keep the plain tag.
+      const buy = HARDWARE_BUY[it.name];
+      if (!buy) return `<span class="tag">hardware store</span>`;
+      return buy.map((b) => `<a class="btn small" href="${b.url}" target="_blank" rel="noopener sponsored">${b.label}</a>`).join(" ");
+    }
     if (it.unreleased) return `<span class="tag soon-tag">coming soon</span>`;
     const links = partLinks(it.linkAs || it.name);
     return `<a class="btn small ${links.exactP ? "" : "ghost"}" href="${links.printables}" target="_blank" rel="noopener">Printables</a>

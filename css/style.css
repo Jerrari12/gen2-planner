@@ -1241,6 +1241,10 @@ details.space-box[open] .sb-sum-status { display: none; }
 .bom-table .note { font-weight: 400; font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 .bom-table .link { width: 200px; text-align: right; white-space: nowrap; }
 .bom-table .link .btn { margin-left: 4px; }
+/* hardware rows with Amazon buy buttons: up to 4 options wrap into rows */
+.bom-table .link.buy { white-space: normal; }
+.bom-table .link.buy .btn { margin: 2px 0 2px 4px; }
+.affiliate-note { font-size: 0.78rem; color: var(--muted); margin: 8px 2px 0; }
 .soon-tag { border-color: var(--accent-dim); color: var(--accent); }
 .club-tag { border-color: var(--blue); color: var(--blue); }
 .bom-table tr.optional .name, .bom-table tr.optional .qty { opacity: 0.8; }

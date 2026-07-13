@@ -2547,11 +2547,14 @@
         return map;
       }, new Map()).forEach((qty, size) => {
         items.push({ name: P.faceplate(len, size, faceStyle), qty, club: faceDef.club });
-        // optional back cover: one per faceplate, same size — every style seats it
+        // optional back cover: one per faceplate, same size — every style seats
+        // it, and the files ship INSIDE each faceplate series download (v2602+),
+        // so the row links the chosen style's page
         if (state.backCover) items.push({
           name: P.backCover(len, size), qty,
-          note: "Optional · clips in behind the faceplate to close the open-front Decor drawer.",
+          note: "Optional · clips in behind the faceplate to close the open-front Decor drawer. Included in the faceplate download.",
           optional: true,
+          linkAs: `GEN2 Decor - Faceplates - ${faceDef.label} Series`,
           unreleased: GEN2.unreleased.includes("backCover"),
         });
       });

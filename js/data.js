@@ -373,8 +373,12 @@ const GEN2 = {
     case:        (len, size)            => `GEN2 ${len} Case - ${size}`,
     extender:    (len, w)               => `GEN2 ${len} Case Extender - ${w}W-1H`,
     shelfInsert: (len, w)               => `GEN2 ${len} Shelf Insert - ${w}W`,
-    faceplate:   (len, size, style)     => `GEN2 ${len} ${style} Decor Faceplate - ${size}`,
-    backCover:   (len, size)            => `GEN2 ${len} Decor Faceplate Back Cover - ${size}`,
+    // Faceplates + back covers are UNIVERSAL across lengths (width × height
+    // only — shared hardware), so their names carry no length. `len` stays in
+    // the signature for caller symmetry. (2026-07-12, Joey: a "240" prefix on
+    // a universal part read as length-specific and confused people.)
+    faceplate:   (len, size, style)     => `GEN2 ${style} Decor Faceplate - ${size}`,
+    backCover:   (len, size)            => `GEN2 Decor Faceplate Back Cover - ${size}`,
     door:        (len, size, style)     => `GEN2 ${len} ${style} Door - ${size}`,
     sideCover:   (len, h)               => `GEN2 ${len} Side Cover - ${h}H`,
     coverUpper:    (len, w)             => `GEN2 ${len} Cover Upper (CU) - ${w}W`,
@@ -390,7 +394,10 @@ const GEN2 = {
 
   // Parts that aren't published yet — shown with a "coming soon" tag
   // instead of download links. Remove entries as they're released.
-  unreleased: ["shelfInsert", "door", "hinge", "latch", "sideCover", "backCover"],
+  // (backCover left this list 2026-07-12 — the covers ship inside every
+  // faceplate series download since v2602, so its rows link the chosen
+  // style's series page via linkAs.)
+  unreleased: ["shelfInsert", "door", "hinge", "latch", "sideCover"],
 
   // Exact part names not modeled yet, same "coming soon" treatment as
   // `unreleased` above but for SPECIFIC size/length combos rather than a whole
@@ -623,7 +630,9 @@ const COLLECTION_RULES = [
   [/^GEN2 (\d+) Case - /,               (m) => `GEN2 ${m[1]} Cases - All`],
   [/^GEN2 (\d+)-.+ Classic Drawer$/,    (m) => `GEN2 ${m[1]} Classic Drawers - All`],
   [/^GEN2 (\d+)-.+ Decor Drawer$/,      (m) => `GEN2 ${m[1]} Decor Drawers - All`],
-  [/^GEN2 \d+ (.+) Decor Faceplate - /, (m) => `GEN2 Decor - Faceplates - ${m[1]} Series`],
+  // NB anchored so "GEN2 Decor Faceplate Back Cover - …" (no style token)
+  // can't false-match — the back cover links via linkAs instead.
+  [/^GEN2 (.+) Decor Faceplate - /,     (m) => `GEN2 Decor - Faceplates - ${m[1]} Series`],
 ];
 function collectionKeyFor(name) {
   for (const [re, fn] of COLLECTION_RULES) {
@@ -1070,7 +1079,7 @@ function partImage(name, variant) {
   // has per-size renders (2026-07-08 batch, EdgeLabel_<size>.png, dots dropped
   // like everywhere else); the other styles show their hero card art until
   // per-size batches exist.
-  const fp = name.match(/^GEN2 \d+ (Essential|EdgeLabel|Classic Pro) Decor Faceplate - (.+)$/);
+  const fp = name.match(/^GEN2 (Essential|EdgeLabel|Classic Pro) Decor Faceplate - (.+)$/);
   if (fp) return fp[1] === "EdgeLabel"
     ? "img/parts/EdgeLabel_" + fp[2].replace(/\./g, "") + ".png"
     : "img/parts/Faceplate-" + fp[1].replace(" ", "") + ".jpg";

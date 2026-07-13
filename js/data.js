@@ -1075,14 +1075,16 @@ function partImage(name, variant) {
     if (w) return "img/parts/WallMount_Lite_" + w[1] + "W.png";
   }
   // Decor faceplates are SHARED hardware — one render set serves every length,
-  // so their files can't carry the length the auto-pattern expects. EdgeLabel
-  // has per-size renders (2026-07-08 batch, EdgeLabel_<size>.png, dots dropped
-  // like everywhere else); the other styles show their hero card art until
-  // per-size batches exist.
+  // so their files can't carry a length. EdgeLabel (2026-07-08 batch) and
+  // Classic Pro (2026-07-13 batch) have per-size renders — <Family>_<size>.png,
+  // dots dropped like everywhere else; Essential shows its hero card art until
+  // a per-size batch exists.
   const fp = name.match(/^GEN2 (Essential|EdgeLabel|Classic Pro) Decor Faceplate - (.+)$/);
-  if (fp) return fp[1] === "EdgeLabel"
-    ? "img/parts/EdgeLabel_" + fp[2].replace(/\./g, "") + ".png"
-    : "img/parts/Faceplate-" + fp[1].replace(" ", "") + ".jpg";
+  if (fp) {
+    if (fp[1] === "EdgeLabel") return "img/parts/EdgeLabel_" + fp[2].replace(/\./g, "") + ".png";
+    if (fp[1] === "Classic Pro") return "img/parts/ClassicPro_" + fp[2].replace(/\./g, "") + ".png";
+    return "img/parts/Faceplate-" + fp[1].replace(" ", "") + ".jpg";
+  }
   const file = name.replace(/^GEN2 /, "GEN2_").replace(/\./g, "") + RENDER_SUFFIX + ".png";
   return "img/parts/" + file;
 }

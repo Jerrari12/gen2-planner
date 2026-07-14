@@ -1085,6 +1085,10 @@ function partImage(name, variant) {
     if (fp[1] === "Classic Pro") return "img/parts/ClassicPro_" + fp[2].replace(/\./g, "") + ".png";
     return "img/parts/Faceplate-" + fp[1].replace(" ", "") + ".jpg";
   }
+  // universal faceplate back covers: per-size renders (2026-07-13 batch),
+  // shared by every faceplate family — same dots-dropped size token
+  const bc = name.match(/^GEN2 Decor Faceplate Back Cover - (.+)$/);
+  if (bc) return "img/parts/BackCover_" + bc[1].replace(/\./g, "") + ".png";
   const file = name.replace(/^GEN2 /, "GEN2_").replace(/\./g, "") + RENDER_SUFFIX + ".png";
   return "img/parts/" + file;
 }

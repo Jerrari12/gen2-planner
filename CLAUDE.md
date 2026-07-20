@@ -105,7 +105,35 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   `e.source` and answers the viewer's boot-time `{gen2:'viewerReady'}` with an
   immediate layout post — sync survives reloads on either side. Clicking the
   3D button while a viewer tab is already open syncs + focuses it instead of
-  opening a duplicate. **The reason is VISIBLE, not
+  opening a duplicate.
+  **Docked split view (2026-07-19, Joey's design):** on wide screens
+  (≥1200px matchMedia gate; never mobile, print-hidden) the viewer docks as a
+  fixed right pane — an `?embed=1` iframe of INSTRUCTIONS_VIEWER_URL fed by
+  the same live sync (the iframe's viewerReady is captured exactly like a
+  popup's). It reveals itself ONCE, eased (body.docked pads `body` right,
+  transitioned), the first moment `instructionsBlockReason()` goes null — and
+  never auto-hides after that (illegal layouts show the viewer's own blocked
+  veil instead). `gen2-dock` in localStorage remembers open/closed; collapsed
+  = full-width planner + a vertical `#dock-tab` edge handle (the iframe stays
+  warm — display:none pauses its rAF). Dock head: "Full studio ⤴"
+  (`popOutStudio()` opens the standalone tab, hands it the sync, collapses
+  the dock) + collapse chevron + `#dock-perf` ("running slow?" — shown when
+  the embed posts `{gen2:'perfSlow'}` after measuring <20 fps). Potato
+  layers: `slowGpu()` (WEBGL_debug_renderer_info ~ SwiftShader/llvmpipe → no
+  auto-reveal, opt-in edge tab instead; no-webgl counts as slow — which is
+  also what makes it deterministic under jsdom) + the perf note + persistent
+  collapse. The orange 3D button becomes context-aware: dock open → pop out
+  the full studio; dock collapsed-but-available → expand it; a real popped
+  tab open → sync+focus it; else window.open as always. The dock boots its
+  iframe only at first reveal/expand (never on page load), always from a
+  legal `#build=` hash. `updateDock()` runs from refresh() + window resize.
+  **Palette relay (2026-07-19):** filament colors stay VIEWER state (the
+  planner never interprets them), but the dock iframe's localStorage is
+  partitioned cross-site — so the viewer posts `{gen2:'colors', t, colors,
+  on, user}` on every palette save, the planner caches the newest-stamped one
+  (`gen2-viewer-colors`, first-party storage, `cacheViewerColors`) and
+  replays it after every viewerReady (`postColorsToViewer`) — dock, pop-out
+  and reloads all converge on the latest picks, newest-wins by stamp. **The reason is VISIBLE, not
   just a tooltip (2026-07-19, Joey hit the silent grey on under-table 270):**
   `#instructions-3d-reason` (form-field-hint line under the button, amber;
   `.bom-actions-sub` hides while it shows so they don't contradict), a
@@ -189,6 +217,19 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   invalid chosen length so the layout can't unlock on it. 59 stays fully
   available for Under-Table / Wall. `mountBlocksLength`/`enforceMountLength`
   are exported to tests.
+- **Board edge "+" strips (2026-07-19, Joey's ask):** renderBoard appends
+  `.grow-btn` svg strips that grow the grid in place — RIGHT edge adds a
+  column on every mount; BOTTOM edge adds a row on the hanging mounts only
+  (tabletop's height is auto). One rule resolves the mounts cleanly: growth is
+  always AWAY from the mount's anchor edge (tabletop anchors bottom, wall/UT
+  anchor top), so placed units never shift. Strips hide at capW()/capH()
+  (workable-area + absolute caps), stopPropagation keeps the board's
+  press/drag machinery out, and the palette steppers remain for shrinking.
+  NB the WALL mount draws its kit legend UNDER the grid — the strip HUGS the
+  grid (gridBottom+5, it's part of the grid — Joey) and the LEGEND steps down
+  +24 below it (drawMountScene mirrors the strip's presence via
+  `state.gridH < capH()`; viewBox grows +22 to fit). At the height cap the
+  strip vanishes and the legend returns to its tight position.
 - Selecting a placed unit shows the **toolbar below the grid** (`#unit-toolbar`):
   an arrow pad / keyboard arrows nudge it one cell (`nudgeSelected`), plus part
   info, cabinet shelf stepper, and Remove. (An earlier floating popover was

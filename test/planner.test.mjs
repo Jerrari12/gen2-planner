@@ -608,6 +608,86 @@ test("live layout sync: placements post the full build; illegal structure posts 
   assert.equal(msgs.at(-1).gen2, "layout");
 });
 
+test("docked split view: opt-in tab on software GPUs, boots the embed iframe, collapse persists", () => {
+  const { app, window: win, doc } = boot();
+  // jsdom's matchMedia never matches → stub wide; jsdom canvas has no webgl →
+  // the GPU probe reads "software rendering" → edge tab instead of auto-reveal
+  win.matchMedia = () => ({ matches: true });
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" });
+  app.refresh();
+  const tab = doc.querySelector("#dock-tab"), dock = doc.querySelector("#viewer-dock");
+  assert.equal(tab.hidden, false, "edge tab offered once the build is legal");
+  assert.equal(dock.hidden, true, "no auto-reveal on a software GPU");
+
+  tab.click(); // opt in
+  assert.equal(dock.hidden, false);
+  assert.equal(doc.body.classList.contains("docked"), true);
+  assert.match(doc.querySelector("#viewer-frame").src, /\?embed=1#build=/);
+
+  doc.querySelector("#dock-collapse").click();
+  assert.equal(dock.hidden, true);
+  assert.equal(doc.body.classList.contains("docked"), false);
+  assert.equal(tab.hidden, false, "edge tab returns while collapsed");
+  // (the open/closed choice persists via localStorage — unavailable on jsdom's
+  // opaque origin, and the app degrades gracefully, so behavior only here)
+
+  // narrow screens: the dock UI disappears entirely
+  win.matchMedia = () => ({ matches: false });
+  app.refresh();
+  assert.equal(tab.hidden, true);
+  assert.equal(dock.hidden, true);
+});
+
+test("viewer palette relay: newest palette is cached and replayed on every viewerReady", () => {
+  const { app, window: win, doc } = boot();
+  const msgs = [];
+  const fakeViewer = { closed: false, postMessage: (m) => msgs.push(m), focus() {} };
+  win.open = () => fakeViewer;
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.refresh();
+  doc.querySelector("#instructions-3d").click(); // capture viewerWin
+
+  const send = (data) => win.dispatchEvent(new win.MessageEvent("message", { data, source: fakeViewer }));
+  send({ gen2: "colors", t: 111, colors: { Handle: { name: "Test Red", hex: "#ff0000" } }, on: true });
+  // an OLDER palette must not clobber the cache (newest wins)
+  send({ gen2: "colors", t: 50, colors: { Handle: { name: "Old", hex: "#000000" } }, on: true });
+
+  msgs.length = 0;
+  send({ gen2: "viewerReady" }); // a viewer boots (dock, pop-out, reload — any)
+  const colors = msgs.find((m) => m.gen2 === "colors");
+  assert.ok(colors, "handshake replays the cached palette");
+  assert.equal(colors.t, 111);
+  assert.equal(colors.colors.Handle.hex, "#ff0000");
+  assert.ok(msgs.some((m) => m.gen2 === "layout"), "layout still rides the same handshake");
+});
+
+test("board edge '+' strips grow the grid away from the mount anchor, capped and mount-aware", () => {
+  const { app, doc } = boot(); // under-table 185, 6W×4H
+  const strips = () => [...doc.querySelectorAll("#board .grow-btn")];
+  assert.equal(strips().length, 2, "hanging mount offers right (column) + bottom (row)");
+
+  const w0 = app.state.gridW, h0 = app.state.gridH;
+  strips()[0].dispatchEvent(new doc.defaultView.MouseEvent("click", { bubbles: true }));
+  assert.equal(app.state.gridW, w0 + 1, "right strip adds a column");
+  strips()[1].dispatchEvent(new doc.defaultView.MouseEvent("click", { bubbles: true }));
+  assert.equal(app.state.gridH, h0 + 1, "bottom strip adds a row");
+
+  // tabletop: height is auto — only the column strip remains
+  app.state.mount = "tabletop";
+  app.refresh();
+  assert.equal(strips().length, 1, "tabletop hides the row strip");
+
+  // a workable-area cap hides the strip instead of dead-clicking
+  app.state.mount = "under-table";
+  app.state.spaceW = app.state.gridW * 88; // exactly at cap → no wider column possible
+  app.refresh();
+  assert.equal(strips().filter((s) => s.querySelector("title").textContent.includes("column")).length, 0,
+    "column strip hidden at the workable-area cap");
+  app.state.spaceW = null;
+  app.refresh();
+  assert.equal(strips().length, 2, "strip returns when the cap lifts");
+});
+
 test("removedStoppers drops the stopper BOM count and round-trips through the hash", () => {
   const { app } = boot();
   app.state.mount = "tabletop";

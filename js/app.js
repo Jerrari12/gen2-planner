@@ -939,7 +939,11 @@
   function renderBoard() {
     const svg = $("#board");
     const W = PAD.left + state.gridW * CW + PAD.right;
-    const H = PAD.top + rows() * (CH / 2) + PAD.bottom;
+    // the wall mount's kit legend lives UNDER the grid (gridBottom+24/+38), so
+    // its row "+" strip drops below the legend and the board grows to fit it
+    const wantRowStrip = state.mount !== "tabletop" && state.gridH < capH();
+    const wallRowStrip = wantRowStrip && state.mount === "wall";
+    const H = PAD.top + rows() * (CH / 2) + PAD.bottom + (wallRowStrip ? 22 : 0);
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     svg.setAttribute("width", W);
     svg.setAttribute("height", H);
@@ -963,6 +967,47 @@
     const sags = sagRisks();
     const lowTops = wallTopHalfHeight();
     state.placed.forEach((p) => drawUnit(svg, p, bows, sags, lowTops));
+
+    // Edge "+" affordances (Joey 2026-07-19): grow the grid straight from the
+    // board — a column strip on the RIGHT for every mount, a row strip at the
+    // BOTTOM only where the build hangs from the top (under-table / wall;
+    // tabletop's height is auto-computed from the stack). Growth is always
+    // AWAY from the mount's anchor edge, so placed units never shift and the
+    // three mounts share one rule. Hidden at the workable-area / absolute
+    // caps; the palette steppers remain the way to shrink.
+    const growBtn = (rect, plusAt, tip, grow) => {
+      const g = el("g", { class: "grow-btn" }, svg);
+      el("rect", { ...rect, rx: 4 }, g);
+      const t = el("text", { x: plusAt[0], y: plusAt[1], class: "grow-plus" }, g);
+      t.textContent = "+";
+      const ti = el("title", {}, g);
+      ti.textContent = tip;
+      // keep the board's press/drag/tap machinery out of the strip
+      ["mousedown", "mouseup", "touchstart", "touchend"].forEach((ev) =>
+        g.addEventListener(ev, (e) => e.stopPropagation()));
+      g.addEventListener("click", (e) => {
+        e.stopPropagation();
+        grow();
+        clampGrid();
+        refresh();
+      });
+    };
+    const gwPx = state.gridW * CW, ghPx = rows() * (CH / 2);
+    if (state.gridW < capW())
+      growBtn({ x: gx + gwPx + 5, y: gy, width: 15, height: ghPx },
+        [gx + gwPx + 12.5, gy + ghPx / 2 + 4],
+        `Add a column · ${state.gridW}W → ${state.gridW + 1}W`,
+        () => { state.gridW = Math.min(capW(), state.gridW + 1); });
+    if (wantRowStrip) {
+      // hugs the grid on every hanging mount; on wall the kit legend steps
+      // down below it instead (drawMountScene) — Joey: the strip is part of
+      // the grid, the legend isn't
+      const rowY = gy + ghPx + 5;
+      growBtn({ x: gx, y: rowY, width: gwPx, height: 15 },
+        [gx + gwPx / 2, rowY + 11],
+        `Add a row · ${state.gridH}H → ${state.gridH + 1}H`,
+        () => { state.gridH = Math.min(capH(), state.gridH + 1); });
+    }
 
     // One-shot placement animation (Load example / Surprise me): units settle
     // into place in sequence, toward the mount surface.
@@ -1312,9 +1357,12 @@
         drawLayerW(lay.lower, gy - 15, "s-cover-l");
       });
       if (cols.length) {
-        el("text", titleAttrs(PAD.left, gridBottom + 24), svg)
+        // the row "+" strip (renderBoard) hugs the grid bottom — when it's
+        // present the legend steps down below it (the viewBox grows to fit)
+        const dy = state.gridH < capH() ? 24 : 0;
+        el("text", titleAttrs(PAD.left, gridBottom + 24 + dy), svg)
           .textContent = `▮ Wall Mount Kit - Lite - ${state.length ?? ""}: ${mixText(mixOf(wallSections()))}`;
-        el("text", { x: PAD.left, y: gridBottom + 38, class: "s-hint-label" }, svg)
+        el("text", { x: PAD.left, y: gridBottom + 38 + dy, class: "s-hint-label" }, svg)
           .textContent = `+ top covers (CU over CL, ${state.wallStagger ? "staggered" : "per-column"})`;
       }
     }
@@ -1799,14 +1847,21 @@
   function open3DInstructions() {
     if (!state.placed.length) return;
     track("3d-instructions:" + state.mount + "-" + state.length);
-    // a viewer tab is already following along → sync + focus it instead of
-    // opening a duplicate (the live layout channel keeps it current anyway)
-    if (viewerWin && !viewerWin.closed) {
+    // dock already open → the button now means "give me the FULL studio"
+    if (document.body.classList.contains("docked")) { popOutStudio(); return; }
+    // a real popped-out tab is already following along → sync + focus it
+    // instead of opening a duplicate (the dock's iframe doesn't count — you
+    // can't focus something invisible)
+    const f = $("#viewer-frame");
+    const frameWin = f ? f.contentWindow : null;
+    if (viewerWin && !viewerWin.closed && viewerWin !== frameWin) {
       lastSentLayout = null;
       postLayoutNow();
       try { viewerWin.focus(); } catch (e) { /* cross-origin focus denied — fine */ }
       return;
     }
+    // the dock exists but is collapsed → expanding it is the cheapest 3D
+    if (dockAvailable()) { track("dock:expand"); openDock(false); return; }
     viewerWin = window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank");
   }
   // push the current build options to an open viewer tab, but only when they've
@@ -1851,6 +1906,113 @@
     if (!viewerWin || viewerWin.closed) return;
     clearTimeout(layoutTimer);
     layoutTimer = setTimeout(postLayoutNow, 350);
+  }
+
+  /* ---- viewer palette relay (2026-07-19) ----
+     Filament colors are VIEWER state (the planner never interprets them), but
+     the viewer's localStorage is partitioned when it runs as the dock's
+     cross-site iframe — so the dock and a popped-out tab can't see each
+     other's picks. The planner is the relay: it caches the newest stamped
+     palette here (first-party storage, never partitioned) and replays it on
+     every viewerReady, so every viewer context converges on the latest. */
+  let viewerColors = null;
+  try { viewerColors = JSON.parse(localStorage.getItem("gen2-viewer-colors") || "null"); } catch (e) { /* fresh */ }
+  function cacheViewerColors(d) {
+    if (!d || typeof d.t !== "number" || !d.colors || typeof d.colors !== "object") return;
+    if (viewerColors && viewerColors.t >= d.t) return; // stale — newest wins
+    viewerColors = { t: d.t, colors: d.colors, on: !!d.on, user: d.user };
+    try { localStorage.setItem("gen2-viewer-colors", JSON.stringify(viewerColors)); } catch (e) { /* private mode — memory cache still serves this session */ }
+  }
+  function postColorsToViewer() {
+    if (!viewerColors || !viewerWin || viewerWin.closed) return;
+    try { viewerWin.postMessage({ gen2: "colors", ...viewerColors }, "*"); } catch (e) { /* tab closed */ }
+  }
+
+  /* ---- Docked split view (2026-07-19) ----
+     Wide screens get the viewer as a fixed right pane (an ?embed=1 iframe fed
+     by the live sync above) instead of a separate tab. It reveals itself —
+     eased, one time — the first moment the build becomes instructions-ready
+     (same instant the 3D button lights up); after that the open/closed choice
+     is remembered per device (localStorage gen2-dock) and it NEVER auto-hides
+     — an illegal layout shows the viewer's own blocked veil instead. Software
+     GPUs (SwiftShader & co) skip the auto-reveal and get the opt-in edge tab;
+     a viewer-measured low framerate offers a collapse (#dock-perf). */
+  let dockBooted = false, gpuSlow = null;
+  const dockPref = () => { try { return localStorage.getItem("gen2-dock"); } catch (e) { return null; } };
+  const setDockPref = (v) => { try { localStorage.setItem("gen2-dock", v); } catch (e) { /* private mode */ } };
+  const dockWide = () => typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1200px)").matches;
+  function slowGpu() {
+    if (gpuSlow !== null) return gpuSlow;
+    try {
+      const gl = document.createElement("canvas").getContext("webgl2")
+              || document.createElement("canvas").getContext("webgl");
+      if (!gl) return (gpuSlow = true);
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      const r = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
+      gpuSlow = /swiftshader|llvmpipe|software|basic render/i.test(r);
+    } catch (e) { gpuSlow = true; }
+    return gpuSlow;
+  }
+  // the dock needs a LEGAL build for its first boot (the iframe boots from a
+  // #build= hash); once booted it stays available — blocked layouts just veil
+  const dockAvailable = () => dockWide() && (dockBooted || !instructionsBlockReason());
+  function bootDockFrame() {
+    if (dockBooted) return;
+    dockBooted = true;
+    $("#viewer-frame").src = INSTRUCTIONS_VIEWER_URL + "?embed=1#build=" + encodeBuildHash();
+  }
+  function openDock(firstReveal) {
+    bootDockFrame();
+    $("#viewer-dock").hidden = false;
+    $("#dock-tab").hidden = true;
+    // class lands a frame after the un-hide so the first reveal still eases in
+    const arm = () => document.body.classList.add("docked");
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(arm); else arm();
+    setDockPref("open");
+    if (firstReveal) track("dock:reveal");
+  }
+  function closeDock() {
+    document.body.classList.remove("docked");
+    $("#viewer-dock").hidden = true;
+    $("#dock-perf").hidden = true;
+    $("#dock-tab").hidden = !dockAvailable();
+    setDockPref("closed");
+    track("dock:collapse");
+  }
+  function updateDock() {
+    const dock = $("#viewer-dock"), tab = $("#dock-tab");
+    if (!dock || !tab) return;
+    if (!dockAvailable()) { // too narrow, or nothing legal to boot on yet
+      dock.hidden = true;
+      tab.hidden = true;
+      document.body.classList.remove("docked");
+      return;
+    }
+    const pref = dockPref();
+    if (pref === "open") { // restore (no animation ceremony, no re-track)
+      if (dock.hidden) { bootDockFrame(); dock.hidden = false; document.body.classList.add("docked"); }
+      tab.hidden = true;
+      return;
+    }
+    if (pref === "closed") {
+      dock.hidden = true;
+      document.body.classList.remove("docked");
+      tab.hidden = false;
+      return;
+    }
+    // no preference yet → the one-time reveal moment
+    if (slowGpu()) {
+      tab.hidden = false;
+      tab.title = "Open the live 3D preview · may run slow on this device";
+      return;
+    }
+    openDock(true);
+  }
+  function popOutStudio() {
+    track("dock:popout");
+    const w = window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank");
+    if (w) viewerWin = w; // the full tab takes over the sync; the dock naps
+    closeDock();
   }
 
   function importBuild(file) {
@@ -3444,6 +3606,13 @@
     $("#save-image").addEventListener("click", saveBuildImage);
     $("#instructions-3d").addEventListener("click", open3DInstructions);
     $("#fab-3d").addEventListener("click", open3DInstructions);
+    // docked split view controls (wide screens; see the dock block above)
+    $("#dock-tab").addEventListener("click", () => { track("dock:expand"); openDock(false); });
+    $("#dock-collapse").addEventListener("click", closeDock);
+    $("#dock-popout").addEventListener("click", popOutStudio);
+    $("#dock-perf-collapse").addEventListener("click", closeDock);
+    $("#dock-perf-x").addEventListener("click", () => { $("#dock-perf").hidden = true; });
+    window.addEventListener("resize", updateDock);
     // Live sync FROM the 3D instructions viewer: it posts {gen2:"buildOptions",
     // opts} whenever the user changes drawer closure, stoppers, handle, or the
     // wall stagger there. Everything is validated against the catalog before it
@@ -3460,6 +3629,16 @@
         // hand it the current state immediately so it can't sit stale
         lastSentLayout = null;
         postLayoutNow();
+        postColorsToViewer(); // …and the newest filament palette (see the relay)
+        return;
+      }
+      if (d.gen2 === "colors") {
+        cacheViewerColors(d);
+        return;
+      }
+      if (d.gen2 === "perfSlow") {
+        // the embedded viewer measured a bad framerate — offer the collapse
+        if (document.body.classList.contains("docked")) $("#dock-perf").hidden = false;
         return;
       }
       if (d.gen2 !== "buildOptions" || !d.opts) return;
@@ -3587,6 +3766,7 @@
     updateInstructionsButton();
     syncOptionsToViewer(); // mirror any option change into an open 3D viewer tab
     syncLayoutToViewer();  // …and any layout change (debounced full-build post)
+    updateDock();          // reveal/restore the docked split view when eligible
     snapshotHistory();     // every settled state becomes an undo step (coalesced)
 
     // Palette icon accents (size boxes, active fill details) wear the chosen

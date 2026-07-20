@@ -534,6 +534,68 @@ details.space-box[open] .sb-sum-status { display: none; }
 /* Undo/redo sit right above the workspace they act on. */
 .board-tools { display: flex; gap: 8px; margin: 0 0 8px; }
 
+/* ---- Docked 3D Build Studio (split view, wide screens only) ---- */
+/* The planner squeezes left via body padding (transitioned, so the first
+   reveal eases in instead of snapping); the dock is a fixed right pane. */
+:root { --dock-w: clamp(460px, 42vw, 860px); }
+body { transition: padding-right 0.35s ease; }
+body.docked { padding-right: var(--dock-w); }
+#viewer-dock {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: var(--dock-w);
+  z-index: 70;
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 30px rgba(0,0,0,0.35);
+  transform: translateX(100%);
+  transition: transform 0.35s ease;
+}
+body.docked #viewer-dock { transform: none; }
+#viewer-dock[hidden], #dock-tab[hidden] { display: none !important; }
+.dock-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+.dock-title { font-weight: 700; color: var(--text); white-space: nowrap; }
+.dock-live {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: #6fcf6f; border: 1px solid #6fcf6f55; border-radius: 999px; padding: 1px 7px; margin-left: 4px;
+}
+.dock-btns { display: flex; gap: 6px; }
+.dock-btns button, #dock-perf button {
+  font: inherit; font-size: 0.78rem; font-weight: 600;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 4px 10px; cursor: pointer;
+}
+.dock-btns button:hover, #dock-perf button:hover { border-color: var(--accent); color: var(--accent); }
+#dock-perf { color: #e8b04b; font-size: 0.78rem; display: flex; align-items: center; gap: 6px; }
+#viewer-frame { flex: 1; width: 100%; border: 0; background: #eef0f3; }
+/* thin edge handle while collapsed (or on slow GPUs, where it's the opt-in) */
+#dock-tab {
+  position: fixed; right: 0; top: 50%; transform: translateY(-50%);
+  z-index: 69;
+  writing-mode: vertical-rl;
+  font: inherit; font-size: 0.8rem; font-weight: 700;
+  background: var(--accent); color: var(--on-accent);
+  border: 1px solid var(--accent); border-right: 0;
+  border-radius: 10px 0 0 10px;
+  padding: 14px 6px;
+  cursor: pointer;
+  box-shadow: -3px 0 14px rgba(0,0,0,0.35);
+}
+#dock-tab:hover { filter: brightness(1.1); }
+/* the floating fab is redundant while the dock is open (and would sit under it) */
+body.docked .fab-3d { display: none; }
+/* narrow screens / mobile: the dock doesn't exist — the button/fab flow stays */
+@media (max-width: 1199px) {
+  #viewer-dock, #dock-tab { display: none !important; }
+  body.docked { padding-right: 0; }
+}
+
 /* Floating Build Studio button: bottom-right, above everything, greyed (with
    the reason as tooltip) until the layout is legal. */
 .fab-3d {
@@ -962,6 +1024,16 @@ details.space-box[open] .sb-sum-status { display: none; }
 .g-bg { fill: #1b1c1f; }
 .g-line { stroke: #4c4e55; stroke-width: 1; }
 .g-line.faint { stroke: #383a40; stroke-dasharray: 3 4; }
+/* edge "+" strips: grow the grid right from the board (right = column on
+   every mount, bottom = row on the hanging mounts only — see renderBoard) */
+.grow-btn { cursor: pointer; }
+.grow-btn rect { fill: #232428; stroke: #4c4e55; stroke-width: 1; }
+.grow-btn .grow-plus {
+  fill: #9a9da3; font-size: 12px; font-weight: 700;
+  text-anchor: middle; pointer-events: none;
+}
+.grow-btn:hover rect { fill: #2a2b30; stroke: var(--accent); }
+.grow-btn:hover .grow-plus { fill: var(--accent); }
 .s-wood { fill: var(--wood); }
 .s-wood-grain { stroke: #5a432e; stroke-width: 2; }
 .s-label { fill: var(--text); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
@@ -1363,7 +1435,9 @@ details.space-box[open] .sb-sum-status { display: none; }
   body { background: #fff; color: #000; }
   .hero, .palette, .board-warnings, .bom-actions, .footer, .explainer,
   .board-helper, .unit-toolbar, #step-mount, #step-length, #step-printer,
-  #step-customize, .fab-3d, .board-tools, .bom-actions-sub, .instr-reason { display: none !important; }
+  #step-customize, .fab-3d, .board-tools, .bom-actions-sub, .instr-reason,
+  #viewer-dock, #dock-tab { display: none !important; }
+  body.docked { padding-right: 0 !important; }
   .bom-table, .bom-table td { border-color: #ccc; background: #fff; color: #000; }
   #bom h3 { color: #000; }
   a { color: #000; }

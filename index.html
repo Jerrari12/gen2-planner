@@ -364,6 +364,28 @@
      feature shouldn't live only at the very bottom of a long page. -->
 <button type="button" class="fab-3d" id="fab-3d" hidden>🧊 3D Build Studio</button>
 
+<!-- Docked 3D Build Studio (wide screens only): the planner squeezes into a
+     left column and the viewer lives in this fixed right pane, fed live by
+     the layout/options sync. Reveals itself (eased) the FIRST time the build
+     becomes instructions-ready; after that the user's open/closed choice is
+     remembered. #dock-tab is the thin edge handle shown while collapsed. -->
+<aside id="viewer-dock" hidden>
+  <div class="dock-head">
+    <span class="dock-title">🧊 3D Build Studio <span class="dock-live">live</span></span>
+    <span id="dock-perf" hidden>
+      Running slow on this device?
+      <button id="dock-perf-collapse" type="button">Collapse it</button>
+      <button id="dock-perf-x" type="button" title="Keep it open">&times;</button>
+    </span>
+    <span class="dock-btns">
+      <button id="dock-popout" type="button" title="Open the full 3D Build Studio in its own tab">Full studio ⤴</button>
+      <button id="dock-collapse" type="button" title="Collapse the 3D preview (the ‹3D› tab brings it back)">&#10095;</button>
+    </span>
+  </div>
+  <iframe id="viewer-frame" title="3D Build Studio live preview" allowfullscreen></iframe>
+</aside>
+<button type="button" id="dock-tab" hidden title="Open the live 3D preview of your build">🧊 3D preview</button>
+
 <!-- Shared magnifier card for the parts-list thumbnails (hover/tap to enlarge).
      Fixed-position so it can escape the BOM table's scroll clipping. -->
 <div class="thumb-zoom" id="thumb-zoom" hidden aria-hidden="true"><img alt="" /><span class="tz-name" id="thumb-zoom-name"></span></div>

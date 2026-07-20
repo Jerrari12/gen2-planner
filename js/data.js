@@ -1079,6 +1079,16 @@ function partImage(name, variant) {
   // Classic Pro (2026-07-13 batch) have per-size renders — <Family>_<size>.png,
   // dots dropped like everywhere else; Essential shows its hero card art until
   // a per-size batch exists.
+  // Under-table rails: per-length + per-width renders (2026-07-19 batch) live
+  // in img/parts/<len>/Rails <len>-<w>W.png — the BOM row's "<w>W section"
+  // variant picks the file, same pattern as Wall Mount Lite above. All six
+  // lengths have a render batch (2026-07-19).
+  if (variant && /^GEN2 Rails - \d+$/.test(name)) {
+    const rl = name.match(/(\d+)$/)[1];
+    const rw = variant.match(/^(\d)W/);
+    if (rw && ["59", "115", "165", "185", "240", "270"].includes(rl))
+      return "img/parts/" + rl + "/Rails " + rl + "-" + rw[1] + "W.png";
+  }
   const fp = name.match(/^GEN2 (Essential|EdgeLabel|Classic Pro) Decor Faceplate - (.+)$/);
   if (fp) {
     if (fp[1] === "EdgeLabel") return "img/parts/EdgeLabel_" + fp[2].replace(/\./g, "") + ".png";

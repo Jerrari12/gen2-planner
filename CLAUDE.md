@@ -83,15 +83,38 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   `INSTRUCTIONS_VIEWER_URL` in app.js points at its GitHub Pages deploy
   (https://jerrari12.github.io/gen2-visual-animator/; swap for localhost:8123
   for local viewer dev). The viewer generates its own step-by-step manifest from the build
-  (2026-07-10: tabletop + wall for ALL SIX lengths; under-table only 165/185 —
-  no rail GLBs for the rest; 59 is hanging-only per mountBlocksLength, which the
-  viewer mirrors; it shows a friendly message otherwise).
-  `updateInstructionsButton()` (called from refresh) greys the button out with
-  the reason as tooltip when the build isn't instructions-ready — currently:
-  nothing placed, a tabletop without a flat top (same `columnTops()`
-  condition as the board warning), a wall build with a 0.5H top row, or an
-  under-table build on a length other than 165/185 (viewer has no rail GLBs
-  yet — added 2026-07-10). **Live options sync** (both ways, echo-
+  (2026-07-19: ALL THREE MOUNTS for ALL SIX lengths — the last under-table
+  rail GLBs landed that day; 59 is hanging-only per mountBlocksLength, which
+  the viewer mirrors; it shows a friendly message otherwise).
+  `instructionsBlockReason()` is the ONE source of truth for "can the 3D
+  studio show this layout" (null = yes): nothing placed, illegal sizes for the
+  length, **unsupported both-ends / sag (2026-07-19 — hard structural warnings
+  block now too; soft bow doesn't)**, tabletop without a flat top, wall 0.5H
+  top row, or an under-table length missing viewer rail GLBs
+  (`VIEWER_UT_LENGTHS`; ALL SIX since 2026-07-19 so that one never fires —
+  machinery stays for future gaps). `updateInstructionsButton()` (called from
+  refresh) greys the button/fab with that reason.
+  **Live LAYOUT sync (2026-07-19):** refresh() also calls
+  `syncLayoutToViewer()` — debounced 350 ms, `layoutSig`-guarded (mount/length/
+  placed geometry+fill+label+closure only, so option changes never double-post)
+  — which sends an open viewer `{gen2:'layout', build: serializeBuild()}`,
+  or `{gen2:'layoutBlocked', reason}` while blocked (the viewer veils itself
+  and catches up when fixed). The viewer regenerates its steps live on every
+  placement/move/removal; mount/length changes make it reload itself. The
+  message listener (re)captures `viewerWin` from any incoming gen2 message's
+  `e.source` and answers the viewer's boot-time `{gen2:'viewerReady'}` with an
+  immediate layout post — sync survives reloads on either side. Clicking the
+  3D button while a viewer tab is already open syncs + focuses it instead of
+  opening a duplicate. **The reason is VISIBLE, not
+  just a tooltip (2026-07-19, Joey hit the silent grey on under-table 270):**
+  `#instructions-3d-reason` (form-field-hint line under the button, amber;
+  `.bom-actions-sub` hides while it shows so they don't contradict), a
+  `warn-soft` board note for the under-table-length case (the other disable
+  conditions already had board warnings — this one didn't), and the length
+  cards grow a neutral `no3d` "no 3D guide yet" badge + hover/focus `data-tip`
+  when Under-table is the mount (card stays ENABLED — the build is fully
+  plannable/printable, only the 3D guide is missing; `.card.tipped[data-tip]`
+  extends the disabled-card tooltip CSS to enabled cards). **Live options sync** (both ways, echo-
   guarded): `syncOptionsToViewer()` posts {gen2:"buildOptions"} with closures/
   removedStoppers/wallStagger/handleStyle/**faceStyle/backCover** (last two
   added 2026-07-08 — the viewer now models EdgeLabel natively and renders the
@@ -210,8 +233,9 @@ branch) or open `index.html` locally.
 
 ## Workflow / conventions
 
-- Develop on branch **`claude/gen2-planner-webtool-ji6jp3`**; push there. Don't
-  push elsewhere without explicit permission. Don't open PRs unless asked.
+- Develop on **`main`** (the old `claude/gen2-planner-webtool-ji6jp3` branch is
+  retired — recent history commits straight to main, and pushing main deploys
+  Pages). Don't push without confirming with Joey. Don't open PRs unless asked.
 - The repo owner (non-developer) usually pulls/merges via **GitHub Desktop**;
   keep git guidance simple and concrete.
 - Match the existing code style: terse, well-commented vanilla JS; comments

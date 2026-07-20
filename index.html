@@ -345,6 +345,11 @@
       <button type="button" class="btn" id="save-image">Save build image</button>
       <button type="button" class="btn" id="labels-txt" hidden>Download labels</button>
     </div>
+    <!-- Form-style hint: when the 3D button is greyed, the WHY shows here in
+         plain sight (the tooltip alone never shows on touch). Filled by
+         updateInstructionsButton(), which also hides the sub-line below so the
+         two never contradict. -->
+    <p class="instr-reason" id="instructions-3d-reason" hidden></p>
     <p class="bom-actions-sub">Step-by-step assembly built for this exact layout · plus filament colors, faceplate swaps and hardware options in full 3D.</p>
     <p class="fineprint">
       Quantities for mount hardware are estimates · always confirm against the instructions at

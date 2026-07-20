@@ -564,6 +564,50 @@ test("3D instructions button targets the local viewer from localhost, the deploy
   assert.match(openedFrom("https://gen2planner.jerrari3d.com/"), /^https:\/\/jerrari12\.github\.io\/gen2-visual-animator\//);
 });
 
+test("live layout sync: placements post the full build; illegal structure posts blocked + greys the button", async () => {
+  const { app, window: win, doc } = boot();
+  const msgs = [];
+  const fakeViewer = { closed: false, postMessage: (m) => msgs.push(m), focus() {} };
+  win.open = () => fakeViewer;
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" }); // under-table (boot default): y0 = mount surface
+  app.refresh();
+  doc.querySelector("#instructions-3d").click();                 // captures viewerWin
+
+  place(app, { id: 2, x: 2, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.refresh();
+  await new Promise((r) => setTimeout(r, 450));                  // debounce window
+  const layouts = msgs.filter((m) => m.gen2 === "layout");
+  assert.ok(layouts.length >= 1, "layout change posted to the viewer");
+  assert.equal(layouts.at(-1).build.placed.length, 2);
+  assert.equal(layouts.at(-1).build.mount, "under-table");
+
+  // a floating unit (nothing in the support row above) is un-instruction-able:
+  // the viewer gets a blocked message and the 3D button greys — same reason
+  place(app, { id: 3, x: 0, y: 3, w: 1, hh: 2, fill: "decor" });
+  app.refresh();
+  await new Promise((r) => setTimeout(r, 450));
+  const blocked = msgs.filter((m) => m.gen2 === "layoutBlocked");
+  assert.ok(blocked.length >= 1, "blocked reason posted to the viewer");
+  assert.match(blocked.at(-1).reason, /supported on both ends/);
+  const btn = doc.querySelector("#instructions-3d");
+  assert.equal(btn.disabled, true);
+  assert.match(btn.title, /supported on both ends/);
+
+  // fixing the board resumes the layout stream and re-enables the button
+  app.state.placed = app.state.placed.filter((u) => u.id !== 3);
+  app.refresh();
+  await new Promise((r) => setTimeout(r, 450));
+  assert.equal(msgs.at(-1).gen2, "layout");
+  assert.equal(msgs.at(-1).build.placed.length, 2);
+  assert.equal(btn.disabled, false);
+
+  // a viewerReady handshake (viewer booted/reloaded) gets an immediate reply
+  const before = msgs.length;
+  win.dispatchEvent(new win.MessageEvent("message", { data: { gen2: "viewerReady" }, source: fakeViewer }));
+  assert.ok(msgs.length > before, "handshake answered without waiting for a refresh");
+  assert.equal(msgs.at(-1).gen2, "layout");
+});
+
 test("removedStoppers drops the stopper BOM count and round-trips through the hash", () => {
   const { app } = boot();
   app.state.mount = "tabletop";
@@ -1114,6 +1158,35 @@ test("switching to 59 under an oversize layout warns and greys the 3D button", (
   const btn = doc.querySelector("#instructions-3d");
   assert.equal(btn.disabled, true);
   assert.match(btn.title, /don't exist in the 59 collection/);
+});
+
+test("under-table serves every collection — no 'no 3D guide' badge, reason, or greyed button remains", () => {
+  // 2026-07-19: rail GLBs for ALL SIX lengths are in the viewer library (the
+  // 59 landed last). The capability gate (VIEWER_UT_LENGTHS) still exists for
+  // any future length, so this asserts the fully-unlocked state end to end.
+  const { app, doc } = boot();
+  app.state.mount = "under-table";
+  app.state.length = 59;
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.refresh();
+
+  const btn = doc.querySelector("#instructions-3d");
+  assert.equal(btn.disabled, false);
+  const reason = doc.querySelector("#instructions-3d-reason");
+  assert.equal(reason.hidden, true);
+  assert.equal(doc.querySelector(".bom-actions-sub").hidden, false);
+  // no soft advisory on the board, no badge on any length card
+  const note = [...doc.querySelectorAll("#board-warnings .warn")].find((d) => /rail models/.test(d.textContent));
+  assert.equal(note, undefined);
+  assert.equal(doc.querySelector("#length-cards .badge.no3d"), null);
+
+  // and the previously-gated lengths are live too
+  for (const len of [115, 240, 270]) {
+    app.state.length = len;
+    app.refresh();
+    assert.equal(btn.disabled, false, `under-table ${len} should be instructions-ready`);
+    assert.equal(doc.querySelector("#length-cards .badge.no3d"), null);
+  }
 });
 
 test("a 59 build restored over another length keeps its (valid) mini-size units", () => {

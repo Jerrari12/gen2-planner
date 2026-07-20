@@ -196,6 +196,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .card.disabled:hover { border-color: var(--line); transform: none; }
 .badge.nofit { background: var(--bad); color: var(--text); }
 .badge.nomount { background: #e8b04b; color: #1c1d20; } /* catalog rule (not a print failure) — amber, not red */
+.badge.no3d { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); } /* viewer capability note — informational, the card stays pickable */
 .card.slim { flex: 1 1 160px; max-width: 220px; }
 .card-title { font-size: 1.2rem; font-weight: 700; }
 .card-title .mm { font-size: 0.75rem; color: var(--muted); margin-left: 2px; }
@@ -318,9 +319,11 @@ details.space-box[open] .sb-sum-status { display: none; }
 
 /* Disabled length cards & size tiles: reveal the "won't fit" reason on hover
    OR focus — so a tap on touch reveals it too (native title= is hover-only).
-   Reuses the info-tip tooltip look. Set via data-tip in app.js. */
-.card.disabled[data-tip], .palette-item.disabled[data-tip], .seg button.disabled[data-tip] { position: relative; }
-.card.disabled[data-tip]::after, .palette-item.disabled[data-tip]::after, .seg button.disabled[data-tip]::after {
+   Reuses the info-tip tooltip look. Set via data-tip in app.js.
+   .card.tipped = an ENABLED card carrying an advisory tip (e.g. the length
+   card's "no 3D guide yet" badge) — same tooltip, card stays clickable. */
+.card.disabled[data-tip], .card.tipped[data-tip], .palette-item.disabled[data-tip], .seg button.disabled[data-tip] { position: relative; }
+.card.disabled[data-tip]::after, .card.tipped[data-tip]::after, .palette-item.disabled[data-tip]::after, .seg button.disabled[data-tip]::after {
   content: attr(data-tip);
   position: absolute;
   bottom: calc(100% + 8px);
@@ -344,6 +347,7 @@ details.space-box[open] .sb-sum-status { display: none; }
   pointer-events: none;
 }
 .card.disabled[data-tip]:hover::after, .card.disabled[data-tip]:focus::after,
+.card.tipped[data-tip]:hover::after, .card.tipped[data-tip]:focus::after,
 .palette-item.disabled[data-tip]:hover::after, .palette-item.disabled[data-tip]:focus::after,
 .seg button.disabled[data-tip]:hover::after, .seg button.disabled[data-tip]:focus::after {
   opacity: 1;
@@ -595,6 +599,9 @@ details.space-box[open] .sb-sum-status { display: none; }
 }
 .bom-actions .primary-action:hover:not(:disabled) { filter: brightness(1.1); }
 .bom-actions-sub { font-size: 0.8rem; color: var(--muted); margin: 6px 0 0; }
+/* Visible "why is this greyed" reason under the 3D button — form-field-hint
+   style, same amber as the soft board warnings (advisory, not an error). */
+.instr-reason { font-size: 0.85rem; color: #e8b04b; margin: 6px 0 0; max-width: 640px; }
 
 /* Selected cards carry a checkmark, not just the orange outline (a11y:
    selection must not be communicated by color alone). */
@@ -1270,7 +1277,10 @@ details.space-box[open] .sb-sum-status { display: none; }
   cursor: pointer;
   text-decoration: none;
 }
-.btn:hover { filter: brightness(1.1); }
+.btn:hover:not(:disabled) { filter: brightness(1.1); }
+/* A disabled .btn must LOOK disabled (same grey as the fab) — the solid-orange
+   3D button read as clickable while updateInstructionsButton had greyed it. */
+.btn:disabled { background: var(--panel-2); border-color: var(--line); color: var(--muted); cursor: not-allowed; }
 .btn.ghost { background: transparent; color: var(--accent); }
 .btn.small { padding: 4px 10px; font-size: 0.72rem; }
 
@@ -1353,7 +1363,7 @@ details.space-box[open] .sb-sum-status { display: none; }
   body { background: #fff; color: #000; }
   .hero, .palette, .board-warnings, .bom-actions, .footer, .explainer,
   .board-helper, .unit-toolbar, #step-mount, #step-length, #step-printer,
-  #step-customize, .fab-3d, .board-tools, .bom-actions-sub { display: none !important; }
+  #step-customize, .fab-3d, .board-tools, .bom-actions-sub, .instr-reason { display: none !important; }
   .bom-table, .bom-table td { border-color: #ccc; background: #fff; color: #000; }
   #bom h3 { color: #000; }
   a { color: #000; }

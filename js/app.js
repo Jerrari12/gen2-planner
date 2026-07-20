@@ -256,15 +256,25 @@
       const fits = lengthFits(l.id);
       const noTT = state.mount === "tabletop" && !!l.noTabletop; // catalog rule, e.g. 59
       const ok = fits && !noTT;
+      // Viewer capability, not a catalog rule: the card stays clickable (the
+      // build is fully plannable & printable) — only the 3D Build Studio lacks
+      // under-table rail models for this length, and the badge says so up-front
+      // instead of leaving a mysteriously greyed button at the page bottom.
+      const no3d = ok && state.mount === "under-table" && !VIEWER_UT_LENGTHS.includes(l.id);
       btn.className = "card slim len-card" + (state.length === l.id ? " active" : "") + (ok ? "" : " disabled");
       btn.style.setProperty("--len-color", l.color);
       btn.innerHTML =
         `<div class="card-title"><span class="len-num">${l.label}</span><span class="mm">mm</span>` +
         (l.recommended ? `<span class="badge">recommended</span>` : "") +
         (!fits ? `<span class="badge nofit">won't fit</span>`
-               : noTT ? `<span class="badge nomount">no tabletop</span>` : "") +
+               : noTT ? `<span class="badge nomount">no tabletop</span>`
+               : no3d ? `<span class="badge no3d">no 3D guide yet</span>` : "") +
         `</div>` +
         `<div class="card-blurb">${l.tagline}</div>`;
+      if (no3d) {
+        btn.classList.add("tipped"); // enables the data-tip tooltip on a non-disabled card
+        btn.dataset.tip = `The 3D Build Studio can't show under-table ${l.id} builds yet (no rail models in its part library) · you can still plan & print — or pick 165/185 for the full 3D guide.`;
+      }
       if (ok) {
         btn.addEventListener("click", () => {
           const wasReady = state.mount && state.length;
@@ -1789,6 +1799,14 @@
   function open3DInstructions() {
     if (!state.placed.length) return;
     track("3d-instructions:" + state.mount + "-" + state.length);
+    // a viewer tab is already following along → sync + focus it instead of
+    // opening a duplicate (the live layout channel keeps it current anyway)
+    if (viewerWin && !viewerWin.closed) {
+      lastSentLayout = null;
+      postLayoutNow();
+      try { viewerWin.focus(); } catch (e) { /* cross-origin focus denied — fine */ }
+      return;
+    }
     viewerWin = window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank");
   }
   // push the current build options to an open viewer tab, but only when they've
@@ -1802,6 +1820,37 @@
     if (json === lastSentOpts) return;
     lastSentOpts = json;
     try { viewerWin.postMessage({ gen2: "buildOptions", opts }, "*"); } catch (e) { /* tab closed */ }
+  }
+
+  /* ---- Live LAYOUT sync (planner → viewer, 2026-07-19) ----
+     Placing / moving / removing units re-generates the open 3D viewer live —
+     it posts the FULL serialized build (same shape as the #build= hash), so
+     the viewer re-runs its generator and the step list follows the layout.
+     While the layout is instructions-blocked (instructionsBlockReason), the
+     viewer instead gets the reason and greys itself out — mirroring the greyed
+     3D button here — and catches up the moment the board is legal again.
+     Debounced (drags refresh() per cell) + signature-guarded (options-only
+     changes ride the cheaper buildOptions channel above, never this one). */
+  let lastSentLayout = null, layoutTimer = 0;
+  const layoutSig = () => JSON.stringify({
+    m: state.mount, l: state.length, r: instructionsBlockReason(),
+    p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", u.closure || "", JSON.stringify(u.interior || null)]),
+  });
+  function postLayoutNow() {
+    if (!viewerWin || viewerWin.closed) return;
+    const sig = layoutSig();
+    if (sig === lastSentLayout) return;
+    lastSentLayout = sig;
+    const reason = instructionsBlockReason();
+    try {
+      if (reason) viewerWin.postMessage({ gen2: "layoutBlocked", reason }, "*");
+      else viewerWin.postMessage({ gen2: "layout", build: serializeBuild() }, "*");
+    } catch (e) { /* tab closed */ }
+  }
+  function syncLayoutToViewer() {
+    if (!viewerWin || viewerWin.closed) return;
+    clearTimeout(layoutTimer);
+    layoutTimer = setTimeout(postLayoutNow, 350);
   }
 
   function importBuild(file) {
@@ -1999,28 +2048,70 @@
     return { grown: ids.size, moved: movedIds.size };
   }
 
+  // Lengths whose under-table RAIL models exist in the 3D viewer's part
+  // library (viewer generate.js COLL) — every length works for Table Top and
+  // Wall Mount. Drives the button reason, the board note and the length-card
+  // "no 3D guide yet" badge, so the three can never disagree.
+  const VIEWER_UT_LENGTHS = [59, 115, 165, 185, 240, 270]; // complete 2026-07-19 — every collection's rail GLBs are in the viewer library, so nothing badges "no 3D guide" for under-table anymore
+
+  // Units not held on BOTH ends toward the mount surface — the board's hard
+  // structural warning, shared with the 3D-studio gate below.
+  function unsupportedUnits() {
+    const occ = occupancy();
+    const fromTop = state.mount !== "tabletop";
+    return state.placed.filter((p) => {
+      if (fromTop ? p.y === 0 : p.y + p.hh === rows()) return false; // sits on the mount surface
+      const supRow = fromTop ? p.y - 1 : p.y + p.hh;                 // adjacent row toward the mount
+      const left = occ.has(p.x + "," + supRow);
+      const right = occ.has((p.x + p.w - 1) + "," + supRow);
+      return !(left && right);
+    });
+  }
+
+  // Why the 3D Build Studio can't show the current layout (null = it can).
+  // ONE source of truth for the button/fab grey-out, the visible reason line,
+  // and the live-sync "blocked" message to an open viewer — so they can never
+  // disagree. Hard structural problems (unsupported, sag) block too: they're
+  // un-instruction-able states, same as the board's hard warnings; soft
+  // advisories (bow risk) don't.
+  function instructionsBlockReason() {
+    if (!state.placed.length)
+      return "Place some units first.";
+    if (state.placed.some((p) => !sizeExists(p.w, p.hh / 2, p.fill)))
+      return "Fix the build first · some placed units don't exist in the " + state.length + " collection (see the board warning).";
+    if (unsupportedUnits().length)
+      return "Fix the build first · some units aren't supported on both ends (see the board warning · Fix structure can do it for you).";
+    if (sagRisks().size)
+      return "Fix the build first · some units would sag mid-span (see the board warning).";
+    if (state.mount === "tabletop" && new Set(Object.values(columnTops())).size > 1)
+      return "Fix the build first · Table Top covers need a flat top, every column must stack to the same height.";
+    if (state.mount === "wall" && wallTopHalfHeight().size)
+      return "Fix the build first · Wall Mount top-row cases can't be 0.5H · they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top.";
+    if (state.mount === "under-table" && !VIEWER_UT_LENGTHS.includes(+state.length))
+      return "3D instructions can't show under-table " + state.length + " builds yet · the rail models aren't in the 3D part library. Table Top and Wall Mount work for every collection.";
+    return null;
+  }
+
   // The 3D-instructions button greys out (with the reason as its tooltip)
   // whenever the layout isn't instructions-ready — same conditions as the
   // board warnings, so the two never disagree.
   function updateInstructionsButton() {
     const btn = $("#instructions-3d");
     if (!btn) return;
-    let reason = null;
-    if (!state.placed.length) {
-      reason = "Place some units first.";
-    } else if (state.placed.some((p) => !sizeExists(p.w, p.hh / 2, p.fill))) {
-      reason = "Fix the build first · some placed units don't exist in the " + state.length + " collection (see the board warning).";
-    } else if (state.mount === "tabletop" && new Set(Object.values(columnTops())).size > 1) {
-      reason = "Fix the build first · Table Top covers need a flat top, every column must stack to the same height.";
-    } else if (state.mount === "wall" && wallTopHalfHeight().size) {
-      reason = "Fix the build first · Wall Mount top-row cases can't be 0.5H · they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top.";
-    } else if (state.mount === "under-table" && ![165, 185].includes(+state.length)) {
-      // the viewer has under-table rail models only for 165/185 so far — every
-      // collection works for Table Top and Wall Mount (viewer generate.js COLL)
-      reason = "3D instructions can't show under-table " + state.length + " builds yet · the rail models aren't in the 3D part library. Table Top and Wall Mount work for every collection.";
-    }
+    const reason = instructionsBlockReason();
     btn.disabled = !!reason;
     btn.title = reason || "Open the 3D Build Studio · step-by-step assembly for this exact build, plus colors and hardware options";
+    // Form-validation style: the reason is VISIBLE under the button, not just a
+    // hover tooltip (tooltips never show on touch — the greyed button read as
+    // broken). The marketing sub-line hides while the reason shows, so the two
+    // don't contradict each other.
+    const reasonEl = $("#instructions-3d-reason");
+    if (reasonEl) {
+      reasonEl.hidden = !reason;
+      reasonEl.textContent = reason ? "⚠ " + reason : "";
+    }
+    const sub = document.querySelector(".bom-actions-sub");
+    if (sub) sub.hidden = !!reason;
     // the floating twin follows the same readiness: hidden until something is
     // placed (nothing to open), greyed with the reason while the build isn't
     // legal, live the moment it is — the feature stays present without the
@@ -2043,15 +2134,8 @@
     // tabletop). A case QuickLocks to whatever sits in the adjacent row and must
     // be held on BOTH its left and right ends — one-sided support cantilevers
     // and isn't buildable.
-    const occ = occupancy();
     const fromTop = state.mount !== "tabletop";
-    const unsupported = state.placed.filter((p) => {
-      if (fromTop ? p.y === 0 : p.y + p.hh === rows()) return false; // sits on the mount surface
-      const supRow = fromTop ? p.y - 1 : p.y + p.hh;                 // adjacent row toward the mount
-      const left = occ.has(p.x + "," + supRow);
-      const right = occ.has((p.x + p.w - 1) + "," + supRow);
-      return !(left && right);
-    });
+    const unsupported = unsupportedUnits();
     if (unsupported.length) {
       const div = warn(box, fromTop
         ? `${unsupported.length} unit(s) aren't supported on both ends · a case QuickLocks to the row above and needs a unit above its left and right edges. Move it to the top row, or fill the gap above the open end.`
@@ -2141,6 +2225,14 @@
       if (new Set(tops).size > 1) {
         warn(box, "Table Top covers need a flat top · every column must stack to the same height before the cover can attach.");
       }
+    }
+
+    // Not a layout problem — a capability note (amber, like bow risk): the 3D
+    // Build Studio has no under-table rail models for this length, which is
+    // why its button/fab sit greyed. The build itself is fine to plan & print.
+    if (state.mount === "under-table" && !VIEWER_UT_LENGTHS.includes(+state.length)) {
+      warn(box, "The 3D Build Studio can't show under-table " + state.length + " builds yet · the rail models aren't in its 3D part library. You can still plan and print this build — or use Table Top / Wall Mount (or the 165/185 collections) for the full 3D guide.")
+        .classList.add("warn-soft");
     }
   }
 
@@ -3358,7 +3450,19 @@
     // touches state; applying it must not echo back (applyingRemoteOpts guard).
     window.addEventListener("message", (e) => {
       const d = e.data;
-      if (!d || d.gen2 !== "buildOptions" || !d.opts) return;
+      if (!d || !d.gen2) return;
+      // any gen2 message identifies the viewer tab — (re)capture the handle so
+      // layout sync survives a planner reload (the old viewerWin ref dies with
+      // the page; the viewer re-introduces itself via viewerReady / option posts)
+      if (e.source && e.source !== window) viewerWin = e.source;
+      if (d.gen2 === "viewerReady") {
+        // a viewer just booted (or reloaded itself onto a new mount/length) —
+        // hand it the current state immediately so it can't sit stale
+        lastSentLayout = null;
+        postLayoutNow();
+        return;
+      }
+      if (d.gen2 !== "buildOptions" || !d.opts) return;
       const o = d.opts;
       applyingRemoteOpts = true;
       try {
@@ -3482,6 +3586,7 @@
     const ready = state.mount && state.length;
     updateInstructionsButton();
     syncOptionsToViewer(); // mirror any option change into an open 3D viewer tab
+    syncLayoutToViewer();  // …and any layout change (debounced full-build post)
     snapshotHistory();     // every settled state becomes an undo step (coalesced)
 
     // Palette icon accents (size boxes, active fill details) wear the chosen

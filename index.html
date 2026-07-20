@@ -17,7 +17,12 @@
       <img class="brand-logo" src="img/jerrari-logo.svg" alt="Jerrari Design" width="26" height="44" />
       <span class="brand-word"><span class="brand-mark">GEN2</span><span class="brand-sub">PLANNER</span></span>
     </div>
-    <a class="brand-link" href="https://www.jerrari3d.com/gen2-modular-system" target="_blank" rel="noopener">JERRARI3D.com →</a>
+    <span class="hero-bar-actions">
+      <!-- Session auto-resume is sticky by design — this is the escape hatch:
+           confirm, wipe the saved session (+ dock preference), reload fresh. -->
+      <button type="button" id="start-fresh" title="Clear this build and every choice, and start from question 1">&#8634; Start fresh</button>
+      <a class="brand-link" href="https://www.jerrari3d.com/gen2-modular-system" target="_blank" rel="noopener">JERRARI3D.com →</a>
+    </span>
   </div>
   <!-- The promise up front: the planner's real product is the calculated build
        package (exact BOM + custom 3D guide), not the drawing board. -->
@@ -314,8 +319,8 @@
         <div class="fp-video" id="faceplate-video" hidden></div>
         <div class="style-pick nested-pick" id="handle-style-pick" hidden>
           <label>Handle style</label>
-          <p class="style-help">For Decor drawers whose faceplate has no built-in handle.</p>
-          <div class="seg" id="handle-style-seg"></div>
+          <p class="style-help">For Decor drawers whose faceplate has no built-in handle &middot; every series uses the same mount, so you can swap later.</p>
+          <div class="fp-row" id="handle-style-cards"></div>
         </div>
       </div>
       <div class="style-pick" id="door-style-pick" hidden>
@@ -370,6 +375,7 @@
      becomes instructions-ready; after that the user's open/closed choice is
      remembered. #dock-tab is the thin edge handle shown while collapsed. -->
 <aside id="viewer-dock" hidden>
+  <div id="dock-grip" title="Drag to resize the 3D preview"></div>
   <div class="dock-head">
     <span class="dock-title">🧊 3D Build Studio <span class="dock-live">live</span></span>
     <span id="dock-perf" hidden>

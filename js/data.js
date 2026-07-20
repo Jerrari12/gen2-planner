@@ -105,10 +105,21 @@ const GEN2 = {
     { id: "classicpro", label: "Classic Pro" },
   ],
   // Handle series for Decor drawers whose faceplate has no built-in handle.
+  // ORDER MATTERS: [0] is the default for new builds AND the sanitize
+  // fallback (Deco per Joey 2026-07-19). Families pick their exact variant on
+  // the handle itself in the 3D studio (BlockBar A–F, Crystal A/B Wide — all
+  // modeled as of 2026-07-20). `img` follows the BOM partImage scheme so one
+  // render batch serves these cards AND the parts-list rows.
   handleStyles: [
-    { id: "blockbar", label: "BlockBar" },
-    { id: "deco",     label: "Deco" },
-    { id: "crystal",  label: "Crystal" },
+    { id: "deco", label: "Deco", sub: "The default series",
+      img: "img/parts/GEN2_Decor Handles - Deco Series_256p.png",
+      blurb: "Swap styles anytime · every handle uses the same 2-screw faceplate mount." },
+    { id: "blockbar", label: "BlockBar", sub: "6 styles (A–F) · pick the exact one in 3D",
+      img: "img/parts/GEN2_Decor Handles - BlockBar Series_256p.png",
+      blurb: "A family of interchangeable bars — flip through A–F on the handle itself in the 3D Build Studio." },
+    { id: "crystal", label: "Crystal", sub: "2 styles (A · B Wide) · pick in 3D",
+      img: "img/parts/GEN2_Decor Handles - Crystal Series_256p.png",
+      blurb: "Faceted crystal bars in standard and wide — flip between them on the handle in the 3D Build Studio." },
   ],
 
   // Printer presets — usable bed size in mm (X × Y).

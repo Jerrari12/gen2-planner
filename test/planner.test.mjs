@@ -688,6 +688,51 @@ test("board edge '+' strips grow the grid away from the mount anchor, capped and
   assert.equal(strips().length, 2, "strip returns when the cap lifts");
 });
 
+test("Start fresh: confirm-gated wipe of the saved session + dock preference", () => {
+  const { app, window: win, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" });
+  app.refresh();
+
+  let confirmed = false, msg = "";
+  win.confirm = (m) => { msg = m; return confirmed; };
+  const removed = [];
+  // jsdom's opaque origin has no localStorage — observe the wipe through a stub
+  Object.defineProperty(win, "localStorage", {
+    value: { removeItem: (k) => removed.push(k), getItem: () => null, setItem: () => {} },
+    configurable: true,
+  });
+
+  doc.querySelector("#start-fresh").click(); // canceled
+  assert.match(msg, /SAVE/i, "the warning points at the SAVE feature");
+  assert.equal(removed.length, 0, "cancel keeps everything");
+  assert.equal(app.state.placed.length, 1);
+
+  confirmed = true;
+  doc.querySelector("#start-fresh").click();
+  assert.ok(removed.includes("gen2-last-build"), "saved session wiped");
+  assert.ok(removed.includes("gen2-dock"), "dock preference wiped (re-reveals like a first visit)");
+});
+
+test("handle styles: Deco is the default; cards carry the family/stand-in notes; picks re-link the BOM", () => {
+  const { app, doc } = boot();
+  assert.equal(app.state.handleStyle, "deco", "new builds default to Deco");
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.refresh();
+
+  const cards = [...doc.querySelectorAll("#handle-style-cards .fp-card")];
+  assert.equal(cards.length, 3);
+  assert.match(cards[0].textContent, /Deco/);
+  assert.equal(cards[0].getAttribute("aria-pressed"), "true", "Deco card starts active");
+  assert.match(cards[1].textContent, /6 styles/, "BlockBar reads as a family");
+  assert.match(cards[2].textContent, /2 styles/, "Crystal reads as a 2-style family (GLBs landed 2026-07-20)");
+  assert.ok(JSON.stringify(app.computeBom()).includes("Deco Series"), "handle row links the default series");
+
+  cards[2].click(); // Crystal
+  assert.equal(app.state.handleStyle, "crystal");
+  assert.ok(JSON.stringify(app.computeBom()).includes("Crystal Series"), "handle row follows the pick");
+  assert.equal(doc.querySelectorAll("#handle-style-cards .fp-card.active").length, 1);
+});
+
 test("removedStoppers drops the stopper BOM count and round-trips through the hash", () => {
   const { app } = boot();
   app.state.mount = "tabletop";

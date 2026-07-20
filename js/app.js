@@ -600,6 +600,37 @@
     updateClubNote();
   }
 
+  // Handle cards (2026-07-19, Joey): the old 3-button seg gave no idea what
+  // each series LOOKS like — mirror the faceplate cards (hero image + sub +
+  // rich hover preview). BlockBar is a FAMILY: the exact A–F pick stays in
+  // the 3D studio, on the handle itself; Crystal ships links/BOM only until
+  // its GLB lands (the viewer stands in Deco + warns). Adding a future series
+  // = one entry in GEN2.handleStyles (+ a render named on the partImage
+  // scheme) — the card, BOM link and sync all follow.
+  function renderHandleCards() {
+    const wrap = $("#handle-style-cards");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    GEN2.handleStyles.forEach((s) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "fp-card" + (s.img ? " has-img" : "") + (s.id === state.handleStyle ? " active" : "");
+      card.setAttribute("aria-pressed", s.id === state.handleStyle ? "true" : "false");
+      if (s.img) {
+        card.style.backgroundImage =
+          `linear-gradient(to right, var(--panel-2) 0%, var(--panel-2) 38%, rgba(44,45,49,0.4) 72%, rgba(44,45,49,0) 100%), url("${s.img}")`;
+      }
+      card.innerHTML =
+        `<span class="fp-name">${s.label}</span>` +
+        (s.sub ? `<span class="fp-sub">${s.sub}</span>` : "") +
+        (s.img ? `<span class="tip-card" role="tooltip">` +
+          `<img class="tip-card-img" src="${s.img}" alt="${s.label}" loading="lazy" onerror="this.style.display='none'" />` +
+          `<span class="tip-card-text"><b>${s.label}</b>${s.blurb || s.sub || ""}</span></span>` : "");
+      card.addEventListener("click", () => { state.handleStyle = s.id; track("handle:" + s.id); refresh(); });
+      wrap.appendChild(card);
+    });
+  }
+
   // Friendly, non-blocking notice when a Club faceplate is selected: informs the
   // user their list now includes Club files, and invites them to join the Club.
   function updateClubNote() {
@@ -634,7 +665,7 @@
     };
     renderFaceplateCards();
     build("#door-style-seg", GEN2.doorStyles, state.doorStyle, (id) => { state.doorStyle = id; });
-    build("#handle-style-seg", GEN2.handleStyles, state.handleStyle, (id) => { state.handleStyle = id; });
+    renderHandleCards();
     renderHardwareMasters();
     const hasDecor = state.placed.some((p) => p.fill === "decor");
     const faceDef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
@@ -2013,6 +2044,65 @@
     const w = window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank");
     if (w) viewerWin = w; // the full tab takes over the sync; the dock naps
     closeDock();
+  }
+
+  // ---- dock width: percent of the viewport, draggable at the seam ----
+  // Stored in vw units (gen2-dock-w) so a saved width scales with the screen;
+  // the grip drags within [28vw, 62vw] plus a 380px floor and a "planner
+  // keeps >=520px" guard so neither side can be crushed.
+  const DOCK_W_MIN_VW = 28, DOCK_W_MAX_VW = 62, DOCK_W_MIN_PX = 380, PLANNER_MIN_PX = 520;
+  function clampDockVw(vw) {
+    const w = window.innerWidth || 1600;
+    let v = Math.max(DOCK_W_MIN_VW, Math.min(DOCK_W_MAX_VW, vw));
+    v = Math.max(v, (DOCK_W_MIN_PX / w) * 100);          // never thinner than the viewer can use
+    v = Math.min(v, ((w - PLANNER_MIN_PX) / w) * 100);   // never so wide the planner is crushed
+    return Math.round(v * 10) / 10;
+  }
+  function applyDockW(vw) {
+    document.documentElement.style.setProperty("--dock-w", clampDockVw(vw) + "vw");
+  }
+  try {
+    const saved = parseFloat(localStorage.getItem("gen2-dock-w"));
+    if (saved) applyDockW(saved);
+  } catch (e) { /* private mode — CSS default stands */ }
+  function bindDockGrip() {
+    const grip = $("#dock-grip");
+    if (!grip) return;
+    let curVw = null;
+    grip.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      try { grip.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/odd pointer — window moves still reach us via the grip */ }
+      document.body.classList.add("dock-resizing");
+      const move = (ev) => {
+        curVw = clampDockVw(((window.innerWidth - ev.clientX) / window.innerWidth) * 100);
+        document.documentElement.style.setProperty("--dock-w", curVw + "vw");
+      };
+      const up = () => {
+        document.body.classList.remove("dock-resizing");
+        grip.removeEventListener("pointermove", move);
+        if (curVw) { try { localStorage.setItem("gen2-dock-w", String(curVw)); } catch (err) { /* private mode */ } }
+        track("dock:resize");
+      };
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", up, { once: true });
+      grip.addEventListener("pointercancel", up, { once: true });
+    });
+  }
+
+  // ---- Start fresh (Joey 2026-07-19): the auto-resume escape hatch ----
+  // Session resume is sticky BY DESIGN (a closed tab keeps the build); this
+  // wipes the saved session + the dock preference and reloads — a true
+  // first-visit boot: three questions, everything collapsed, the 3D pane
+  // waiting for its one-time reveal. Confirmed first, pointing at SAVE.
+  function startFresh() {
+    const msg = "Start fresh?\n\n" +
+      "This clears the current build and every choice (mount, printer, length, layout, options) and returns to question 1.\n\n" +
+      "Tip: your current build will be lost — use the SAVE button (left panel) first to keep a copy on your computer. You can LOAD it back anytime.";
+    if (!window.confirm(msg)) return;
+    track("start-fresh");
+    try { localStorage.removeItem("gen2-last-build"); } catch (e) { /* private mode */ }
+    try { localStorage.removeItem("gen2-dock"); } catch (e) { /* private mode */ }
+    try { location.reload(); } catch (e) { /* jsdom — tests assert the storage wipe */ }
   }
 
   function importBuild(file) {
@@ -3607,6 +3697,8 @@
     $("#instructions-3d").addEventListener("click", open3DInstructions);
     $("#fab-3d").addEventListener("click", open3DInstructions);
     // docked split view controls (wide screens; see the dock block above)
+    $("#start-fresh").addEventListener("click", startFresh);
+    bindDockGrip();
     $("#dock-tab").addEventListener("click", () => { track("dock:expand"); openDock(false); });
     $("#dock-collapse").addEventListener("click", closeDock);
     $("#dock-popout").addEventListener("click", popOutStudio);

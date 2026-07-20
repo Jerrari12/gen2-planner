@@ -67,6 +67,15 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   step hides when nothing applies (no drawers/cabinets placed) and is
   print-hidden. refresh() ends with syncOptionsToViewer(), so master changes
   live-sync to an open viewer tab like any option change.
+  **Handle style CARDS (2026-07-20, was a text seg):** renderHandleCards
+  mirrors the fp-card look (hero art + sub + hover preview + ✓). DECO IS THE
+  DEFAULT — `GEN2.handleStyles[0]` drives both the new-build default and the
+  sanitize fallback, so the catalog ORDER is the default. Families pick their
+  exact variant on the handle in the 3D studio (BlockBar A–F, Crystal A/B
+  Wide — all GLBs modeled as of 2026-07-20); card art = the three series
+  heroes in img/parts/ on the partImage scheme (one render set serves cards +
+  BOM rows). A future series = one handleStyles entry (+ viewer
+  HANDLE_STYLES entries once its GLB exists).
 - `css/style.css` — all styles. CSS variables for the JERRARI brand palette at
   the top (`--accent` is the orange `#ff8a40`).
 - `js/data.js` — **the catalog and single source of truth.** Sizes, fills,
@@ -127,6 +136,18 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   tab open → sync+focus it; else window.open as always. The dock boots its
   iframe only at first reveal/expand (never on page load), always from a
   legal `#build=` hash. `updateDock()` runs from refresh() + window resize.
+  **Dock width (2026-07-19):** `--dock-w` is PERCENT-based
+  (clamp(420px, 44vw, 62vw) — the old 860px cap read as fixed on ultrawide)
+  and the seam is draggable: `#dock-grip` (left edge, col-resize) drags
+  within [28vw, 62vw] + a 380px dock floor + a 520px planner-min guard
+  (clampDockVw), persists vw units in `gen2-dock-w`, re-applied at boot;
+  body.dock-resizing kills the padding transition AND sets
+  `#viewer-frame{pointer-events:none}` (the iframe would eat the drag).
+  **Start fresh (`#start-fresh`, hero bar):** the auto-resume escape hatch —
+  confirm() (names the SAVE feature), wipe `gen2-last-build` + `gen2-dock`,
+  location.reload() = true first-visit boot (three questions, dock waiting
+  to re-reveal). Width + viewer-colors caches survive deliberately (device/
+  asset preferences, not build state).
   **Palette relay (2026-07-19):** filament colors stay VIEWER state (the
   planner never interprets them), but the dock iframe's localStorage is
   partitioned cross-site — so the viewer posts `{gen2:'colors', t, colors,
@@ -188,6 +209,17 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   the grid to fit, and reverts cleanly (returns null, nothing deleted) if it'd
   exceed `capH()`. Capping a 0.5H with a taller unit above also clears it. All
   exported to tests.
+- **Handle styles (2026-07-19):** `GEN2.handleStyles` ORDER MATTERS — [0] is
+  the default for new builds AND the sanitize fallback (Deco per Joey; was
+  blockbar). Rendered as `renderHandleCards()` fp-card-style CARDS (image +
+  sub + hover preview) in #handle-style-cards, not a seg. BlockBar is a
+  6-style FAMILY (A–F) — the exact variant is picked on the handle in the 3D
+  studio (viewer ◀▶, survives regenerates via its activeHandleStyle); Crystal
+  has REAL product pages but no GLB (the viewer stands in Deco + warns — the
+  card says so). Card art follows the partImage scheme
+  (`img/parts/GEN2_Decor Handles - <X> Series_256p.png`, missing → dark card)
+  so ONE render batch serves cards + BOM rows. New series = one entry here
+  (+ viewer HANDLE_STYLES when a GLB exists).
 - `GEN2.unavailableSizes` (3W-3H, 4W-3H) are rendered as **blank gaps** in the
   palette, not greyed tiles.
 - **Per-collection catalogs** (`GEN2.collectionCases`, 2026-07-10): the 59 mini

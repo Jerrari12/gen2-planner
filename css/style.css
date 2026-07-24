@@ -535,16 +535,23 @@ details.space-box[open] .sb-sum-status { display: none; }
 .fp-card.club:hover { border-color: var(--blue-dim); border-top-color: var(--blue); }
 .fp-card.club.active { border-color: var(--accent); border-top-color: var(--accent); }
 .fp-spark { position: absolute; top: 8px; right: 9px; color: var(--blue); font-size: 0.85rem; line-height: 1; }
-/* "needs bought hardware" marker — bottom-left corner of an option card so it
-   never collides with the club ✦ (top-right) and costs no layout at all.
+/* "needs bought hardware" marker — a top-corner glyph like the club ✦, never
+   in the text flow (it sat bottom-left and overlapped the blurb — Joey).
    .fp-card is already position:relative; the mount .card is NOT, and without
    this the badge would escape and anchor to the page. */
 .card { position: relative; }
 .needs-hw {
-  position: absolute; bottom: 7px; left: 9px;
-  font-size: 0.78rem; line-height: 1; opacity: 0.75; cursor: help;
+  position: absolute; top: 8px; right: 9px;
+  width: 15px; height: 15px; color: var(--muted);
+  cursor: help; pointer-events: auto;
 }
-.fp-card.active .needs-hw, .mount-card.active .needs-hw { opacity: 1; }
+.needs-hw svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+/* A club style can ALSO bolt on a handle (Chevron) — park the wrench left of
+   the ✦ so both read, rather than stacking on top of each other. */
+.fp-card.club .needs-hw { right: 29px; }
+/* Mount cards put their active ✓ top-right, so the wrench takes the free left. */
+#mount-cards .needs-hw { right: auto; left: 9px; }
+.fp-card.active .needs-hw, .card.active .needs-hw { color: var(--text); }
 .club-note {
   margin: 12px 0 0; padding: 9px 12px; font-size: 0.78rem; line-height: 1.5;
   background: rgba(47, 155, 224, 0.08); border: 1px solid rgba(47, 155, 224, 0.4);

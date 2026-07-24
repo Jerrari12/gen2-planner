@@ -220,6 +220,20 @@
 
   /* ------------------------- Step 1 & 2: cards ------------------------- */
 
+  /* "needs bought hardware" marker. A single-colour inline SVG rather than an
+     emoji so it reads like the club ✦ at 15px and inherits currentColor (emoji
+     render multi-colour and muddy at that size — Joey). Wrench: head + shaft
+     drawn clockwise so nonzero fill UNIONS them seamlessly, jaw notch and
+     handle hole drawn counter-clockwise so they punch through. */
+  const HW_ICON = (title) =>
+    `<span class="needs-hw" title="${title}"><svg viewBox="0 0 24 24" aria-hidden="true">` +
+    `<g transform="rotate(-45 12 12)">` +
+    `<path d="M7.4 7a4.6 4.6 0 1 1 9.2 0a4.6 4.6 0 1 1 -9.2 0Z` +          // head (CW)
+    `M10.1 6L13.9 6L13.9 19A1.9 1.9 0 0 1 10.1 19Z` +                       // shaft (CW)
+    `M10.4 0L10.4 7L13.6 7L13.6 0Z` +                                       // jaw notch (CCW)
+    `M10.55 17.6a1.45 1.45 0 1 0 2.9 0a1.45 1.45 0 1 0 -2.9 0Z"/>` +        // hole (CCW)
+    `</g></svg></span>`;
+
   function renderMountCards() {
     const wrap = $("#mount-cards");
     wrap.innerHTML = "";
@@ -238,7 +252,7 @@
       const needsScrews = m.id === "wall" || m.id === "under-table";
       btn.innerHTML =
         `<div class="card-icon">${mountIcon(m.id)}</div>` +
-        (needsScrews ? '<span class="needs-hw" title="Needs wood screws to fix it to the wall / surface">🔩</span>' : "") +
+        (needsScrews ? HW_ICON("Needs wood screws to fix it to the wall / surface") : "") +
         `<div class="card-title">${m.label}</div>` +
         `<div class="card-blurb">${m.blurb}</div>`;
       btn.addEventListener("click", () => {
@@ -575,8 +589,7 @@
         // build today (Joey 2026-07-24).
         card.innerHTML =
           (isClub ? '<span class="fp-spark" aria-hidden="true">✦</span>' : "") +
-          (s.integratedHandle ? "" :
-            '<span class="needs-hw" title="Bolt-on handle — needs 2× M3×6 screws per drawer">🔩</span>') +
+          (s.integratedHandle ? "" : HW_ICON("Bolt-on handle — needs 2× M3×6 screws per drawer")) +
           `<span class="fp-name">${s.label}</span>` +
           (s.sub ? `<span class="fp-sub">${s.sub}</span>` : "") +
           // Rich hover preview (reuses the fill-tile .tip-card component): full image + info.

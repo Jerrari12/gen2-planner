@@ -104,11 +104,20 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   `python -m http.server` serves stale css/js and makes fresh edits look broken.
 - **"Needs bought hardware" marker (2026-07-24):** a corner `🔩`
   (`.needs-hw`, absolutely positioned so it costs NO layout — Joey didn't want
-  the indicator taking space) on the option cards whose choice forces a
-  purchase: faceplate styles without `integratedHandle`, and the Wall /
+  the indicator taking space) in the TOP corner of the option cards whose
+  choice forces a purchase: faceplate styles without `integratedHandle`, and the Wall /
   Under-Table mount cards. **REQUIRED only** — magnets are an opt-in closure
   with "None" beside them, so a magnet build is still print-and-build-today and
-  never trips the marker. ⚠ `.card` (mount cards) had no `position: relative`;
+  never trips the marker. The glyph is an inline single-colour SVG
+  (`HW_ICON` in app.js), not an emoji — it has to read like the club ✦ at 15px
+  over card artwork, which multi-colour emoji don't. The wrench is one path:
+  head + shaft wound CLOCKWISE so nonzero fill unions them with no seam, jaw
+  notch + handle hole wound COUNTER-clockwise so they punch through. Placement
+  differs per card because the corners are already spoken for: faceplate cards
+  keep ✦ top-right (their active ✓ moves left) so a club style that ALSO bolts
+  on a handle — the coming Chevron — parks the wrench at `right: 29px` beside
+  it; mount cards put their active ✓ top-right, so the wrench takes the free
+  top-LEFT. It first sat bottom-left and overlapped the blurb (Joey). ⚠ `.card` (mount cards) had no `position: relative`;
   without the rule added next to `.needs-hw` the badge escapes and anchors to
   the page. Viewer twin: the checklist head reads "N to print · 🔩 N to buy"
   (the buy half only when required hardware exists) and the Faceplate ◀▶ row

@@ -91,6 +91,17 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   update in a month (matches model downloads like the v2602 clips). The
   current version is a quiet `.footer-ver` link at the footer's end — bump
   it together with a new changelog entry when announcing.
+- **Starter-kits nav (2026-07-24):** a "🧩 Starter kits" pill in the hero bar
+  + a footer link, both pointed at `KITS_URL` (= INSTRUCTIONS_VIEWER_URL +
+  "builds/") so local dev walks between the tools. **"Start fresh" moved OUT of
+  the nav** (Joey: mixed in with site navigation it was easy to hit by
+  accident) into `#reset-bar` at the top of `<main>`, under the hero and above
+  step 1 — and refresh() only unhides it once `state.placed.length`, since
+  there's nothing to clear before that. NB the hero-bar's narrow-screen rules
+  live AFTER the `.hero-bar`/`.brand-*` base rules; the older 560px block near
+  the top of style.css cannot override them (same specificity, later rule
+  wins). Local dev: `serve-planner.py` (no-store) — a plain
+  `python -m http.server` serves stale css/js and makes fresh edits look broken.
 - **3D instructions handoff:** the "🧊 3D assembly instructions" button
   (bom-actions) opens the GEN2 instructions viewer with
   `#build=` + `encodeBuildHash()` — same encoding as share links. The viewer

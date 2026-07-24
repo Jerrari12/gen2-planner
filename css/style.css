@@ -119,13 +119,15 @@ a { color: var(--accent); }
 .brand-link { font-size: 0.85rem; text-decoration: none; color: var(--muted); }
 .brand-link:hover { color: var(--accent); }
 .hero-bar-actions { display: flex; align-items: center; gap: 16px; }
-/* the auto-resume escape hatch — quiet ghost pill, top-right of the hero */
+/* The auto-resume escape hatch. Sits under the hero (see #reset-bar in
+   index.html), NOT in the nav — quiet ghost pill, and only rendered once a
+   layout exists to clear. */
+#reset-bar { margin: 16px 0 -14px; }
 #start-fresh {
   font: inherit; font-size: 0.82rem; font-weight: 600;
-  color: #d7d8db; background: rgba(0,0,0,0.35);
-  border: 1px solid rgba(255,255,255,0.22); border-radius: 999px;
+  color: var(--muted); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px;
   padding: 6px 14px; cursor: pointer;
-  text-shadow: 0 1px 6px rgba(0,0,0,0.7);
 }
 #start-fresh:hover { color: var(--accent); border-color: var(--accent); }
 /* cross-site nav to the kits gallery — same ghost pill as #start-fresh, but a
@@ -152,13 +154,7 @@ a { color: var(--accent); }
   .brand-logo { height: 32px; }
   .brand-mark { font-size: 1.15rem; }
   .brand-sub { margin-left: 5px; letter-spacing: 0.14em; font-size: 0.72rem; }
-  .nav-pill, #start-fresh { font-size: 0.74rem; padding: 5px 10px; white-space: nowrap; }
-}
-/* Phone widths: two pills + the wordmark no longer fit on one line, and
-   "Start fresh" was wrapping to two. The PLANNER sub-word is the cheapest
-   thing to drop — the logo + GEN2 mark still identify the site. */
-@media (max-width: 430px) {
-  .hero-bar .brand-sub { display: none; }
+  .nav-pill { font-size: 0.74rem; padding: 5px 10px; white-space: nowrap; }
 }
 
 main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }

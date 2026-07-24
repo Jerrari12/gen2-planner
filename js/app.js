@@ -3894,6 +3894,9 @@
 
   function refresh() {
     const ready = state.mount && state.length;
+    // "Start fresh" only means something once there's a layout to lose, and it
+    // sits under the hero rather than in the nav so it can't be mis-clicked.
+    $("#reset-bar").hidden = !state.placed.length;
     updateInstructionsButton();
     syncOptionsToViewer(); // mirror any option change into an open 3D viewer tab
     syncLayoutToViewer();  // …and any layout change (debounced full-build post)

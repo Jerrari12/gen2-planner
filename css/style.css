@@ -128,6 +128,38 @@ a { color: var(--accent); }
   text-shadow: 0 1px 6px rgba(0,0,0,0.7);
 }
 #start-fresh:hover { color: var(--accent); border-color: var(--accent); }
+/* cross-site nav to the kits gallery — same ghost pill as #start-fresh, but a
+   link (the kits page carries the mirror-image pill back to here) */
+.nav-pill {
+  font: inherit; font-size: 0.82rem; font-weight: 600; text-decoration: none;
+  color: #d7d8db; background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.22); border-radius: 999px;
+  padding: 6px 14px; white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.7);
+}
+.nav-pill:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Narrow hero bar. MUST sit after the .hero-bar/.brand-* base rules above —
+   the earlier 560px block can't override them (same specificity, later rule
+   wins regardless of the media query). The bar runs out of room once the kits
+   nav pill joins Start fresh, so trim the brand and drop jerrari3d.com (it's in
+   the footer too) rather than letting the actions overlap the wordmark. */
+@media (max-width: 560px) {
+  .hero-bar { padding: 14px 18px; gap: 8px; }
+  .hero-bar-actions { gap: 8px; }
+  .hero-bar-actions .brand-link { display: none; }
+  .brand { gap: 7px; }
+  .brand-logo { height: 32px; }
+  .brand-mark { font-size: 1.15rem; }
+  .brand-sub { margin-left: 5px; letter-spacing: 0.14em; font-size: 0.72rem; }
+  .nav-pill, #start-fresh { font-size: 0.74rem; padding: 5px 10px; white-space: nowrap; }
+}
+/* Phone widths: two pills + the wordmark no longer fit on one line, and
+   "Start fresh" was wrapping to two. The PLANNER sub-word is the cheapest
+   thing to drop — the logo + GEN2 mark still identify the site. */
+@media (max-width: 430px) {
+  .hero-bar .brand-sub { display: none; }
+}
 
 main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 

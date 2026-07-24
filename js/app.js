@@ -1903,6 +1903,11 @@
   const INSTRUCTIONS_VIEWER_URL = IS_LOCAL_DEV
     ? "http://localhost:8123/"
     : "https://gen2build.jerrari3d.com/";
+  /* The official-kits gallery is a page of that same site. Point the header +
+     footer nav links at it here so local dev walks between the two tools
+     (the kits page carries the mirror-image link back to the planner). */
+  const KITS_URL = INSTRUCTIONS_VIEWER_URL + "builds/";
+  for (const a of document.querySelectorAll(".kits-link")) a.href = KITS_URL;
   // keep the child ref (NO noopener) so build-option changes sync both ways;
   // cross-origin still limits the child to postMessage, so it's safe first-party.
   let viewerWin = null, applyingRemoteOpts = false, lastSentOpts = null;

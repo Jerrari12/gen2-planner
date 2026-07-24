@@ -18,6 +18,10 @@
       <span class="brand-word"><span class="brand-mark">GEN2</span><span class="brand-sub">PLANNER</span></span>
     </div>
     <span class="hero-bar-actions">
+      <!-- Cross-site nav to the official kits gallery (a page of the 3D Build
+           Studio site). href is set from KITS_URL in app.js so local dev points
+           at the local viewer. -->
+      <a class="nav-pill kits-link" href="https://gen2build.jerrari3d.com/builds/" title="Preconfigured GEN2 builds with ready-made 3D instructions">&#129513; Official kits</a>
       <!-- Session auto-resume is sticky by design — this is the escape hatch:
            confirm, wipe the saved session (+ dock preference), reload fresh. -->
       <button type="button" id="start-fresh" title="Clear this build and every choice, and start from question 1">&#8634; Start fresh</button>
@@ -419,6 +423,7 @@
   GEN2 QuickLock Modular System by <a href="https://www.jerrari3d.com" target="_blank" rel="noopener">JERRARI3D</a>
   · Models on <a href="https://www.printables.com/@Jerrari" target="_blank" rel="noopener">Printables</a>
   and <a href="https://thangs.com/designer/Jerrari" target="_blank" rel="noopener">Thangs</a>
+  · <a class="kits-link" href="https://gen2build.jerrari3d.com/builds/">Official kits</a>
   <!-- release stamp: vYYMM(.DD), same date scheme as the model downloads —
        bump alongside a new CHANGELOG.md entry when announcing an update -->
   · <a class="footer-ver" href="https://github.com/Jerrari12/gen2-planner/blob/main/CHANGELOG.md" target="_blank" rel="noopener">v2607.20</a>

@@ -2950,8 +2950,9 @@
       });
       items.sort((a, b) => a.name.localeCompare(b.name));
       GEN2.decorExtras.forEach((x) => {
-        // EdgeLabel / Classic Pro faceplates have a built-in handle.
-        if (x.id === "handle" && faceDef && faceDef.integratedHandle) return;
+        // EdgeLabel / Classic Pro faceplates print their grip in — skip the
+        // bolt-on rows (the handle AND the screws that fasten it).
+        if (x.boltOnOnly && faceDef && faceDef.integratedHandle) return;
         if (x.id === "handle") {
           // Name + link the handle after the chosen handle style (the name
           // matches a LINK_OVERRIDES key so partLinks resolves it directly).

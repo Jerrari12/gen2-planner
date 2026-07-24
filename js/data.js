@@ -346,7 +346,20 @@ const GEN2 = {
       id: "handle",
       name: () => "Handle or knob (any GEN2-compatible design)",
       qtyPerDrawer: 1,
+      boltOnOnly: true,
       note: "Pick any style · handles and knobs are swappable.",
+    },
+    // The one REQUIRED hardware item on a bolt-on-handle build: the handle
+    // screws onto the faceplate from behind. Gated on the same
+    // `integratedHandle` test as the handle row (EdgeLabel / Classic Pro print
+    // their grip in, so they need none).
+    {
+      id: "handleScrew",
+      name: () => "M3×6mm button head screw",
+      qtyPerDrawer: 2,
+      hardware: true,
+      boltOnOnly: true,
+      note: "Fastens the handle to the faceplate · 2 per handle, driven in from behind the plate.",
     },
   ],
 
@@ -620,6 +633,10 @@ const HARDWARE_BUY = {
     { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
     { label: "Steel", url: "https://amzn.to/4gA0NWl" },
   ],
+  // the handle fastener — the one REQUIRED buy on a bolt-on-handle build
+  "M3×6mm button head screw": [
+    { label: "Buy M3×6 button head", url: "https://amzn.to/4x4opHK" },
+  ],
   "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)": [
     { label: "#6", url: "https://amzn.to/4s487gc" },
     { label: "#8", url: "https://amzn.to/4pTWDuq" },
@@ -688,6 +705,7 @@ const IMAGE_OVERRIDES = {
   // and falls back to hardware.svg, never the "coming soon" placeholder.
   "M3×6mm screw": "img/parts/Screw.png",
   "M3×12mm screw": "img/parts/Screw.png",
+  "M3×6mm button head screw": "img/parts/ButtonHeadScrew_M3-6.png",
   "M3 hex nut": "img/parts/Nut.png",
   "Magnets 10×2mm or 6×2mm": "img/parts/Magnets.png",
   "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)": "img/parts/Wood Screw.png",

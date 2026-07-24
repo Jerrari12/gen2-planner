@@ -102,6 +102,15 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   the top of style.css cannot override them (same specificity, later rule
   wins). Local dev: `serve-planner.py` (no-store) — a plain
   `python -m http.server` serves stale css/js and makes fresh edits look broken.
+- **Handle screws (2026-07-24):** `M3×6mm button head screw`, 2 per Decor
+  drawer, in the Faceplates & Handles section. It's the one REQUIRED bought
+  item on a bolt-on-handle build, so it carries an affiliate link
+  (`HARDWARE_BUY`) and its own 256² render (`IMAGE_OVERRIDES` →
+  `img/parts/ButtonHeadScrew_M3-6.png`). Gating: `decorExtras[].boltOnOnly` +
+  `faceDef.integratedHandle` — EdgeLabel / Classic Pro print their grip in
+  and bill neither the handle nor the screws. Mirrored in the viewer
+  (generate.js `SCREW_M3` / `BUY.handleScrews`), which also models and animates
+  them; keep the two in step.
 - **3D instructions handoff:** the "🧊 3D assembly instructions" button
   (bom-actions) opens the GEN2 instructions viewer with
   `#build=` + `encodeBuildHash()` — same encoding as share links. The viewer

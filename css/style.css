@@ -541,8 +541,10 @@ details.space-box[open] .sb-sum-status { display: none; }
    this the badge would escape and anchor to the page. */
 .card { position: relative; }
 .needs-hw {
+  /* 13px of ACTUAL wrench (the viewBox is cropped to the artwork), which sits
+     about level with the club ✦ beside it */
   position: absolute; top: 8px; right: 9px;
-  width: 15px; height: 15px; color: var(--muted);
+  width: 13px; height: 13px; color: var(--muted);
   cursor: help; pointer-events: auto;
 }
 .needs-hw svg { display: block; width: 100%; height: 100%; fill: currentColor; }

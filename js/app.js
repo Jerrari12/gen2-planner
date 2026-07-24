@@ -222,17 +222,24 @@
 
   /* "needs bought hardware" marker. A single-colour inline SVG rather than an
      emoji so it reads like the club ✦ at 15px and inherits currentColor (emoji
-     render multi-colour and muddy at that size — Joey). Wrench: head + shaft
-     drawn clockwise so nonzero fill UNIONS them seamlessly, jaw notch and
-     handle hole drawn counter-clockwise so they punch through. */
+     render multi-colour and muddy at that size — Joey).
+     The head is drawn as a true C-RING (outer arc → step in → inner arc back),
+     NOT as a circle with a notch subtracted: a notch rectangle has to overhang
+     the circle to leave the jaw open, and the overhanging part is a lone
+     counter-clockwise region — still winding −1, so nonzero fills it and you
+     get a stray square floating off the head (Joey spotted it). Ring + shaft
+     are wound clockwise so they union seamlessly; only the handle hole, which
+     sits fully inside the shaft, is counter-clockwise so it punches through. */
+  const HW_PATH =
+    "M14.02 2.87A4.6 4.6 0 1 1 9.98 2.87L10.95 4.84A2.4 2.4 0 1 0 13.05 4.84Z" + // C-ring jaw (CW)
+    "M10.1 9.5L13.9 9.5L13.9 17.1A1.9 1.9 0 0 1 10.1 17.1Z" +                    // shaft (CW)
+    "M10.65 17.2a1.35 1.35 0 1 0 2.7 0a1.35 1.35 0 1 0 -2.7 0Z";                 // hole (CCW)
   const HW_ICON = (title) =>
-    `<span class="needs-hw" title="${title}"><svg viewBox="0 0 24 24" aria-hidden="true">` +
-    `<g transform="rotate(-45 12 12)">` +
-    `<path d="M7.4 7a4.6 4.6 0 1 1 9.2 0a4.6 4.6 0 1 1 -9.2 0Z` +          // head (CW)
-    `M10.1 6L13.9 6L13.9 19A1.9 1.9 0 0 1 10.1 19Z` +                       // shaft (CW)
-    `M10.4 0L10.4 7L13.6 7L13.6 0Z` +                                       // jaw notch (CCW)
-    `M10.55 17.6a1.45 1.45 0 1 0 2.9 0a1.45 1.45 0 1 0 -2.9 0Z"/>` +        // hole (CCW)
-    `</g></svg></span>`;
+    // viewBox = the artwork's ROTATED bounds, not 0 0 24 24 — drawn upright then
+    // turned −45°, the wrench spans only ~13.6 of 24 units inside a square box
+    // and renders ~40% smaller than its container implies.
+    `<span class="needs-hw" title="${title}"><svg viewBox="3.5 3.5 14.4 14.4" aria-hidden="true">` +
+    `<g transform="rotate(-45 12 12)"><path d="${HW_PATH}"/></g></svg></span>`;
 
   function renderMountCards() {
     const wrap = $("#mount-cards");

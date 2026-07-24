@@ -85,13 +85,27 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
 - `js/app.js` — all app logic, wrapped in one IIFE. Holds `state`, renders the
   board (SVG), the palette, the selected-unit toolbar, and the parts list.
 - `ASSETS-TODO.md` — what renders/links the planner is still waiting on.
+- `CHANGELOG.md` — the RELEASE log for the planner + 3D Build Studio pair
+  (community-post source; the viewer repo has no separate one). Version
+  scheme = the ecosystem's date stamps: `vYYMM`, or `vYYMM.DD` for a second
+  update in a month (matches model downloads like the v2602 clips). The
+  current version is a quiet `.footer-ver` link at the footer's end — bump
+  it together with a new changelog entry when announcing.
 - **3D instructions handoff:** the "🧊 3D assembly instructions" button
   (bom-actions) opens the GEN2 instructions viewer with
   `#build=` + `encodeBuildHash()` — same encoding as share links. The viewer
   lives in the separate "GEN2 Visual Animator" project;
-  `INSTRUCTIONS_VIEWER_URL` in app.js points at its GitHub Pages deploy
-  (https://jerrari12.github.io/gen2-visual-animator/; swap for localhost:8123
-  for local viewer dev). The viewer generates its own step-by-step manifest from the build
+  `INSTRUCTIONS_VIEWER_URL` in app.js points at its permanent custom domain
+  (https://gen2build.jerrari3d.com/ since 2026-07-23 — the old
+  jerrari12.github.io/gen2-visual-animator/ URL 301-redirects; `IS_LOCAL_DEV`
+  swaps in localhost:8123 for local viewer dev). **Official-kit authoring
+  (2026-07-23):** "📦 Export official kit" in the Save & share block —
+  `IS_LOCAL_DEV`-gated (hidden in prod) — prompts title / id (slugified from
+  the title, editable) / tagline and downloads the
+  `{gen2OfficialBuild:1, id, title, tagline, buildVersion:1, build}` wrapper
+  for the viewer's `builds/<id>.json` (permanent `?build=<id>` links; the
+  ready-to-paste gallery index.json row lands in the console). The viewer
+  generates its own step-by-step manifest from the build
   (2026-07-19: ALL THREE MOUNTS for ALL SIX lengths — the last under-table
   rail GLBs landed that day; 59 is hanging-only per mountBlocksLength, which
   the viewer mirrors; it shows a friendly message otherwise).

@@ -1820,6 +1820,36 @@
     exportBuild(serializeBuild(), `gen2-${state.length}-${state.mount}-build`);
   }
 
+  /* Official-kit authoring (dev machines only — the button is hidden unless
+     IS_LOCAL_DEV). Exports the wrapper JSON the 3D Build Studio serves from
+     builds/<id>.json: commit the file to the viewer repo and the kit's
+     permanent link is ?build=<id>. Ids are mintable by commit only, so this
+     never needs to exist in prod. The id auto-derives from the title
+     (slugified) but stays editable — short slugs are QR-friendly. */
+  function exportOfficialBuild() {
+    if (!state.placed.length) return;
+    const title = (window.prompt("Official kit TITLE (shown on the viewer's cover):", `GEN2 ${state.length} Tabletop Kit`) || "").trim();
+    if (!title) return;
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const id = (window.prompt("Kit id — the permanent ?build= link (short = QR-friendly):", slug) || "").trim();
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) { window.alert("The id must be lowercase letters, digits and dashes only."); return; }
+    const tagline = (window.prompt("Tagline (one friendly sentence under the title):", "") || "").trim();
+    // buildVersion marks the planner format this file was authored in — the
+    // viewer migrates old versions forward, so committed kits never go stale
+    const file = { gen2OfficialBuild: 1, id, title, tagline, buildVersion: 1, build: serializeBuild() };
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = id + ".json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    // ready-to-paste gallery row for the viewer's builds/index.json (stats are
+    // precomputed at authoring time so the gallery page stays dumb)
+    const drawers = state.placed.filter((u) => u.fill === "decor" || u.fill === "classic").length;
+    console.log("builds/index.json row:\n" +
+      JSON.stringify({ id, title, tagline, drawers, units: state.placed.length, dims: buildMeta().dims }, null, 2));
+  }
+
   // Download a saved build as a file, reusing its saved name (named once, at Save).
   function exportBuild(data, name) {
     const blob = new Blob([JSON.stringify({ gen2Build: 1, data }, null, 2)], { type: "application/json" });
@@ -1867,11 +1897,12 @@
      Environment-aware: a planner running from localhost (or opened as a file)
      links to the LOCAL viewer dev server (viewer/ on :8123) so both tools can
      be tested together before deploying; anywhere else links to the deployed
-     viewer on GitHub Pages. */
-  const INSTRUCTIONS_VIEWER_URL =
-    (location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname))
-      ? "http://localhost:8123/"
-      : "https://jerrari12.github.io/gen2-visual-animator/";
+     viewer on its permanent custom domain (2026-07-23 — the old
+     jerrari12.github.io/gen2-visual-animator/ URL 301-redirects there). */
+  const IS_LOCAL_DEV = location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname);
+  const INSTRUCTIONS_VIEWER_URL = IS_LOCAL_DEV
+    ? "http://localhost:8123/"
+    : "https://gen2build.jerrari3d.com/";
   // keep the child ref (NO noopener) so build-option changes sync both ways;
   // cross-origin still limits the child to postMessage, so it's safe first-party.
   let viewerWin = null, applyingRemoteOpts = false, lastSentOpts = null;
@@ -3669,6 +3700,9 @@
     $("#load-example").addEventListener("click", loadExample);
     $("#build-save").addEventListener("click", saveBuildToFile);
     $("#build-share").addEventListener("click", shareLink);
+    // official-kit authoring is a dev-machine tool — invisible in prod
+    const official = $("#build-official");
+    if (official) { official.hidden = !IS_LOCAL_DEV; official.addEventListener("click", exportOfficialBuild); }
     $("#build-import").addEventListener("change", (e) => { importBuild(e.target.files[0]); e.target.value = ""; });
     // "New to GEN2" primer: collapsible, remembers its open/closed state.
     const primer = $("#explainer-primer");

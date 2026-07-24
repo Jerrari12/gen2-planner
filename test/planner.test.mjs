@@ -561,7 +561,50 @@ test("3D instructions button targets the local viewer from localhost, the deploy
   };
   assert.match(openedFrom("http://localhost:8123/"), /^http:\/\/localhost:8123\//);
   assert.match(openedFrom("http://127.0.0.1:5500/index.html"), /^http:\/\/localhost:8123\//);
-  assert.match(openedFrom("https://gen2planner.jerrari3d.com/"), /^https:\/\/jerrari12\.github\.io\/gen2-visual-animator\//);
+  // prod links to the viewer's permanent custom domain (2026-07-23 — the old
+  // jerrari12.github.io/gen2-visual-animator/ URL 301-redirects there)
+  assert.match(openedFrom("https://gen2planner.jerrari3d.com/"), /^https:\/\/gen2build\.jerrari3d\.com\//);
+});
+
+test("official-kit exporter: hidden in prod, exports a versioned wrapper with a slugged id on dev", async () => {
+  const bootAt = (url) => {
+    const dom = new JSDOM(read("index.html"), { runScripts: "outside-only", url });
+    const { window } = dom;
+    window.__GEN2_PLANNER_TEST__ = true;
+    window.eval(read("js/data.js") + "\n" + read("js/app.js"));
+    return { window, app: window.__GEN2_PLANNER_TEST__, doc: window.document };
+  };
+  // prod: the authoring button never shows (ids are mintable by repo commit only)
+  assert.equal(bootAt("https://gen2planner.jerrari3d.com/").doc.querySelector("#build-official").hidden, true);
+  // dev: visible; title → slugged id (accepted as the prompt default) → wrapper file
+  const { window: win, app, doc } = bootAt("http://localhost:8123/");
+  const btn = doc.querySelector("#build-official");
+  assert.equal(btn.hidden, false);
+  app.state.mount = "tabletop";
+  app.state.length = 240;
+  app.state.placed.push({ id: 1, x: 0, y: 6, w: 1, hh: 2, fill: "decor", shelves: 0 });
+  app.refresh();
+  const answers = ["GEN2 240 Table Top Starter Kit", "", "Four drawers to start with."]; // "" = accept the suggested slug
+  let call = 0;
+  win.prompt = (msg, def) => { const v = answers[call++]; return v === "" ? def : v; };
+  // jsdom's Blob has no .text() — capture the JSON at the constructor instead
+  let fileJson = null;
+  const RealBlob = win.Blob;
+  win.Blob = function (parts, opts) { fileJson = parts.join(""); return new RealBlob(parts, opts); };
+  win.URL.createObjectURL = () => "blob:test";
+  win.URL.revokeObjectURL = () => {};
+  const downloads = [];
+  win.HTMLAnchorElement.prototype.click = function () { downloads.push(this.download); };
+  btn.click();
+  assert.equal(downloads[0], "gen2-240-table-top-starter-kit.json");
+  const file = JSON.parse(fileJson);
+  assert.equal(file.gen2OfficialBuild, 1);
+  assert.equal(file.id, "gen2-240-table-top-starter-kit");
+  assert.equal(file.title, "GEN2 240 Table Top Starter Kit");
+  assert.equal(file.tagline, "Four drawers to start with.");
+  assert.equal(file.buildVersion, 1);
+  assert.equal(file.build.placed.length, 1);   // the exact serializeBuild() the viewer will migrate+generate
+  assert.equal(file.build.length, 240);
 });
 
 test("live layout sync: placements post the full build; illegal structure posts blocked + greys the button", async () => {

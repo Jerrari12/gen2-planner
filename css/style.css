@@ -131,6 +131,9 @@ a { color: var(--accent); }
 
 main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 
+/* quiet release stamp at the footer's end — links to CHANGELOG.md */
+.footer .footer-ver { color: var(--muted); text-decoration: none; }
+.footer .footer-ver:hover { color: var(--accent); }
 .footer {
   text-align: center;
   padding: 24px;

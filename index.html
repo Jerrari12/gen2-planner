@@ -192,6 +192,9 @@
             </div>
             <button type="button" class="btn ghost small" id="build-share">🔗 Copy share link</button>
             <input type="text" class="share-url" id="share-url" readonly hidden aria-label="Shareable build link" />
+            <!-- dev machines only (unhidden by IS_LOCAL_DEV): author an official
+                 kit file for the 3D Build Studio's builds/ folder -->
+            <button type="button" class="btn ghost small" id="build-official" hidden title="Export this layout as an official kit file for the 3D Build Studio (dev only)">📦 Export official kit</button>
           </div>
         </div>
       </aside>
@@ -416,6 +419,9 @@
   GEN2 QuickLock Modular System by <a href="https://www.jerrari3d.com" target="_blank" rel="noopener">JERRARI3D</a>
   · Models on <a href="https://www.printables.com/@Jerrari" target="_blank" rel="noopener">Printables</a>
   and <a href="https://thangs.com/designer/Jerrari" target="_blank" rel="noopener">Thangs</a>
+  <!-- release stamp: vYYMM(.DD), same date scheme as the model downloads —
+       bump alongside a new CHANGELOG.md entry when announcing an update -->
+  · <a class="footer-ver" href="https://github.com/Jerrari12/gen2-planner/blob/main/CHANGELOG.md" target="_blank" rel="noopener">v2607.20</a>
 </footer>
 
 <script src="js/data.js"></script>

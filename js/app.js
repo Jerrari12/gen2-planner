@@ -1847,7 +1847,7 @@
     // precomputed at authoring time so the gallery page stays dumb)
     const drawers = state.placed.filter((u) => u.fill === "decor" || u.fill === "classic").length;
     console.log("builds/index.json row:\n" +
-      JSON.stringify({ id, title, tagline, drawers, units: state.placed.length, dims: buildMeta().dims }, null, 2));
+      JSON.stringify({ id, title, tagline, length: state.length, drawers, units: state.placed.length, dims: buildMeta().dims }, null, 2));
   }
 
   // Download a saved build as a file, reusing its saved name (named once, at Save).

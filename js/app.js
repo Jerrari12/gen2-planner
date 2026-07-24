@@ -232,8 +232,13 @@
         btn.style.backgroundImage =
           `linear-gradient(to right, var(--panel) 0%, var(--panel) 55%, rgba(44,45,49,0.45) 80%, rgba(44,45,49,0) 100%), url("${m.img}")`;
       }
+      // Wall + Under-Table fix to the building with wood screws; Tabletop just
+      // stands on its feet. Same corner marker the faceplate cards use, so
+      // "will I need to order anything?" is answerable from question 1.
+      const needsScrews = m.id === "wall" || m.id === "under-table";
       btn.innerHTML =
         `<div class="card-icon">${mountIcon(m.id)}</div>` +
+        (needsScrews ? '<span class="needs-hw" title="Needs wood screws to fix it to the wall / surface">🔩</span>' : "") +
         `<div class="card-title">${m.label}</div>` +
         `<div class="card-blurb">${m.blurb}</div>`;
       btn.addEventListener("click", () => {
@@ -563,8 +568,15 @@
           card.style.backgroundImage =
             `linear-gradient(to right, var(--panel-2) 0%, var(--panel-2) 38%, rgba(44,45,49,0.4) 72%, rgba(44,45,49,0) 100%), url("${s.img}")`;
         }
+        // 🔩 = this style's handle BOLTS ON, so choosing it means ordering M3
+        // screws before the build can be finished. Integrated-grip styles print
+        // complete. Absolutely positioned (see .needs-hw) so it costs no layout
+        // — the point is to see, while flipping styles, which ones you can
+        // build today (Joey 2026-07-24).
         card.innerHTML =
           (isClub ? '<span class="fp-spark" aria-hidden="true">✦</span>' : "") +
+          (s.integratedHandle ? "" :
+            '<span class="needs-hw" title="Bolt-on handle — needs 2× M3×6 screws per drawer">🔩</span>') +
           `<span class="fp-name">${s.label}</span>` +
           (s.sub ? `<span class="fp-sub">${s.sub}</span>` : "") +
           // Rich hover preview (reuses the fill-tile .tip-card component): full image + info.

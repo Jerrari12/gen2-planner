@@ -102,6 +102,17 @@ setup (jerrari3d.com). No framework, no bundler, no install to run — open
   the top of style.css cannot override them (same specificity, later rule
   wins). Local dev: `serve-planner.py` (no-store) — a plain
   `python -m http.server` serves stale css/js and makes fresh edits look broken.
+- **"Needs bought hardware" marker (2026-07-24):** a corner `🔩`
+  (`.needs-hw`, absolutely positioned so it costs NO layout — Joey didn't want
+  the indicator taking space) on the option cards whose choice forces a
+  purchase: faceplate styles without `integratedHandle`, and the Wall /
+  Under-Table mount cards. **REQUIRED only** — magnets are an opt-in closure
+  with "None" beside them, so a magnet build is still print-and-build-today and
+  never trips the marker. ⚠ `.card` (mount cards) had no `position: relative`;
+  without the rule added next to `.needs-hw` the badge escapes and anchors to
+  the page. Viewer twin: the checklist head reads "N to print · 🔩 N to buy"
+  (the buy half only when required hardware exists) and the Faceplate ◀▶ row
+  suffixes 🔩 on bolt-on families.
 - **Handle screws (2026-07-24):** `M3×6mm button head screw`, 2 per Decor
   drawer, in the Faceplates & Handles section. It's the one REQUIRED bought
   item on a bolt-on-handle build, so it carries an affiliate link

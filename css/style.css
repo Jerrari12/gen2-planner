@@ -535,6 +535,16 @@ details.space-box[open] .sb-sum-status { display: none; }
 .fp-card.club:hover { border-color: var(--blue-dim); border-top-color: var(--blue); }
 .fp-card.club.active { border-color: var(--accent); border-top-color: var(--accent); }
 .fp-spark { position: absolute; top: 8px; right: 9px; color: var(--blue); font-size: 0.85rem; line-height: 1; }
+/* "needs bought hardware" marker — bottom-left corner of an option card so it
+   never collides with the club ✦ (top-right) and costs no layout at all.
+   .fp-card is already position:relative; the mount .card is NOT, and without
+   this the badge would escape and anchor to the page. */
+.card { position: relative; }
+.needs-hw {
+  position: absolute; bottom: 7px; left: 9px;
+  font-size: 0.78rem; line-height: 1; opacity: 0.75; cursor: help;
+}
+.fp-card.active .needs-hw, .mount-card.active .needs-hw { opacity: 1; }
 .club-note {
   margin: 12px 0 0; padding: 9px 12px; font-size: 0.78rem; line-height: 1.5;
   background: rgba(47, 155, 224, 0.08); border: 1px solid rgba(47, 155, 224, 0.4);

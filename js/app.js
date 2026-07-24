@@ -2136,6 +2136,16 @@
       "Tip: your current build will be lost — use the SAVE button (left panel) first to keep a copy on your computer. You can LOAD it back anytime.";
     if (!window.confirm(msg)) return;
     track("start-fresh");
+    // A popped-out 3D Build Studio would sit there showing the build we just
+    // threw away — nothing left to sync it to, so close it with the reset
+    // (Joey 2026-07-24). The dock's iframe needs no help: it dies with the
+    // reload. Same frameWin test open3DInstructions uses to tell them apart.
+    const f = $("#viewer-frame");
+    const frameWin = f ? f.contentWindow : null;
+    if (viewerWin && !viewerWin.closed && viewerWin !== frameWin) {
+      try { viewerWin.close(); } catch (e) { /* already gone / not ours to close */ }
+    }
+    viewerWin = null;
     try { localStorage.removeItem("gen2-last-build"); } catch (e) { /* private mode */ }
     try { localStorage.removeItem("gen2-dock"); } catch (e) { /* private mode */ }
     try { location.reload(); } catch (e) { /* jsdom — tests assert the storage wipe */ }

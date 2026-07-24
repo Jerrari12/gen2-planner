@@ -756,6 +756,49 @@ test("Start fresh: confirm-gated wipe of the saved session + dock preference", (
   assert.ok(removed.includes("gen2-dock"), "dock preference wiped (re-reveals like a first visit)");
 });
 
+/* "Start fresh" lives under the hero rather than in the nav (it was easy to
+   mis-click there), and only once there's something to clear. */
+test("start fresh only appears once there's a layout to clear", () => {
+  const { app, doc } = boot();
+  assert.equal(doc.querySelector("#reset-bar").hidden, true, "hidden on an empty board");
+  assert.equal(doc.querySelector(".hero-bar #start-fresh"), null, "not in the site nav");
+
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" });
+  app.refresh();
+  assert.equal(doc.querySelector("#reset-bar").hidden, false, "shown once a unit is placed");
+
+  app.state.placed.length = 0;
+  app.refresh();
+  assert.equal(doc.querySelector("#reset-bar").hidden, true, "hidden again when the board empties");
+});
+
+/* A popped-out studio would sit there showing the build we just discarded. */
+test("start fresh closes a popped-out 3D Build Studio", () => {
+  const { app, window: win, doc } = boot();
+  let closes = 0;
+  const fakeViewer = {
+    closed: false, postMessage() {}, focus() {},
+    close() { closes++; this.closed = true; },
+  };
+  win.open = () => fakeViewer;
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" }); // under-table (boot default)
+  app.refresh();
+  doc.querySelector("#instructions-3d").click();                 // captures viewerWin
+
+  Object.defineProperty(win, "localStorage", {
+    value: { removeItem() {}, getItem: () => null, setItem() {} },
+    configurable: true,
+  });
+
+  win.confirm = () => false;
+  doc.querySelector("#start-fresh").click();
+  assert.equal(closes, 0, "cancelling leaves the studio alone");
+
+  win.confirm = () => true;
+  doc.querySelector("#start-fresh").click();
+  assert.equal(closes, 1, "confirming closes the popped-out studio");
+});
+
 test("handle styles: Deco is the default; cards carry the family/stand-in notes; picks re-link the BOM", () => {
   const { app, doc } = boot();
   assert.equal(app.state.handleStyle, "deco", "new builds default to Deco");

@@ -49,8 +49,15 @@ const GEN2 = {
   // maxW caps EVERY fill's width (no wider case exists to build on), while
   // maxDrawerH caps only the drawer fills — shelves/cabinets stack extenders
   // above a 1H case (59 extenders exist), so their heights stay open.
+  // maxClassicH caps only the CLASSIC drawer fill: the 115/240/270 Classic
+  // Drawer catalogs stop at 2H (no 3H was ever modeled — 165/185 have it).
+  // Mirrors the viewer generator's COLL[L].classicMaxHH guard; without both,
+  // a 3H classic build reached a 3D guide whose drawer GLB doesn't exist.
   collectionCases: {
     59: { maxW: 2, maxDrawerH: 1 },
+    115: { maxClassicH: 2 },
+    240: { maxClassicH: 2 },
+    270: { maxClassicH: 2 },
   },
 
   // What a case can be filled with
@@ -92,6 +99,14 @@ const GEN2 = {
     { id: "essential",  label: "Essential",   sub: "Free core faceplate",
       img: "img/parts/Faceplate-Essential.jpg",
       blurb: "The free core faceplate · a clean, complete drawer front. No labels or accents, just the standard GEN2 look." },
+    // The free Classic series. `integratedHandle` is the whole story: the grip
+    // prints as part of the plate, so computeBom skips BOTH bolt-on rows (the
+    // handle and the M3 screws that fasten it) and the card shows no wrench —
+    // the only style you can finish straight off the printer.
+    // NOT `classicpro` below — that's the club style with labels.
+    { id: "classic",    label: "Classic",     integratedHandle: true, sub: "Free · no hardware needed",
+      img: "img/parts/Faceplate-Classic.jpg",
+      blurb: "The free Classic series · the grip prints as part of the plate, so there's no handle to bolt on and nothing to buy. No labels or accents. Optional back cover." },
     { id: "edgelabel",  label: "EdgeLabel",   integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://edgelabel.jerrari3d.com/",
       img: "img/parts/Faceplate-EdgeLabel.jpg",
       blurb: "Swappable labels and accents with the signature edge-label look · restyle and relabel any drawer in seconds. Built-in handle. Included with the GEN2 Club." },
@@ -520,20 +535,20 @@ function buildCoverItems(len, runs) {
    --------------------------------------------------------------------------- */
 const LINK_OVERRIDES = {
   // ---- Under-table rails (Printables pages for every length, 2026-07-12) ----
-  "GEN2 Rails - 59":  { p: "https://www.printables.com/model/1053797-gen2-rails-59-small", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20SMALL-1165763" },
-  "GEN2 Rails - 115": { p: "https://www.printables.com/model/1053795-gen2-rails-115-medium", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20MEDIUM-1165720" },
-  "GEN2 Rails - 165": { p: "https://www.printables.com/model/1053557-gen2-rails-165-mini", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20165-1165793" },
-  "GEN2 Rails - 185": { p: "https://www.printables.com/model/1052357-gen2-rails-185-standard", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20STANDARD-1163830" },
-  "GEN2 Rails - 240": { p: "https://www.printables.com/model/1322484-gen2-rails-240", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20240%20Lite-1360077" },
-  "GEN2 Rails - 270": { p: "https://www.printables.com/model/1053793-gen2-rails-270-large", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20LARGE-1165816" },
+  "GEN2 Rails - 59":  { p: "https://www.printables.com/model/1053797-gen2-rails-59-small", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20SMALL-1165763", m: "https://makerworld.com/en/models/3093597-gen2-under-table-rails-59" },
+  "GEN2 Rails - 115": { p: "https://www.printables.com/model/1053795-gen2-rails-115-medium", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20MEDIUM-1165720", m: "https://makerworld.com/en/models/755511-gen2-under-table-rails-115" },
+  "GEN2 Rails - 165": { p: "https://www.printables.com/model/1053557-gen2-rails-165-mini", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20165-1165793", m: "https://makerworld.com/en/models/939507-gen2-under-table-rails-165" },
+  "GEN2 Rails - 185": { p: "https://www.printables.com/model/1052357-gen2-rails-185-standard", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20STANDARD-1163830", m: "https://makerworld.com/en/models/2199580-gen2-under-table-rails-185" },
+  "GEN2 Rails - 240": { p: "https://www.printables.com/model/1322484-gen2-rails-240", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20240%20Lite-1360077", m: "https://makerworld.com/en/models/1516579-gen2-under-table-rails-240" },
+  "GEN2 Rails - 270": { p: "https://www.printables.com/model/1053793-gen2-rails-270-large", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20LARGE-1165816", m: "https://makerworld.com/en/models/1938132-gen2-under-table-rails-270" },
 
   // ---- Cases — one "{len} Cases - All" collection page per length ----
-  "GEN2 59 Cases - All":  { p: "https://www.printables.com/model/1658749-gen2-59-cases-all", t: "https://than.gs/m/1535454" },
-  "GEN2 115 Cases - All": { p: "https://www.printables.com/model/1658744-gen2-115-cases-all", t: "https://than.gs/m/1535435" },
-  "GEN2 165 Cases - All": { p: "https://www.printables.com/model/1658722-gen2-165-cases-all", t: "https://than.gs/m/1535457" },
-  "GEN2 185 Cases - All": { p: "https://www.printables.com/model/1658700-gen2-185-cases-all", t: "https://than.gs/m/1535455" },
-  "GEN2 240 Cases - All": { p: "https://www.printables.com/model/1658608-gen2-240-cases-all", t: "https://than.gs/m/1535459" },
-  "GEN2 270 Cases - All": { p: "https://www.printables.com/model/1658688-gen2-270-cases-all", t: "https://than.gs/m/1535458" },
+  "GEN2 59 Cases - All":  { p: "https://www.printables.com/model/1658749-gen2-59-cases-all", t: "https://than.gs/m/1535454", m: "https://makerworld.com/en/models/3092550-gen2-59-cases-all" },
+  "GEN2 115 Cases - All": { p: "https://www.printables.com/model/1658744-gen2-115-cases-all", t: "https://than.gs/m/1535435", m: "https://makerworld.com/en/models/3092499-gen2-115-cases-all" },
+  "GEN2 165 Cases - All": { p: "https://www.printables.com/model/1658722-gen2-165-cases-all", t: "https://than.gs/m/1535457", m: "https://makerworld.com/en/models/3092414-gen2-165-cases-all" },
+  "GEN2 185 Cases - All": { p: "https://www.printables.com/model/1658700-gen2-185-cases-all", t: "https://than.gs/m/1535455", m: "https://makerworld.com/en/models/3092219-gen2-185-cases-all" },
+  "GEN2 240 Cases - All": { p: "https://www.printables.com/model/1658608-gen2-240-cases-all", t: "https://than.gs/m/1535459", m: "https://makerworld.com/en/models/3091292-gen2-240-cases-all" },
+  "GEN2 270 Cases - All": { p: "https://www.printables.com/model/1658688-gen2-270-cases-all", t: "https://than.gs/m/1535458", m: "https://makerworld.com/en/models/3092111-gen2-270-cases-all" },
 
   // ---- Case extenders ----
   "GEN2 59 Case Extenders":  { p: "https://www.printables.com/model/1563420-gen2-59-case-extenders" },
@@ -544,35 +559,35 @@ const LINK_OVERRIDES = {
   "GEN2 270 Case Extenders": { p: "https://www.printables.com/model/1706499-gen2-270-case-extenders" },
 
   // ---- Classic drawers — per-length "…Classic Drawers - All" collection ----
-  "GEN2 59 Classic Drawers - All":  { p: "https://www.printables.com/model/234780-gen2-59-classic-drawers-all" },
-  "GEN2 115 Classic Drawers - All": { p: "https://www.printables.com/model/1143243-gen2-115-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20115%20Classic%20Drawers-1069181" },
-  "GEN2 165 Classic Drawers - All": { p: "https://www.printables.com/model/625776-gen2-165-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Classic%20Drawers-1044262" },
-  "GEN2 185 Classic Drawers - All": { p: "https://www.printables.com/model/278293-gen2-185-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20-%20Classic%20Drawers-1042322" },
-  "GEN2 240 Classic Drawers - All": { p: "https://www.printables.com/model/1324538-gen2-240-classic-drawers-all", t: "https://than.gs/m/1360091" },
-  "GEN2 270 Classic Drawers - All": { p: "https://www.printables.com/model/1164306-gen2-270-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Drawers%20-%20Large-1093398" },
+  "GEN2 59 Classic Drawers - All":  { p: "https://www.printables.com/model/234780-gen2-59-classic-drawers-all", m: "https://makerworld.com/en/models/2364890-gen2-59-classic-drawers-all" },
+  "GEN2 115 Classic Drawers - All": { p: "https://www.printables.com/model/1143243-gen2-115-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20115%20Classic%20Drawers-1069181", m: "https://makerworld.com/en/models/755424-gen2-115-classic-drawers-all" },
+  "GEN2 165 Classic Drawers - All": { p: "https://www.printables.com/model/625776-gen2-165-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Classic%20Drawers-1044262", m: "https://makerworld.com/en/models/922620-gen2-165-classic-drawers-all" },
+  "GEN2 185 Classic Drawers - All": { p: "https://www.printables.com/model/278293-gen2-185-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20-%20Classic%20Drawers-1042322", m: "https://makerworld.com/en/models/513368-gen2-185-classic-drawers-all" },
+  "GEN2 240 Classic Drawers - All": { p: "https://www.printables.com/model/1324538-gen2-240-classic-drawers-all", t: "https://than.gs/m/1360091", m: "https://makerworld.com/en/models/1516621-gen2-240-classic-drawers-all" },
+  "GEN2 270 Classic Drawers - All": { p: "https://www.printables.com/model/1164306-gen2-270-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Drawers%20-%20Large-1093398", m: "https://makerworld.com/en/models/1938234-gen2-270-classic-drawers-all" },
 
   // ---- Decor drawers — per-length "…Decor Drawers - All" collection ----
-  "GEN2 59 Decor Drawers - All":  { p: "https://www.printables.com/model/1070454-gen2-59-decor-drawers-all", t: "https://than.gs/m/1481534" },
-  "GEN2 115 Decor Drawers - All": { p: "https://www.printables.com/model/1307794-gen2-115-decor-drawers-all", t: "https://than.gs/m/1158598" },
-  "GEN2 165 Decor Drawers - All": { p: "https://www.printables.com/model/1100978-gen2-165-decor-drawers-all", t: "https://than.gs/m/1493950" },
-  "GEN2 185 Decor Drawers - All": { p: "https://www.printables.com/model/964551-gen2-185-decor-drawers-all", t: "https://than.gs/m/1116945" },
-  "GEN2 240 Decor Drawers - All": { p: "https://www.printables.com/model/1322479-gen2-240-decor-drawers-all", t: "https://than.gs/m/1360074" },
-  "GEN2 270 Decor Drawers - All": { p: "https://www.printables.com/model/1062961-gen2-270-decor-drawers-all", t: "https://than.gs/m/1171387" },
+  "GEN2 59 Decor Drawers - All":  { p: "https://www.printables.com/model/1070454-gen2-59-decor-drawers-all", t: "https://than.gs/m/1481534", m: "https://makerworld.com/en/models/2364145-gen2-59-decor-drawers-all" },
+  "GEN2 115 Decor Drawers - All": { p: "https://www.printables.com/model/1307794-gen2-115-decor-drawers-all", t: "https://than.gs/m/1158598", m: "https://makerworld.com/en/models/755457-gen2-115-decor-drawers-all" },
+  "GEN2 165 Decor Drawers - All": { p: "https://www.printables.com/model/1100978-gen2-165-decor-drawers-all", t: "https://than.gs/m/1493950", m: "https://makerworld.com/en/models/861753-gen2-165-decor-drawers-all" },
+  "GEN2 185 Decor Drawers - All": { p: "https://www.printables.com/model/964551-gen2-185-decor-drawers-all", t: "https://than.gs/m/1116945", m: "https://makerworld.com/en/models/1253173-gen2-185-decor-drawers-all" },
+  "GEN2 240 Decor Drawers - All": { p: "https://www.printables.com/model/1322479-gen2-240-decor-drawers-all", t: "https://than.gs/m/1360074", m: "https://makerworld.com/en/models/1516607-gen2-240-decor-drawers-all" },
+  "GEN2 270 Decor Drawers - All": { p: "https://www.printables.com/model/1062961-gen2-270-decor-drawers-all", t: "https://than.gs/m/1171387", m: "https://makerworld.com/en/models/1938424-gen2-270-decor-drawers-all" },
 
   // ---- Covers — dedicated per-length pages (Thangs added 2026-07-12; CL/CU rows funnel here) ----
-  "GEN2 59 Covers":  { p: "https://www.printables.com/model/1777881-gen2-59-cover", t: "https://than.gs/m/1574324" },
-  "GEN2 115 Covers": { p: "https://www.printables.com/model/1777837-gen2-115-cover", t: "https://than.gs/m/1574330" },
-  "GEN2 165 Covers": { p: "https://www.printables.com/model/1774498-gen2-165-covers", t: "https://than.gs/m/1574320" },
-  "GEN2 185 Covers": { p: "https://www.printables.com/model/1777844-gen2-185-cover", t: "https://than.gs/m/1574319" },
-  "GEN2 240 Covers": { p: "https://www.printables.com/model/1777846-gen2-240-cover", t: "https://than.gs/m/1574326" },
-  "GEN2 270 Covers": { p: "https://www.printables.com/model/1777849-gen2-270-cover", t: "https://than.gs/m/1574325" },
+  "GEN2 59 Covers":  { p: "https://www.printables.com/model/1777881-gen2-59-cover", t: "https://than.gs/m/1574324", m: "https://makerworld.com/en/models/3094116-gen2-59-covers" },
+  "GEN2 115 Covers": { p: "https://www.printables.com/model/1777837-gen2-115-cover", t: "https://than.gs/m/1574330", m: "https://makerworld.com/en/models/3093900-gen2-115-covers" },
+  "GEN2 165 Covers": { p: "https://www.printables.com/model/1774498-gen2-165-covers", t: "https://than.gs/m/1574320", m: "https://makerworld.com/en/models/3094016-gen2-165-covers" },
+  "GEN2 185 Covers": { p: "https://www.printables.com/model/1777844-gen2-185-cover", t: "https://than.gs/m/1574319", m: "https://makerworld.com/en/models/3093827-gen2-185-covers" },
+  "GEN2 240 Covers": { p: "https://www.printables.com/model/1777846-gen2-240-cover", t: "https://than.gs/m/1574326", m: "https://makerworld.com/en/models/3094065-gen2-240-covers" },
+  "GEN2 270 Covers": { p: "https://www.printables.com/model/1777849-gen2-270-cover", t: "https://than.gs/m/1574325", m: "https://makerworld.com/en/models/3094095-gen2-270-covers" },
 
   // ---- Foot Rails — dedicated per-length pages (Thangs added 2026-07-12; FR rows
   //      funnel here; no 59 — that collection has no foot rails) ----
-  "GEN2 115 Foot Rails": { p: "https://www.printables.com/model/1777819-gen2-115-foot-rails", t: "https://than.gs/m/1574331" },
-  "GEN2 165 Foot Rails": { p: "https://www.printables.com/model/1775386-gen2-165-foot-rails", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Foot%20Rails-1574329" },
-  "GEN2 185 Foot Rails": { p: "https://www.printables.com/model/1777823-gen2-185-foot-rails", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20Foot%20Rails-1574328" },
-  "GEN2 240 Foot Rails": { p: "https://www.printables.com/model/1777826-gen2-240-foot-rails", t: "https://than.gs/m/1574322" },
+  "GEN2 115 Foot Rails": { p: "https://www.printables.com/model/1777819-gen2-115-foot-rails", t: "https://than.gs/m/1574331", m: "https://makerworld.com/en/models/3093882-gen2-115-foot-rails" },
+  "GEN2 165 Foot Rails": { p: "https://www.printables.com/model/1775386-gen2-165-foot-rails", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Foot%20Rails-1574329", m: "https://makerworld.com/en/models/3093999-gen2-165-foot-rails" },
+  "GEN2 185 Foot Rails": { p: "https://www.printables.com/model/1777823-gen2-185-foot-rails", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20Foot%20Rails-1574328", m: "https://makerworld.com/en/models/3093787-gen2-185-foot-rails" },
+  "GEN2 240 Foot Rails": { p: "https://www.printables.com/model/1777826-gen2-240-foot-rails", t: "https://than.gs/m/1574322", m: "https://makerworld.com/en/models/3094051-gen2-240-foot-rails" },
   "GEN2 270 Foot Rails": { p: "https://www.printables.com/model/1777830-gen2-270-foot-rails", t: "https://than.gs/m/1574327" },
 
   // ---- Table Top Kit V2 (feet still funnel here via linkAs) ----
@@ -599,6 +614,10 @@ const LINK_OVERRIDES = {
   "GEN2 Decor - Faceplates - EdgeLabel Series":   { p: "https://www.printables.com/model/1093933-gen2-decor-faceplates-edgelabel-series", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Decor%20-%20Faceplate%20-%20EdgeLabel-1215609" },
   "GEN2 Decor - Faceplates - Classic Pro Series": { p: "https://www.printables.com/model/1291210-gen2-decor-faceplates-classic-pro-series", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Decor%20-%20Faceplates%20-%20Classic%20Pro%20Series-1332444" },
   "GEN2 Decor - Faceplates - Essential Series":   { p: "https://www.printables.com/model/964559-gen2-decor-faceplates-essential-series", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Decor%20-%20Faceplates%20-%20Essential%20Series-1116946" },
+  // the FREE Classic series (2026-07-25). COLLECTION_RULES derives this key
+  // from the style label, and the BACK COVER rows linkAs it too — so this one
+  // entry keeps both row types off the fallback search URLs.
+  "GEN2 Decor - Faceplates - Classic Series":     { p: "https://www.printables.com/model/1280870-gen2-decor-faceplates-classic-series", t: "https://than.gs/m/1334047" },
 
   // ---- Decor handle series (parts-list handle row links the chosen style) ----
   "GEN2 Decor Handles - BlockBar Series": { p: "https://www.printables.com/model/965604-gen2-decor-handles-blockbar-series", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Decor%20-%20Handles%20-%20BlockBar-1116949" },
@@ -607,7 +626,7 @@ const LINK_OVERRIDES = {
 
   // ---- Individual drawer SKUs with a more specific page than their collection ----
   "GEN2 185-1W-3H Classic Drawer":   { p: "https://www.printables.com/model/262035-gen2-185-1w-3h-classic-drawer" },
-  "GEN2 185-2W-1H Decor Drawer":     { p: "https://www.printables.com/model/964551-gen2-185-2w-1h-decor-drawer" },
+  "GEN2 185-2W-1H Decor Drawer":     { p: "https://www.printables.com/model/964551-gen2-185-2w-1h-decor-drawer", m: "https://makerworld.com/en/models/1253173-gen2-185-decor-drawers-all" },
   "GEN2 185-4W-0.5H Decor Drawer":   { p: "https://www.printables.com/model/1413275-gen2-185-4w-05h-decor-drawer" },
   "GEN2 240-2W-2H Decor Drawer":     { p: "https://www.printables.com/model/1365853-gen2-240-2w-2h-decor-drawer" },
   "GEN2 240-2W-0.5H Classic Drawer": { p: "https://www.printables.com/model/1324543-gen2-240-2w-05h-classic-drawer" },
@@ -670,20 +689,43 @@ function collectionKeyFor(name) {
   return null;
 }
 
+/* The 3D model stores a part can live on. MIRRORS the viewer's STORES table in
+   main.js — keep the ids and order in step. `order` here IS the array order:
+   it's the fallback chain when the user's preferred store doesn't carry a part
+   (Printables first — the most complete catalog). Adding a store = a row here,
+   a `search` builder, and the url key on the LINK_OVERRIDES entries.
+   NB MakerWorld serves 403 to automated fetchers, so its urls can't be
+   link-checked in CI — verify those by eye when adding them. */
+const STORES = [
+  { id: "printables", key: "p", label: "Printables", host: "printables.com", search: (q) => "https://www.printables.com/search/models?q=" + q },
+  { id: "thangs",     key: "t", label: "Thangs",     host: "thangs.com",     search: (q) => "https://thangs.com/search/" + q },
+  { id: "makerworld", key: "m", label: "MakerWorld", host: "makerworld.com", search: (q) => "https://makerworld.com/en/search/models?keyword=" + q },
+  { id: "cults",      key: "c", label: "Cults 3D",   host: "cults3d.com",    search: (q) => "https://cults3d.com/en/search?q=" + q },
+];
+
 /* Resolve links for a part name. Per platform: an exact name override wins,
-   else the part's collection page, else a search on that platform. */
+   else the part's collection page, else a search on that platform. Returns one
+   entry per store that the part could be shown on, each {id,label,url,exact} —
+   `exact` false means it fell through to a search and the button stays `ghost`.
+   Stores with NO real url are omitted entirely (a menu of dead entries is
+   noise); `printables`/`thangs`/`exactP`/`exactT` stay for older callers. */
 function partLinks(name) {
   const exact = LINK_OVERRIDES[name] || {};
   const ck = collectionKeyFor(name);
   const coll = (ck && LINK_OVERRIDES[ck]) || {};
-  const p = exact.p || coll.p;
-  const t = exact.t || coll.t;
   const q = encodeURIComponent(name);
+  const stores = STORES.map((s) => {
+    const url = exact[s.key] || coll[s.key];
+    return { id: s.id, label: s.label, url: url || s.search(q), exact: !!url };
+  });
+  const byId = Object.fromEntries(stores.map((s) => [s.id, s]));
   return {
-    printables: p || "https://www.printables.com/search/models?q=" + q,
-    thangs: t || "https://thangs.com/search/" + q,
-    exactP: !!p,
-    exactT: !!t,
+    stores,
+    // legacy shape (kept so nothing silently breaks)
+    printables: byId.printables.url,
+    thangs: byId.thangs.url,
+    exactP: byId.printables.exact,
+    exactT: byId.thangs.exact,
   };
 }
 
@@ -1104,10 +1146,11 @@ function partImage(name, variant) {
     if (w) return "img/parts/WallMount_Lite_" + w[1] + "W.png";
   }
   // Decor faceplates are SHARED hardware — one render set serves every length,
-  // so their files can't carry a length. EdgeLabel (2026-07-08 batch) and
-  // Classic Pro (2026-07-13 batch) have per-size renders — <Family>_<size>.png,
-  // dots dropped like everywhere else; Essential shows its hero card art until
-  // a per-size batch exists.
+  // so their files can't carry a length. EdgeLabel (2026-07-08 batch),
+  // Classic Pro (2026-07-13) and Classic (2026-07-25) have per-size renders —
+  // <Family>_<size>.png, dots dropped like everywhere else; Essential shows its
+  // hero card art until a per-size batch exists. NB the Classic files are
+  // named ClassicDecor_* (the GLB exporter's name), NOT Classic_*.
   // Under-table rails: per-length + per-width renders (2026-07-19 batch) live
   // in img/parts/<len>/Rails <len>-<w>W.png — the BOM row's "<w>W section"
   // variant picks the file, same pattern as Wall Mount Lite above. All six
@@ -1118,9 +1161,12 @@ function partImage(name, variant) {
     if (rw && ["59", "115", "165", "185", "240", "270"].includes(rl))
       return "img/parts/" + rl + "/Rails " + rl + "-" + rw[1] + "W.png";
   }
-  const fp = name.match(/^GEN2 (Essential|EdgeLabel|Classic Pro) Decor Faceplate - (.+)$/);
+  // "Classic Pro" MUST precede "Classic" in the alternation — leftmost-first
+  // matching would otherwise try the shorter one on a Classic Pro name
+  const fp = name.match(/^GEN2 (Essential|EdgeLabel|Classic Pro|Classic) Decor Faceplate - (.+)$/);
   if (fp) {
     if (fp[1] === "EdgeLabel") return "img/parts/EdgeLabel_" + fp[2].replace(/\./g, "") + ".png";
+    if (fp[1] === "Classic") return "img/parts/ClassicDecor_" + fp[2].replace(/\./g, "") + ".png";
     if (fp[1] === "Classic Pro") return "img/parts/ClassicPro_" + fp[2].replace(/\./g, "") + ".png";
     return "img/parts/Faceplate-" + fp[1].replace(" ", "") + ".jpg";
   }

@@ -435,17 +435,153 @@ test("wall mount adds the same covers but no feet / foot rails", () => {
   assert.ok(bomQty(app, "Wall Mount Kit") >= 1);     // brackets still present
 });
 
-test("EdgeLabel / Classic Pro faceplates omit the handle line (integrated)", () => {
+test("Classic / EdgeLabel / Classic Pro faceplates omit the handle line (integrated)", () => {
   const { app } = boot();
   place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
   app.state.faceStyle = "essential";
   // Non-integrated faceplate bills a handle row named after the chosen handle
   // style (default BlockBar), so the parts list links to that Printables model.
   assert.equal(bomQty(app, "Decor Handles"), 1);     // Essential needs a handle
+  app.state.faceStyle = "classic";
+  assert.equal(bomQty(app, "Decor Handles"), 0);     // integrated (grip printed in)
   app.state.faceStyle = "edgelabel";
   assert.equal(bomQty(app, "Decor Handles"), 0);     // integrated
   app.state.faceStyle = "classicpro";
   assert.equal(bomQty(app, "Decor Handles"), 0);     // integrated
+});
+
+// The 115/240/270 Classic Drawer catalogs stop at 2H — no 3H model exists
+// (165/185 have it). Offering it produced a 3D guide whose drawer GLB doesn't
+// exist, which used to hang the viewer forever on the loading spinner. The
+// planner mirrors the viewer generator's COLL[L].classicMaxHH guard via
+// collectionCases.maxClassicH.
+test("classic drawers cap at 2H where no 3H model exists (115/240/270)", () => {
+  const { app } = boot();
+  for (const len of [115, 240, 270]) {
+    assert.equal(app.sizeExists(1, 3, "classic", len), false, `${len}: 1W-3H classic must be unavailable`);
+    assert.equal(app.sizeExists(2, 3, "classic", len), false, `${len}: 2W-3H classic must be unavailable`);
+    assert.equal(app.sizeExists(1, 2, "classic", len), true, `${len}: 2H classic still exists`);
+    assert.equal(app.sizeExists(1, 3, "decor", len), true, `${len}: 3H DECOR is unaffected`);
+  }
+  for (const len of [165, 185])
+    assert.equal(app.sizeExists(1, 3, "classic", len), true, `${len}: 3H classic exists (18-size catalog)`);
+  // a restored legacy/hostile hash with a 3H classic on 240 drops the unit
+  // instead of resurrecting the hang
+  const bad = app.serializeBuild();
+  bad.mount = "under-table"; bad.length = 240; bad.gridH = 6;
+  bad.placed = [{ id: 1, x: 0, y: 6, w: 1, hh: 6, fill: "classic", shelves: 0, closure: "none" }];
+  app.applyBuild(bad);
+  assert.equal(app.state.placed.length, 0, "the impossible 3H classic unit should be dropped by sanitize");
+});
+
+// The handle's FASTENER rides the same `boltOnOnly` gate as the handle row, and
+// it's the one REQUIRED buy on a bolt-on build — an integrated-grip style must
+// bill zero, or the "can I build this today?" promise breaks.
+test("integrated-grip faceplates bill no M3 handle screws", () => {
+  const { app } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  place(app, { id: 2, x: 1, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.state.faceStyle = "essential";
+  assert.equal(bomQty(app, "button head screw"), 4);  // 2 per drawer, bolt-on
+  for (const style of ["classic", "edgelabel", "classicpro"]) {
+    app.state.faceStyle = style;
+    assert.equal(bomQty(app, "button head screw"), 0, `${style} should need no screws`);
+  }
+});
+
+// ---- preferred 3D model site -------------------------------------------
+// One button per row (the preferred site, or the first that actually carries
+// the part) + a ▾ for the rest. The label must always NAME the site it opens,
+// and sites without the part must be omitted rather than offered as a search.
+test("model links: one primary button that names its site, plus a ▾ for real alternatives", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.refresh();
+  const linkCells = [...doc.querySelectorAll("#bom tbody tr td.link")];
+  assert.ok(linkCells.length, "expected BOM rows with links");
+  for (const cell of linkCells) {
+    if (cell.classList.contains("buy")) continue;             // hardware rows: Amazon buy buttons
+    if (cell.querySelector(".tag")) continue;                 // hardware-store / coming-soon rows
+    const primary = cell.querySelector("a.btn");
+    assert.ok(primary, "every non-hardware row needs a link button");
+    // the visible label is a real site name, never a generic "Download"
+    assert.ok(["Printables", "Thangs", "MakerWorld", "Cults 3D"].includes(primary.textContent.trim()),
+      `link button should name its site, got "${primary.textContent.trim()}"`);
+    // nothing in the ▾ may be a search fallback — those aren't "also available here"
+    for (const alt of cell.querySelectorAll(".link-more-menu a"))
+      assert.ok(!/search/.test(alt.href), `▾ offered a search URL for ${alt.textContent}`);
+  }
+});
+
+test("model links: the preferred site wins when it has the part, and is skipped when it doesn't", () => {
+  const { app } = boot();
+  const withBoth = app.partLinks("GEN2 Decor - Faceplates - EdgeLabel Series");
+  // NB join(): the array comes from the jsdom realm, so deepEqual (strict)
+  // fails on the foreign Array prototype even with identical contents
+  const ids = withBoth.stores.filter((s) => s.exact).map((s) => s.id).join(",");
+  assert.equal(ids, "printables,thangs", "EdgeLabel should have exactly Printables + Thangs today");
+  // a name with no override anywhere falls through to searches on every site,
+  // so nothing is `exact` and the row keeps its single ghosted button
+  const unknown = app.partLinks("Totally Made Up Part 9W-9H");
+  assert.equal(unknown.stores.some((s) => s.exact), false);
+  assert.ok(/search/.test(unknown.printables), "unknown parts still get a Printables search fallback");
+});
+
+test("model links: preference persists, survives a relay, and rejects junk", () => {
+  const { app, window } = boot();
+  // jsdom's opaque origin has no localStorage — observe persistence through a
+  // stub (same pattern as the wipe/auto-save tests); the app's `store` helper
+  // reads window.localStorage per call, so installing it after boot works
+  const stored = new Map();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: { getItem: (k) => (stored.has(k) ? stored.get(k) : null), setItem: (k, v) => stored.set(k, String(v)), removeItem: (k) => stored.delete(k) },
+  });
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.refresh();
+  assert.equal(app.linkSite(), "printables", "Printables is the default");
+  app.setLinkSite("thangs");
+  assert.equal(app.linkSite(), "thangs");
+  assert.equal(stored.get("gen2-link-store"), "thangs", "persisted for next visit");
+  // an incoming relay with a NEWER stamp wins; junk and stale stamps don't
+  app.applyRemoteSite({ t: Date.now() + 5000, store: "makerworld" });
+  assert.equal(app.linkSite(), "makerworld");
+  app.applyRemoteSite({ t: 1, store: "printables" });
+  assert.equal(app.linkSite(), "makerworld", "a stale stamp must not win");
+  app.applyRemoteSite({ t: Date.now() + 9000, store: "not-a-site" });
+  assert.equal(app.linkSite(), "makerworld", "unknown site ids are rejected");
+});
+
+// Every faceplate style must resolve a real Printables/Thangs page rather than
+// partLinks' search-URL fallback (rendered as a `ghost` button), and must point
+// at a render that actually exists on disk — partImage's family list is a
+// hard-coded whitelist, so a new style silently slugs itself into a 404.
+// The optional back cover linkAs-es the CHOSEN style's page, so it rides along.
+// Driven by CLICKING each card, so a future family is covered automatically.
+test("every faceplate style has real links and a real render, back cover included", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.state.backCover = true;
+  app.refresh();
+
+  const cards = [...doc.querySelectorAll("#faceplate-style-cards .fp-card")];
+  assert.ok(cards.length >= 4, `expected at least four faceplate styles, got ${cards.length}`);
+  for (const card of cards) {
+    const style = card.querySelector(".fp-name").textContent.trim();
+    card.click(); // sets state.faceStyle from the catalog and re-renders
+    const rows = [...doc.querySelectorAll("#bom tbody tr")]
+      .filter((tr) => /Decor Faceplate/.test(tr.querySelector(".name")?.textContent || ""));
+    assert.ok(rows.length >= 2, `${style}: expected a plate row AND a back-cover row`);
+    for (const tr of rows) {
+      const label = tr.querySelector(".name").textContent.trim().split("\n")[0];
+      for (const a of tr.querySelectorAll(".link a"))
+        assert.ok(!a.classList.contains("ghost"),
+          `${style}: "${label}" ${a.textContent} link fell back to a search — add a LINK_OVERRIDES entry`);
+      const src = tr.querySelector(".thumb img").getAttribute("src");
+      assert.doesNotThrow(() => readFileSync(join(root, src)),
+        `${style}: "${label}" points at a render that doesn't exist — ${src}`);
+    }
+  }
 });
 
 test("wall per-column covers tile each top case instead of the whole run", () => {

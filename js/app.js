@@ -140,6 +140,9 @@
     if (cc && w > cc.maxW) return false;
     if (f === "classic" || f === "decor") {
       if (cc && h > cc.maxDrawerH) return false;
+      // classic-only height cap: 115/240/270 have no 3H Classic Drawer model
+      // (viewer generator mirrors this via COLL[L].classicMaxHH)
+      if (f === "classic" && cc && cc.maxClassicH && h > cc.maxClassicH) return false;
       return !GEN2.unavailableSizes.includes(sizeToken(w, h));
     }
     return true;
@@ -2027,6 +2030,67 @@
     try { viewerWin.postMessage({ gen2: "colors", ...viewerColors }, "*"); } catch (e) { /* tab closed */ }
   }
 
+  /* ---- preferred 3D model site (2026-07-25) ----
+     Which site the parts list links FIRST. Unlike the palette this is real
+     planner state (it renders its own BOM links with it), but it rides the
+     same newest-wins-by-stamp channel so the dock, a popped-out viewer and
+     the planner all agree. Deliberately NOT a BUILD_FIELD — it's a device
+     preference, not part of the build, so it never rides a share link, and
+     deliberately not on `buildOptions` (that channel regenerates the scene).
+     Seeded from ?from=<site> — the link printed in each platform's own
+     description — or the referrer, but ONLY when nothing was chosen before:
+     arriving from Thangs must never overwrite a deliberate pick. */
+  const SITE_KEY = "gen2-link-store";
+  const siteById = Object.fromEntries(STORES.map((s) => [s.id, s]));
+  function siteFromEntry() {
+    const from = (new URLSearchParams(location.search).get("from") || "").toLowerCase();
+    if (siteById[from]) return from;
+    try {
+      const host = new URL(document.referrer).hostname;
+      const hit = STORES.find((s) => host === s.host || host.endsWith("." + s.host));
+      if (hit) return hit.id;
+    } catch (e) { /* no/opaque referrer — fine */ }
+    return null;
+  }
+  let linkSite = siteById[store.get(SITE_KEY)] ? store.get(SITE_KEY) : (siteFromEntry() || STORES[0].id);
+  let linkSiteT = +(store.get(SITE_KEY + ":t") || 0) || 0;
+  function setLinkSite(id, { relay = true } = {}) {
+    if (!siteById[id] || id === linkSite) return;
+    linkSite = id;
+    if (relay) { linkSiteT = Date.now(); postSiteToViewer(); }
+    store.set(SITE_KEY, linkSite);
+    store.set(SITE_KEY + ":t", String(linkSiteT));
+    const sel = $("#link-site");
+    if (sel) sel.value = linkSite;
+    renderBom();
+  }
+  function postSiteToViewer() {
+    if (!viewerWin || viewerWin.closed) return;
+    try { viewerWin.postMessage({ gen2: "store", t: linkSiteT, store: linkSite }, "*"); } catch (e) { /* tab closed */ }
+  }
+  function applyRemoteSite(d) {
+    if (!d || typeof d.t !== "number" || !siteById[d.store]) return;
+    if (d.t <= linkSiteT) { if (linkSiteT > d.t) postSiteToViewer(); return; } // ours is newer — teach the other side
+    linkSiteT = d.t;                        // adopt the stamp so the exchange converges
+    setLinkSite(d.store, { relay: false });
+  }
+  /* Order the sites for one part: preferred first, then the table's fallback
+     order. Only sites with a REAL url are offered as alternatives — a search
+     fallback is a guess, not "you can also get it here". */
+  function closeSiteMenus() {
+    document.querySelectorAll(".link-more-menu").forEach((m) => { m.hidden = true; });
+  }
+  document.addEventListener("click", (e) => { if (!e.target.classList.contains("link-more-btn")) closeSiteMenus(); });
+  function sitesFor(links) {
+    const real = links.stores.filter((s) => s.exact);
+    const pref = real.filter((s) => s.id === linkSite);
+    const rest = real.filter((s) => s.id !== linkSite);
+    if (pref.length || rest.length) return [...pref, ...rest];
+    // nothing exact anywhere: keep the historical behaviour — a ghosted search
+    // on the preferred site (Printables unless the user changed it)
+    return [links.stores.find((s) => s.id === linkSite) || links.stores[0]];
+  }
+
   /* ---- Docked split view (2026-07-19) ----
      Wide screens get the viewer as a fixed right pane (an ?embed=1 iframe fed
      by the live sync above) instead of a separate tab. It reveals itself —
@@ -3209,9 +3273,18 @@
       return buy.map((b) => `<a class="btn small" href="${b.url}" target="_blank" rel="noopener sponsored">${b.label}</a>`).join(" ");
     }
     if (it.unreleased) return `<span class="tag soon-tag">coming soon</span>`;
+    // ONE button — the site you prefer, or the first that actually carries this
+    // part — plus a ▾ for the others. The label always NAMES the site it opens,
+    // so a Printables-only part under a MakerWorld preference is never a
+    // surprise. Row width stays constant however many sites we add.
     const links = partLinks(it.linkAs || it.name);
-    return `<a class="btn small ${links.exactP ? "" : "ghost"}" href="${links.printables}" target="_blank" rel="noopener">Printables</a>
-      <a class="btn small ${links.exactT ? "" : "ghost"}" href="${links.thangs}" target="_blank" rel="noopener">Thangs</a>`;
+    const [primary, ...rest] = sitesFor(links);
+    const btn = `<a class="btn small ${primary.exact ? "" : "ghost"}" href="${primary.url}" target="_blank" rel="noopener">${primary.label}</a>`;
+    if (!rest.length) return btn;
+    return btn + `<span class="link-more"><button type="button" class="link-more-btn" aria-label="Other sites for this part" title="Other sites for this part">▾</button>` +
+      `<span class="link-more-menu" hidden>` +
+      rest.map((s) => `<a class="btn small" href="${s.url}" data-site="${s.id}" target="_blank" rel="noopener">${s.label}</a>`).join("") +
+      `</span></span>`;
   }
 
   /* Magnifier for the tiny parts-list thumbnails: hovering (mouse) or tapping
@@ -3225,6 +3298,19 @@
     bom.addEventListener("click", (e) => {
       if (e.target.id === "bom-track-toggle") { tracker.on = !tracker.on; saveTracker(); track("bom-track:" + (tracker.on ? "on" : "off")); renderBom(); }
       else if (e.target.id === "bom-track-reset") { tracker.done = {}; saveTracker(); renderBom(); }
+      // the ▾ of alternative model sites (string-rendered, so delegated here)
+      else if (e.target.classList.contains("link-more-btn")) {
+        const menu = e.target.nextElementSibling;
+        const wasHidden = menu.hidden;
+        closeSiteMenus();
+        menu.hidden = !wasHidden;
+        e.stopPropagation();
+      } else if (e.target.dataset && e.target.dataset.site) {
+        // opening a site from the ▾ makes it your default — the preference is
+        // set BY USE, so there's nothing to hunt for in a settings screen
+        setLinkSite(e.target.dataset.site);
+        track("linksite:" + e.target.dataset.site);
+      }
     });
     bom.addEventListener("change", (e) => {
       const cb = e.target.closest("input[data-trk]");
@@ -3772,6 +3858,12 @@
     $("#wall-stagger-seg").querySelectorAll("[data-stagger]").forEach((btn) => {
       btn.addEventListener("click", () => { state.wallStagger = btn.dataset.stagger === "on"; refresh(); });
     });
+    // preferred model site — the explicit control for people who'd rather set
+    // it up front than discover it via a row's ▾
+    const siteSel = $("#link-site");
+    STORES.forEach((s) => siteSel.appendChild(Object.assign(document.createElement("option"), { value: s.id, textContent: s.label })));
+    siteSel.value = linkSite;
+    siteSel.addEventListener("change", () => { setLinkSite(siteSel.value); track("linksite:" + siteSel.value); });
     $("#copy-bom").addEventListener("click", copyBom);
     $("#csv-bom").addEventListener("click", downloadCsv);
     $("#print-bom").addEventListener("click", () => window.print());
@@ -3804,10 +3896,15 @@
         lastSentLayout = null;
         postLayoutNow();
         postColorsToViewer(); // …and the newest filament palette (see the relay)
+        if (linkSiteT) postSiteToViewer(); // …and the preferred model site
         return;
       }
       if (d.gen2 === "colors") {
         cacheViewerColors(d);
+        return;
+      }
+      if (d.gen2 === "store") {
+        applyRemoteSite(d);
         return;
       }
       if (d.gen2 === "perfSlow") {
@@ -4043,6 +4140,7 @@
       mountBlocksLength, enforceMountLength, wallTopHalfHeight, fixWallTops,
       encodeBuildHash, applyBuildHash,
       undoRedo, pushHistoryNow, history, buildMeta,
+      partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,
     };
   }
 })();

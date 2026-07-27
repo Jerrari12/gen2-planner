@@ -341,6 +341,26 @@ Missing files with no override fall back to `img/parts/placeholder.svg`.
 **Filenames are case-sensitive once hosted on GitHub Pages** even though
 Windows ignores case locally.
 
+## Site icon + analytics (2026-07-27)
+
+`favicon.svg` / `favicon.ico` / `apple-touch-icon.png` at the repo root, linked
+root-absolute from `index.html`. **The identical three files ship in all four
+GEN2 repos** (planner, viewer, both label generators) so the family reads as one
+site in a tab strip — regenerate them together, never one repo alone. Source is
+`img/jerrari-logo.svg` on a `#2c2d31` rounded tile at 86% fill; the tile is
+required because the mark's core is a WHITE path that vanishes on a light tab
+bar. Full recipe lives in the viewer repo's CLAUDE.md.
+`.gitattributes` is new here and carries **binary rules only** (`*.ico`/`*.png`/
+`*.jpg`) — deliberately no `text=auto`, so adding it renormalises nothing.
+
+Analytics: this app reports to `jerrari.goatcounter.com` and is already well
+instrumented — `track()` in `js/app.js` plus ~28 call sites. The **viewer reports
+to a SEPARATE site** (`jerrari-build.goatcounter.com`) so the two apps' `/`
+pageviews don't merge into one row. Both use the same colon event vocabulary
+(`export:csv`, `linksite:printables`); keep new names in that shape. Note the
+viewer's `store-pref:` event fires only on a LOCAL pick — the planner's
+`linksite:` already counts the same decision when it relays.
+
 ## Testing
 
 `npm install` (one-time, pulls dev-only jsdom) then `npm test`. Tests load the

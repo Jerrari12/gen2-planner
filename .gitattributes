@@ -1,0 +1,4 @@
+# Site icons and renders are binary — autocrlf must never rewrite them.
+*.ico binary
+*.png binary
+*.jpg binary

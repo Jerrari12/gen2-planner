@@ -353,6 +353,17 @@ bar. Full recipe lives in the viewer repo's CLAUDE.md.
 `.gitattributes` is new here and carries **binary rules only** (`*.ico`/`*.png`/
 `*.jpg`) — deliberately no `text=auto`, so adding it renormalises nothing.
 
+Closure selections emit `closure:<id>` from BOTH pickers (the toolbar master
+segment and the per-drawer one). Because both are data-driven from
+`GEN2.closures`, **push-click starts being counted the day its `soon` flag comes
+off — no analytics change needed then.** And since the per-drawer picker marks
+unreleased options `aria-disabled` rather than `disabled` (so their tip
+tap-reveals on touch), the click still reaches the handler: reaching for a
+"soon" option emits `closure-soon:<id>`, which measures DEMAND for an
+unreleased closure instead of being a dead end nobody can see. The remote-opts
+handler from the viewer is deliberately NOT tracked — the viewer counts its own
+`opt:closure:*`, and counting both would double a single decision.
+
 Analytics: this app reports to `jerrari.goatcounter.com` and is already well
 instrumented — `track()` in `js/app.js` plus ~28 call sites. The **viewer reports
 to a SEPARATE site** (`jerrari-build.goatcounter.com`) so the two apps' `/`

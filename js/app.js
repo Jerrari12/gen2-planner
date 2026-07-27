@@ -754,6 +754,10 @@
         } else {
           if (c.tip) btn.dataset.tip = c.tip;
           btn.addEventListener("click", () => {
+            // Data-driven off GEN2.closures, so this measures whatever the list
+            // holds — push-click starts being counted the day its `soon` flag
+            // comes off, with no analytics change needed then.
+            track("closure:" + c.id);
             drawers.forEach((p) => { if (c.id === "none") delete p.closure; else p.closure = c.id; });
             refresh();
           });
@@ -2693,7 +2697,14 @@
         if (c.tip) b.title = c.tip;
       }
       b.addEventListener("click", () => {
-        if (disabled) return;
+        if (disabled) {
+          // "soon" options are aria-disabled, not disabled, so they still
+          // receive the click — which makes reaching for one measurable DEMAND
+          // for an unreleased closure rather than a dead end nobody sees.
+          if (c.soon) track("closure-soon:" + c.id);
+          return;
+        }
+        track("closure:" + c.id);
         if (c.id === "none") delete p.closure; else p.closure = c.id;
         refresh();
       });

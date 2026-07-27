@@ -562,7 +562,9 @@ const LINK_OVERRIDES = {
   "GEN2 59 Classic Drawers - All":  { p: "https://www.printables.com/model/234780-gen2-59-classic-drawers-all", m: "https://makerworld.com/en/models/2364890-gen2-59-classic-drawers-all" },
   "GEN2 115 Classic Drawers - All": { p: "https://www.printables.com/model/1143243-gen2-115-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20115%20Classic%20Drawers-1069181", m: "https://makerworld.com/en/models/755424-gen2-115-classic-drawers-all" },
   "GEN2 165 Classic Drawers - All": { p: "https://www.printables.com/model/625776-gen2-165-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Classic%20Drawers-1044262", m: "https://makerworld.com/en/models/922620-gen2-165-classic-drawers-all" },
-  "GEN2 185 Classic Drawers - All": { p: "https://www.printables.com/model/278293-gen2-185-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20-%20Classic%20Drawers-1042322", m: "https://makerworld.com/en/models/513368-gen2-185-classic-drawers-all" },
+  // no MakerWorld url — the 185 classic-drawers page was withdrawn 2026-07-25
+  // (Joey); the row falls back to Printables and MakerWorld drops out of its ▾
+  "GEN2 185 Classic Drawers - All": { p: "https://www.printables.com/model/278293-gen2-185-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20-%20Classic%20Drawers-1042322" },
   "GEN2 240 Classic Drawers - All": { p: "https://www.printables.com/model/1324538-gen2-240-classic-drawers-all", t: "https://than.gs/m/1360091", m: "https://makerworld.com/en/models/1516621-gen2-240-classic-drawers-all" },
   "GEN2 270 Classic Drawers - All": { p: "https://www.printables.com/model/1164306-gen2-270-classic-drawers-all", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Drawers%20-%20Large-1093398", m: "https://makerworld.com/en/models/1938234-gen2-270-classic-drawers-all" },
 

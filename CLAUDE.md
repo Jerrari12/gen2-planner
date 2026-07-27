@@ -353,6 +353,20 @@ bar. Full recipe lives in the viewer repo's CLAUDE.md.
 `.gitattributes` is new here and carries **binary rules only** (`*.ico`/`*.png`/
 `*.jpg`) — deliberately no `text=auto`, so adding it renormalises nothing.
 
+`instructionsBlockReason()` returns **`{code, text}`**, not a bare string:
+`text` is the prose shown under the 3D button and relayed to the viewer's
+blocked overlay, `code` is a fixed token usable as an event name (the prose
+interpolates the collection length, so it could never be one). Four callers —
+keep them straight: `layoutSig` uses `.code`, `postLayoutNow` and the button's
+title/reason line use `.text`, `dockAvailable` only needs truthiness. A new
+block condition needs BOTH fields.
+`instructions-blocked:<code>` fires **once per code per session**:
+`updateInstructionsButton()` runs on every `refresh()`, which fires per cell
+during a drag, so counting each call would report thousands of blocks for one
+frustrated user. `empty` is excluded — it's the starting state everyone passes
+through, not a limitation. These are people who wanted a 3D guide and couldn't
+have one, previously invisible.
+
 Closure selections emit `closure:<id>` from BOTH pickers (the toolbar master
 segment and the per-drawer one). Because both are data-driven from
 `GEN2.closures`, **push-click starts being counted the day its `soon` flag comes

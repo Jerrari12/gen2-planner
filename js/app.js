@@ -1994,7 +1994,7 @@
      changes ride the cheaper buildOptions channel above, never this one). */
   let lastSentLayout = null, layoutTimer = 0;
   const layoutSig = () => JSON.stringify({
-    m: state.mount, l: state.length, r: instructionsBlockReason(),
+    m: state.mount, l: state.length, r: instructionsBlockReason()?.code || "",
     p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", u.closure || "", JSON.stringify(u.interior || null)]),
   });
   function postLayoutNow() {
@@ -2004,7 +2004,8 @@
     lastSentLayout = sig;
     const reason = instructionsBlockReason();
     try {
-      if (reason) viewerWin.postMessage({ gen2: "layoutBlocked", reason }, "*");
+      // the viewer's blocked overlay renders this as text — send the prose, not the code
+      if (reason) viewerWin.postMessage({ gen2: "layoutBlocked", reason: reason.text }, "*");
       else viewerWin.postMessage({ gen2: "layout", build: serializeBuild() }, "*");
     } catch (e) { /* tab closed */ }
   }
@@ -2472,23 +2473,35 @@
   // disagree. Hard structural problems (unsupported, sag) block too: they're
   // un-instruction-able states, same as the board's hard warnings; soft
   // advisories (bow risk) don't.
+  /* Returns null when the layout is instructions-ready, else {code, text}.
+     `text` is the prose shown under the button and relayed to the viewer's
+     blocked overlay; `code` is a fixed token safe to use as an analytics event
+     name — the prose can't be, it interpolates the collection length and would
+     be a cardinality explosion (and the doc's rule is no free text in event
+     names). Keep the two in step: a new condition needs both. */
   function instructionsBlockReason() {
     if (!state.placed.length)
-      return "Place some units first.";
+      return { code: "empty", text: "Place some units first." };
     if (state.placed.some((p) => !sizeExists(p.w, p.hh / 2, p.fill)))
-      return "Fix the build first · some placed units don't exist in the " + state.length + " collection (see the board warning).";
+      return { code: "bad-size", text: "Fix the build first · some placed units don't exist in the " + state.length + " collection (see the board warning)." };
     if (unsupportedUnits().length)
-      return "Fix the build first · some units aren't supported on both ends (see the board warning · Fix structure can do it for you).";
+      return { code: "unsupported", text: "Fix the build first · some units aren't supported on both ends (see the board warning · Fix structure can do it for you)." };
     if (sagRisks().size)
-      return "Fix the build first · some units would sag mid-span (see the board warning).";
+      return { code: "sag", text: "Fix the build first · some units would sag mid-span (see the board warning)." };
     if (state.mount === "tabletop" && new Set(Object.values(columnTops())).size > 1)
-      return "Fix the build first · Table Top covers need a flat top, every column must stack to the same height.";
+      return { code: "flat-top", text: "Fix the build first · Table Top covers need a flat top, every column must stack to the same height." };
     if (state.mount === "wall" && wallTopHalfHeight().size)
-      return "Fix the build first · Wall Mount top-row cases can't be 0.5H · they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top.";
+      return { code: "wall-05h", text: "Fix the build first · Wall Mount top-row cases can't be 0.5H · they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top." };
     if (state.mount === "under-table" && !VIEWER_UT_LENGTHS.includes(+state.length))
-      return "3D instructions can't show under-table " + state.length + " builds yet · the rail models aren't in the 3D part library. Table Top and Wall Mount work for every collection.";
+      return { code: "no-ut-rails", text: "3D instructions can't show under-table " + state.length + " builds yet · the rail models aren't in the 3D part library. Table Top and Wall Mount work for every collection." };
     return null;
   }
+  /* Each distinct limitation is counted ONCE per session: updateInstructionsButton
+     runs on every refresh() — which fires per cell during a drag — so counting
+     every call would report thousands of "blocks" for one frustrated user. The
+     question is "did this person hit this wall at all". "empty" is excluded: it's
+     the starting state everyone passes through, not a limitation. */
+  const blockSeen = new Set();
 
   // The 3D-instructions button greys out (with the reason as its tooltip)
   // whenever the layout isn't instructions-ready — same conditions as the
@@ -2497,8 +2510,14 @@
     const btn = $("#instructions-3d");
     if (!btn) return;
     const reason = instructionsBlockReason();
+    // capability gaps are invisible otherwise: these are people who wanted a 3D
+    // guide and couldn't have one, which is the planner's rules meeting a real build
+    if (reason && reason.code !== "empty" && !blockSeen.has(reason.code)) {
+      blockSeen.add(reason.code);
+      track("instructions-blocked:" + reason.code);
+    }
     btn.disabled = !!reason;
-    btn.title = reason || "Open the 3D Build Studio · step-by-step assembly for this exact build, plus colors and hardware options";
+    btn.title = (reason && reason.text) || "Open the 3D Build Studio · step-by-step assembly for this exact build, plus colors and hardware options";
     // Form-validation style: the reason is VISIBLE under the button, not just a
     // hover tooltip (tooltips never show on touch — the greyed button read as
     // broken). The marketing sub-line hides while the reason shows, so the two
@@ -2506,7 +2525,7 @@
     const reasonEl = $("#instructions-3d-reason");
     if (reasonEl) {
       reasonEl.hidden = !reason;
-      reasonEl.textContent = reason ? "⚠ " + reason : "";
+      reasonEl.textContent = reason ? "⚠ " + reason.text : "";
     }
     const sub = document.querySelector(".bom-actions-sub");
     if (sub) sub.hidden = !!reason;

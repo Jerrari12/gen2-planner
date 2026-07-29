@@ -255,7 +255,10 @@ const GEN2 = {
       const sections = Object.entries(ctx.railMix).sort((a, b) => b[0] - a[0]);
       sections.forEach(([w, count]) => {
         items.push({
-          name: `GEN2 Rails - ${ctx.len}`,
+          // matches the product page name exactly (renamed 2026-07-29) — the
+          // LINK_OVERRIDES keys, partImage's regex and the diagram tooltip in
+          // app.js all key off this string, so they move together
+          name: `GEN2 Under Table Rails - ${ctx.len}`,
           variant: `${w}W section`,
           qty: count,
           note: "All rail widths are in the same download · print the section sizes listed.",
@@ -534,13 +537,18 @@ function buildCoverItems(len, runs) {
    URLs sourced from the verified GEN2 Printables/Thangs link inventory.
    --------------------------------------------------------------------------- */
 const LINK_OVERRIDES = {
-  // ---- Under-table rails (Printables pages for every length, 2026-07-12) ----
-  "GEN2 Rails - 59":  { p: "https://www.printables.com/model/1053797-gen2-rails-59-small", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20SMALL-1165763", m: "https://makerworld.com/en/models/3093597-gen2-under-table-rails-59" },
-  "GEN2 Rails - 115": { p: "https://www.printables.com/model/1053795-gen2-rails-115-medium", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20MEDIUM-1165720", m: "https://makerworld.com/en/models/755511-gen2-under-table-rails-115" },
-  "GEN2 Rails - 165": { p: "https://www.printables.com/model/1053557-gen2-rails-165-mini", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20165-1165793", m: "https://makerworld.com/en/models/939507-gen2-under-table-rails-165" },
-  "GEN2 Rails - 185": { p: "https://www.printables.com/model/1052357-gen2-rails-185-standard", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20STANDARD-1163830", m: "https://makerworld.com/en/models/2199580-gen2-under-table-rails-185" },
-  "GEN2 Rails - 240": { p: "https://www.printables.com/model/1322484-gen2-rails-240", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20240%20Lite-1360077", m: "https://makerworld.com/en/models/1516579-gen2-under-table-rails-240" },
-  "GEN2 Rails - 270": { p: "https://www.printables.com/model/1053793-gen2-rails-270-large", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20RAILS%20-%20LARGE-1165816", m: "https://makerworld.com/en/models/1938132-gen2-under-table-rails-270" },
+  // ---- Under-table rails (Printables pages for every length, 2026-07-12).
+  //      Thangs renamed all six to "GEN2 Under Table Rails - <L>" 2026-07-29
+  //      (old names: SMALL / MEDIUM / 165 / STANDARD / 240 Lite / LARGE). The
+  //      model ids are unchanged and Thangs resolves by the trailing id, so the
+  //      old urls still land — these are the canonical forms. Printables rails
+  //      pages were NOT renamed in that cycle. ----
+  "GEN2 Under Table Rails - 59":  { p: "https://www.printables.com/model/1053797-gen2-rails-59-small", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Under%20Table%20Rails%20-%2059-1165763", m: "https://makerworld.com/en/models/3093597-gen2-under-table-rails-59" },
+  "GEN2 Under Table Rails - 115": { p: "https://www.printables.com/model/1053795-gen2-rails-115-medium", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Under%20Table%20Rails%20-%20115-1165720", m: "https://makerworld.com/en/models/755511-gen2-under-table-rails-115" },
+  "GEN2 Under Table Rails - 165": { p: "https://www.printables.com/model/1053557-gen2-rails-165-mini", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Under%20Table%20Rails%20-%20165-1165793", m: "https://makerworld.com/en/models/939507-gen2-under-table-rails-165" },
+  "GEN2 Under Table Rails - 185": { p: "https://www.printables.com/model/1052357-gen2-rails-185-standard", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Under%20Table%20Rails%20-%20185-1163830", m: "https://makerworld.com/en/models/2199580-gen2-under-table-rails-185" },
+  "GEN2 Under Table Rails - 240": { p: "https://www.printables.com/model/1322484-gen2-rails-240", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Under%20Table%20Rails%20-%20240-1360077", m: "https://makerworld.com/en/models/1516579-gen2-under-table-rails-240" },
+  "GEN2 Under Table Rails - 270": { p: "https://www.printables.com/model/1053793-gen2-rails-270-large", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Under%20Table%20Rails%20-%20270-1165816", m: "https://makerworld.com/en/models/1938132-gen2-under-table-rails-270" },
 
   // ---- Cases — one "{len} Cases - All" collection page per length ----
   "GEN2 59 Cases - All":  { p: "https://www.printables.com/model/1658749-gen2-59-cases-all", t: "https://than.gs/m/1535454", m: "https://makerworld.com/en/models/3092550-gen2-59-cases-all" },
@@ -592,12 +600,16 @@ const LINK_OVERRIDES = {
   "GEN2 240 Foot Rails": { p: "https://www.printables.com/model/1777826-gen2-240-foot-rails", t: "https://than.gs/m/1574322", m: "https://makerworld.com/en/models/3094051-gen2-240-foot-rails" },
   "GEN2 270 Foot Rails": { p: "https://www.printables.com/model/1777830-gen2-270-foot-rails", t: "https://than.gs/m/1574327" },
 
-  // ---- Table Top Kit V2 (feet still funnel here via linkAs) ----
-  "GEN2 Table Top Kit V2 - 115": { p: "https://www.printables.com/model/1146353-gen2-table-top-kit-v2-115-medium", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20115-1245167" },
-  "GEN2 Table Top Kit V2 - 165": { p: "https://www.printables.com/model/1124278-gen2-table-top-kit-v2-165-mini", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20165-1233752" },
-  "GEN2 Table Top Kit V2 - 185": { p: "https://www.printables.com/model/1118906-gen2-table-top-kit-v2-185-standard", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20185-1231757" },
-  "GEN2 Table Top Kit V2 - 240": { p: "https://www.printables.com/model/1324501-gen2-table-top-kit-v2-240", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20240-1360073" },
-  "GEN2 Table Top Kit V2 - 270": { p: "https://www.printables.com/model/1163955-gen2-table-top-kit-v2-270-large", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Table%20Top%20Kit%20V2%20-%20270-1253780" },
+  // ---- Table Top Kit V2 (feet still funnel here via linkAs).
+  //      The PAGES were renamed to "GEN2 <L> Tabletop Starter Kit" on BOTH
+  //      platforms 2026-07-29; ids unchanged (Printables 301s the old slug,
+  //      Thangs resolves by trailing id). The KEY stays the generated BOM row
+  //      name — rename that and these entries must move with it. ----
+  "GEN2 Table Top Kit V2 - 115": { p: "https://www.printables.com/model/1146353-gen2-115-tabletop-starter-kit", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20115%20Tabletop%20Starter%20Kit-1245167" },
+  "GEN2 Table Top Kit V2 - 165": { p: "https://www.printables.com/model/1124278-gen2-165-tabletop-starter-kit", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20165%20Tabletop%20Starter%20Kit-1233752" },
+  "GEN2 Table Top Kit V2 - 185": { p: "https://www.printables.com/model/1118906-gen2-185-tabletop-starter-kit", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20185%20Tabletop%20Starter%20Kit-1231757" },
+  "GEN2 Table Top Kit V2 - 240": { p: "https://www.printables.com/model/1324501-gen2-240-tabletop-starter-kit", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20240%20Tabletop%20Starter%20Kit-1360073" },
+  "GEN2 Table Top Kit V2 - 270": { p: "https://www.printables.com/model/1163955-gen2-270-tabletop-starter-kit", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20270%20Tabletop%20Starter%20Kit-1253780" },
 
   // ---- Wall Mount Kit – Lite — ONE universal brackets page for every length
   //      (2026-07-12, Joey: the 1W/2W/3W sections are shared hardware, so the
@@ -1157,7 +1169,7 @@ function partImage(name, variant) {
   // in img/parts/<len>/Rails <len>-<w>W.png — the BOM row's "<w>W section"
   // variant picks the file, same pattern as Wall Mount Lite above. All six
   // lengths have a render batch (2026-07-19).
-  if (variant && /^GEN2 Rails - \d+$/.test(name)) {
+  if (variant && /^GEN2 Under Table Rails - \d+$/.test(name)) {
     const rl = name.match(/(\d+)$/)[1];
     const rw = variant.match(/^(\d)W/);
     if (rw && ["59", "115", "165", "185", "240", "270"].includes(rl))

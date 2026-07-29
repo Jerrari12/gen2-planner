@@ -1354,7 +1354,7 @@
       // (Joey 2026-07-10); the full mix is in the parts list anyway.
       railSections().forEach((s) => {
         const bar = el("rect", { x: PAD.left + s.start * CW + 8, y: gy - 8, width: s.w * CW - 16, height: 8, rx: 2, class: "s-part s-rail" }, svg);
-        el("title", {}, bar).textContent = `GEN2 Rails - ${state.length ?? ""} · ${s.w}W section`;
+        el("title", {}, bar).textContent = `GEN2 Under Table Rails - ${state.length ?? ""} · ${s.w}W section`;
       });
     } else if (state.mount === "tabletop") {
       const COV = 6, GAP = 2.5;

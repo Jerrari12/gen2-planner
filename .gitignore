@@ -1,2 +1,8 @@
 node_modules/
 package-lock.json
+
+# ---- Internal working notes: kept on disk, never published ----
+# CHANGELOG.md deliberately STAYS tracked: the planner footer links to it on
+# GitHub as the public release log, so untracking it would 404 that link.
+CLAUDE.md
+ASSETS-TODO.md

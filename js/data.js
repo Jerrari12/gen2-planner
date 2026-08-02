@@ -139,22 +139,56 @@ const GEN2 = {
 
   // Printer presets — usable bed size in mm (X × Y).
   // A part fits if its footprint fits the bed in either orientation.
+  // ⚠ Printer IDS ARE BUILD STATE — they ride share links and saved builds
+  // (sanitizeBuild falls unknown ids back to "any"), so ids are ADDITIVE
+  // ONLY: relabel freely, never remove or rename an id. `group` renders as an
+  // <optgroup>; consecutive entries sharing a group fold under one heading,
+  // groupless entries (any / custom) stay top-level.
+  // Bed sizes re-verified against manufacturer pages 2026-08-01 (the 2025-26
+  // wave was added after `printer:custom` hit 23% of picks — people whose
+  // machine isn't listed fall through to Custom). Notes from that pass:
+  // Ender 5 Plus is 350×350 (was wrongly 300); H2S (340×320) outgrows the
+  // H2D it was grouped with; X2D is 256 on its MAIN nozzle (GEN2 parts are
+  // single-nozzle prints, so the dual-mode 235.5 limit doesn't apply);
+  // Kobra 3 is 250, not the 255 sometimes quoted. Every 350 bed (K2 Plus,
+  // SV08, Voron 350) sits just under the 351.6mm 4W parts — the size-fit
+  // tooltip explains that, it's not a data error.
   printers: [
     { id: "any",        label: "Any printer / not sure", x: null, y: null },
-    { id: "coreone",    label: "Prusa Core One",         x: 250, y: 220 },
-    { id: "coreonel",   label: "Prusa Core One L",       x: 300, y: 300 },
-    { id: "mk4",        label: "Prusa MK4 / MK3.9",      x: 250, y: 210 },
-    { id: "mini",       label: "Prusa Mini",             x: 180, y: 180 },
-    { id: "xl",         label: "Prusa XL",               x: 360, y: 360 },
-    { id: "bambux1",    label: "Bambu X1 / P1 / A1",     x: 256, y: 256 },
-    { id: "a1mini",     label: "Bambu A1 mini",          x: 180, y: 180 },
-    { id: "h2d",        label: "Bambu H2D / H2C / H2S",  x: 325, y: 320 },
-    { id: "x2d",        label: "Bambu X2D",              x: 256, y: 256 },
-    { id: "p2s",        label: "Bambu P2S",              x: 256, y: 256 },
-    { id: "snapmakeru1",label: "Snapmaker U1",           x: 270, y: 270 },
-    { id: "ender3",     label: "Ender 3 / Neo",          x: 220, y: 220 },
-    { id: "ender5plus", label: "Ender 5 Plus",           x: 300, y: 300 },
-    { id: "voron24",    label: "Voron 2.4 / Trident",    x: 350, y: 350 },
+    { id: "coreone",    label: "Prusa CORE One / One+",  x: 250, y: 220, group: "Prusa" },
+    { id: "coreonel",   label: "Prusa CORE One L",       x: 300, y: 300, group: "Prusa" },
+    { id: "mk4",        label: "Prusa MK4S / MK4 / MK3.9", x: 250, y: 210, group: "Prusa" },
+    { id: "mini",       label: "Prusa Mini",             x: 180, y: 180, group: "Prusa" },
+    { id: "xl",         label: "Prusa XL",               x: 360, y: 360, group: "Prusa" },
+    { id: "bambux1",    label: "Bambu X1 / P1 / A1",     x: 256, y: 256, group: "Bambu Lab" },
+    { id: "a1mini",     label: "Bambu A1 mini",          x: 180, y: 180, group: "Bambu Lab" },
+    { id: "a2l",        label: "Bambu A2L",              x: 330, y: 320, group: "Bambu Lab" },
+    { id: "h2d",        label: "Bambu H2D / H2C",        x: 325, y: 320, group: "Bambu Lab" },
+    { id: "h2s",        label: "Bambu H2S",              x: 340, y: 320, group: "Bambu Lab" },
+    { id: "x2d",        label: "Bambu X2D",              x: 256, y: 256, group: "Bambu Lab" },
+    { id: "p2s",        label: "Bambu P2S",              x: 256, y: 256, group: "Bambu Lab" },
+    { id: "k1",         label: "K1 / K1C",               x: 220, y: 220, group: "Creality" },
+    { id: "k1max",      label: "K1 Max",                 x: 300, y: 300, group: "Creality" },
+    { id: "k2plus",     label: "K2 Plus",                x: 350, y: 350, group: "Creality" },
+    { id: "ender3",     label: "Ender 3 / Neo",          x: 220, y: 220, group: "Creality" },
+    { id: "ender5plus", label: "Ender 5 Plus",           x: 350, y: 350, group: "Creality" },
+    { id: "centauri",   label: "Centauri Carbon / Carbon 2", x: 256, y: 256, group: "Elegoo" },
+    { id: "neptune4",   label: "Neptune 4 / 4 Pro",      x: 225, y: 225, group: "Elegoo" },
+    { id: "neptune4plus", label: "Neptune 4 Plus",       x: 320, y: 320, group: "Elegoo" },
+    { id: "neptune4max", label: "Neptune 4 Max",         x: 420, y: 420, group: "Elegoo" },
+    { id: "kobras1",    label: "Kobra S1 / Kobra 3",     x: 250, y: 250, group: "Anycubic" },
+    { id: "ad5m",       label: "Adventurer 5M / Pro / AD5X", x: 220, y: 220, group: "FlashForge" },
+    { id: "qidiq2",     label: "QIDI Q2",                x: 270, y: 270, group: "QIDI" },
+    { id: "qidiplus4",  label: "QIDI Plus4",             x: 305, y: 305, group: "QIDI" },
+    { id: "sv06",       label: "SV06 / SV06 ACE",        x: 220, y: 220, group: "Sovol" },
+    { id: "sv06plus",   label: "SV06 Plus",              x: 300, y: 300, group: "Sovol" },
+    { id: "sv08",       label: "SV08",                   x: 350, y: 350, group: "Sovol" },
+    { id: "snapmakeru1",label: "Snapmaker U1",           x: 270, y: 270, group: "Snapmaker" },
+    { id: "voronv0",    label: "Voron V0",               x: 120, y: 120, group: "Voron" },
+    { id: "voron250",   label: "Voron 2.4 / Trident 250", x: 250, y: 250, group: "Voron" },
+    { id: "voron300",   label: "Voron 2.4 / Trident 300", x: 300, y: 300, group: "Voron" },
+    { id: "voron24",    label: "Voron 2.4 / Trident 350", x: 350, y: 350, group: "Voron" },
+    { id: "switchwire", label: "Voron Switchwire",       x: 250, y: 210, group: "Voron" },
     { id: "custom",     label: "Custom…",                x: null, y: null },
   ],
 

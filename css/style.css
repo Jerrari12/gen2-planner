@@ -741,6 +741,15 @@ body.docked .fab-3d { display: none; }
   font-weight: 700;
 }
 .bom-actions .primary-action:hover:not(:disabled) { filter: brightness(1.1); }
+/* The demand catch (see index.html): while the 3D button is disabled its
+   clicks must fall through to the wrapper — a disabled button otherwise
+   swallows them and nobody hears the people who wanted instructions. The
+   wrapper shrink-wraps the button (inline-flex) so it IS the button's hit
+   area inside the .bom-actions flex row, and :has restores the not-allowed
+   cursor that pointer-events:none takes away. */
+#instructions-3d:disabled { pointer-events: none; }
+.blocked-catch { display: inline-flex; }
+.blocked-catch:has(> button:disabled) { cursor: not-allowed; }
 .bom-actions-sub { font-size: 0.8rem; color: var(--muted); margin: 6px 0 0; }
 
 /* Preferred 3D model site: one link button per BOM row + a ▾ for the others,

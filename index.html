@@ -364,7 +364,11 @@
     <!-- The custom 3D guide is the star deliverable · it leads, solid accent;
          the exports follow as utilities. -->
     <div class="bom-actions">
-      <button type="button" class="btn primary-action" id="instructions-3d">🧊 Open my 3D Build Studio</button>
+      <!-- The wrapper is the demand catch: a disabled button swallows clicks
+           entirely, so people pressing the greyed 3D button were invisible.
+           With the button pointer-events:none while disabled, those clicks
+           fall through to this span → instructions-blocked-click:<code>. -->
+      <span class="blocked-catch" id="instructions-3d-wrap"><button type="button" class="btn primary-action" id="instructions-3d">🧊 Open my 3D Build Studio</button></span>
       <button type="button" class="btn" id="copy-bom">Copy as text</button>
       <button type="button" class="btn" id="csv-bom">Download CSV</button>
       <button type="button" class="btn" id="print-bom">Print</button>

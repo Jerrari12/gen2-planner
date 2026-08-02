@@ -55,6 +55,27 @@
         window.goatcounter.count({ path: name, title: name, event: true });
     } catch (e) { /* ignore — never let tracking throw */ }
   }
+  /* hostname → a fixed short id, mirroring the viewer's OUT_HOSTS so ONE
+     vocabulary spans both apps (the dashboard sums `out:` across them) and a
+     raw url can never become an event name. `than.gs` is the short domain the
+     link tables actually use — miss it and Thangs lands in out:other. */
+  const OUT_HOSTS = [
+    [/(^|\.)printables\.com$/,  "printables"],
+    [/(^|\.)thangs\.com$/,      "thangs"],
+    [/(^|\.)than\.gs$/,         "thangs"],
+    [/(^|\.)makerworld\.com$/,  "makerworld"],
+    [/(^|\.)cults3d\.com$/,     "cults"],
+  ];
+  /* What kind of outbound click is this anchor? Affiliate buys are told apart
+     by rel="sponsored" — the attribute that actually marks the relationship —
+     rather than by sniffing an Amazon hostname that could change. */
+  function outEvent(a) {
+    if ((a.rel || "").includes("sponsored")) return "hardware:buy";
+    let host = "";
+    try { host = new URL(a.href, location.href).hostname.toLowerCase(); } catch (e) { /* malformed */ }
+    for (const [re, id] of OUT_HOSTS) if (re.test(host)) return "out:" + id;
+    return "out:other";
+  }
 
   /* ----------------------- Printer / bed fitting ----------------------- */
 
@@ -433,11 +454,27 @@
 
   function buildPrinterSelect() {
     const sel = $("#printer-select");
+    // brand <optgroup>s: consecutive entries sharing a `group` fold under one
+    // heading (the list is 30+ machines since the 2026-08-01 additions — flat,
+    // it stopped being scannable). Groupless entries (Any / Custom) stay
+    // top-level. The group label carries the brand, so entry labels don't
+    // repeat it.
+    let holder = sel, curGroup = null;
     GEN2.printers.forEach((p) => {
+      if ((p.group || null) !== curGroup) {
+        curGroup = p.group || null;
+        if (curGroup) {
+          holder = document.createElement("optgroup");
+          holder.label = curGroup;
+          sel.appendChild(holder);
+        } else {
+          holder = sel;
+        }
+      }
       const opt = document.createElement("option");
       opt.value = p.id;
       opt.textContent = p.label + (p.x ? ` (${p.x}×${p.y}mm)` : "");
-      sel.appendChild(opt);
+      holder.appendChild(opt);
     });
     sel.value = state.printer;
     const onBedChange = () => {
@@ -1548,11 +1585,27 @@
     }
   }
 
+  /* ---- "builds started" (KPI stage 2, 2026-07-30) ----
+     Fires ONCE per page load, the first time a USER action puts a unit on the
+     board — direct place (mouse/touch), Load example, Surprise me, or the
+     structure-fixer's fillColumn. Deliberately NOT fired by applyBuild
+     (session restore, #build= links, undo/redo assign state.placed wholesale
+     and never reach the .push sites), so a returning visitor who only reads
+     their restored build doesn't count as starting one. Page-memory flag, no
+     storage — same dedupe philosophy as the viewer's trackOnce. */
+  let buildStarted = false;
+  function noteBuildStart() {
+    if (buildStarted) return;
+    buildStarted = true;
+    track("build-start");
+  }
+
   /* A small ready-made layout so first-time users can see the illustration
      and parts list react before they understand every control. Adapts to the
      current grid, printer, and mount. */
   function loadExample() {
     track("example");
+    noteBuildStart();
     state.placed = [];
     state.selectedUnit = null;
     const fits = (w, fill) => state.gridW >= w && fillFits(w, fill);
@@ -1602,6 +1655,7 @@
      heights, and drawer fills. */
   function surpriseMe() {
     track("surprise");
+    noteBuildStart();
     const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
     const pick = (arr) => arr[randInt(0, arr.length - 1)];
     const FILLS = ["classic", "decor"];
@@ -2333,6 +2387,7 @@
     const cells = [];
     for (let y = s; y >= 0 && y < rows() && !occ.has(c + "," + y); y += step) cells.push(y);
     if (!cells.length) return 0;
+    noteBuildStart();   // the structure-fixer adding cases is a user action too
     const lo = Math.min(...cells), hi = Math.max(...cells) + 1;
     let added = 0;
     for (let y = lo; y < hi; ) {
@@ -2496,12 +2551,28 @@
       return { code: "no-ut-rails", text: "3D instructions can't show under-table " + state.length + " builds yet · the rail models aren't in the 3D part library. Table Top and Wall Mount work for every collection." };
     return null;
   }
-  /* Each distinct limitation is counted ONCE per session: updateInstructionsButton
-     runs on every refresh() — which fires per cell during a drag — so counting
-     every call would report thousands of "blocks" for one frustrated user. The
-     question is "did this person hit this wall at all". "empty" is excluded: it's
-     the starting state everyone passes through, not a limitation. */
+  /* Each distinct limitation is counted ONCE per session — and only after the
+     layout SITS in that state. updateInstructionsButton runs on every refresh()
+     (per cell during a drag), and every normal build session passes through
+     transiently-invalid layouts constantly: dragging across occupied cells,
+     flipping tabletop → under-table, moving a support out before its
+     replacement is in. Counting first sight made `unsupported` the top
+     "failure" on the dashboard when it was mostly people mid-edit. The timer
+     RESTARTS on every refresh, so any activity postpones it — the event now
+     means "left the build broken for 3s+", not "brushed past invalid".
+     "empty" is excluded: it's the starting state everyone passes through. */
   const blockSeen = new Set();
+  const BLOCK_SETTLE_MS = 3000;
+  let blockTimer = 0;
+  function noteBlockedSettled(reason) {
+    clearTimeout(blockTimer);
+    const code = reason && reason.code !== "empty" ? reason.code : "";
+    if (!code || blockSeen.has(code)) return;
+    blockTimer = setTimeout(() => {
+      blockSeen.add(code);
+      track("instructions-blocked:" + code);
+    }, BLOCK_SETTLE_MS);
+  }
 
   // The 3D-instructions button greys out (with the reason as its tooltip)
   // whenever the layout isn't instructions-ready — same conditions as the
@@ -2512,10 +2583,12 @@
     const reason = instructionsBlockReason();
     // capability gaps are invisible otherwise: these are people who wanted a 3D
     // guide and couldn't have one, which is the planner's rules meeting a real build
-    if (reason && reason.code !== "empty" && !blockSeen.has(reason.code)) {
-      blockSeen.add(reason.code);
-      track("instructions-blocked:" + reason.code);
-    }
+    noteBlockedSettled(reason);
+    // a disabled button is pointer-events:none (so the demand catch below the
+    // DOM can hear clicks) — which also mutes its native tooltip; mirror the
+    // reason onto the wrapper so hover still explains the grey
+    if (btn.parentElement && btn.parentElement.id === "instructions-3d-wrap")
+      btn.parentElement.title = (reason && reason.text) || "";
     btn.disabled = !!reason;
     btn.title = (reason && reason.text) || "Open the 3D Build Studio · step-by-step assembly for this exact build, plus colors and hardware options";
     // Form-validation style: the reason is VISIBLE under the button, not just a
@@ -3326,6 +3399,20 @@
   function bindBomTracker() {
     const bom = $("#bom");
     bom.addEventListener("click", (e) => {
+      /* ---- the outbound funnel (2026-08-01) ----
+         EVERY model/buy link in the parts list is caught here: the primary
+         store button, the ▾ alternatives and the hardware buy chips alike.
+         The BOM is string-rendered, so delegation is the only single choke
+         point — and it means a link added later is instrumented for free
+         (the viewer gets the same guarantee from linkEl). Until this existed
+         the planner's whole download step was INVISIBLE: `out:` came only
+         from the viewer, while `linksite:` proved people were standing right
+         there changing stores. A ▾ item fires both out: and linksite: on
+         purpose — one is the click, the other the preference change, exactly
+         as the viewer pairs out: with store-pref:. All these anchors are
+         target="_blank", so navigation never cancels the beacon. */
+      const a = e.target.closest && e.target.closest("a[href]");
+      if (a) track(outEvent(a));
       if (e.target.id === "bom-track-toggle") { tracker.on = !tracker.on; saveTracker(); track("bom-track:" + (tracker.on ? "on" : "off")); renderBom(); }
       else if (e.target.id === "bom-track-reset") { tracker.done = {}; saveTracker(); renderBom(); }
       // the ▾ of alternative model sites (string-rendered, so delegated here)
@@ -3725,6 +3812,7 @@
             id, x, y, w: state.selected.w, hh: state.selected.h * 2,
             fill: state.fill, shelves: 0,
           });
+          noteBuildStart();
           state.selectedUnit = id; // auto-select the new unit so the options menu is ready
         }
       }
@@ -3819,6 +3907,7 @@
               fill: state.fill,
               shelves: 0,
             });
+            noteBuildStart();
             state.selectedUnit = id; // auto-select the new unit so the options menu is ready
             e.preventDefault();
             refresh();
@@ -3899,6 +3988,15 @@
     $("#print-bom").addEventListener("click", () => window.print());
     $("#save-image").addEventListener("click", saveBuildImage);
     $("#instructions-3d").addEventListener("click", open3DInstructions);
+    // demand while blocked: the disabled button is pointer-events:none, so a
+    // click on it lands HERE instead. Counted per click (a deliberate act,
+    // like closure-soon), where the passive instructions-blocked:<code> is
+    // once per session. Enabled-button clicks bubble through too — the
+    // disabled gate keeps those out.
+    $("#instructions-3d-wrap").addEventListener("click", () => {
+      const reason = $("#instructions-3d").disabled && instructionsBlockReason();
+      if (reason && reason.code !== "empty") track("instructions-blocked-click:" + reason.code);
+    });
     $("#fab-3d").addEventListener("click", open3DInstructions);
     // docked split view controls (wide screens; see the dock block above)
     $("#start-fresh").addEventListener("click", startFresh);

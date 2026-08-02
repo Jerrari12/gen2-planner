@@ -49,15 +49,15 @@ const GEN2 = {
   // maxW caps EVERY fill's width (no wider case exists to build on), while
   // maxDrawerH caps only the drawer fills — shelves/cabinets stack extenders
   // above a 1H case (59 extenders exist), so their heights stay open.
-  // maxClassicH caps only the CLASSIC drawer fill: the 115/240/270 Classic
-  // Drawer catalogs stop at 2H (no 3H was ever modeled — 165/185 have it).
-  // Mirrors the viewer generator's COLL[L].classicMaxHH guard; without both,
-  // a 3H classic build reached a 3D guide whose drawer GLB doesn't exist.
+  // maxClassicH caps only the CLASSIC drawer fill. It held 115/240/270 at 2H
+  // while their Classic Drawer catalogs stopped there; those six 3H sizes were
+  // modeled 2026-08-02, so all six lengths now ship the full 18 and only the 59
+  // still needs an entry. sizeExists reads maxClassicH defensively, so the
+  // option stays available for the next partial catalog — but it must be set
+  // in step with the viewer generator's COLL[L].classicMaxHH: capping one side
+  // only either offers a size the 3D guide can't build, or hides one it can.
   collectionCases: {
     59: { maxW: 2, maxDrawerH: 1 },
-    115: { maxClassicH: 2 },
-    240: { maxClassicH: 2 },
-    270: { maxClassicH: 2 },
   },
 
   // What a case can be filled with
@@ -481,15 +481,11 @@ const GEN2 = {
   // A missing render in a batch usually means the model itself isn't done, so
   // this is populated alongside IMAGE_OVERRIDES from what a render batch left out.
   unreleasedParts: [
-    // Classic Drawers: the 2026-07-11 all-lengths batch closed every gap
-    // except the 3H sizes at 115/240/270 (185/165 have them; the short
-    // collections don't cut a 3H).
-    "GEN2 270-1W-3H Classic Drawer",
-    "GEN2 270-2W-3H Classic Drawer",
-    "GEN2 115-1W-3H Classic Drawer",
-    "GEN2 115-2W-3H Classic Drawer",
-    "GEN2 240-1W-3H Classic Drawer",
-    "GEN2 240-2W-3H Classic Drawer",
+    // Classic Drawers are COMPLETE as of 2026-08-02 — the six 3H sizes at
+    // 115/240/270 that the 2026-07-11 batch left out were modeled, so all six
+    // lengths ship all 18. (This list is the SECOND gate: dropping the viewer's
+    // classicMaxHH and the planner's maxClassicH still leaves a row reading
+    // "coming soon" with its download links suppressed until the name goes.)
     // 270 Decor Drawer: one gap in an otherwise-complete batch.
     "GEN2 270-4W-1H Decor Drawer",
   ],
@@ -689,14 +685,23 @@ const LINK_OVERRIDES = {
    in the row's link cell (renderBom adds the affiliate disclosure line).
    Magnets come in two strengths because people complained the standard ones
    were too weak: standard suits most builds, the N52s hold noticeably harder
-   (can be too strong for smaller drawers) — the row note says so. No link for
-   the M3 hex nut yet — it keeps the plain "hardware store" tag. */
+   (can be too strong for smaller drawers) — the row note says so.
+   The three M3 rows deliberately SHARE one pair of links: both listings are
+   VIGRUE 570-piece M3 assortments (stainless B08H24W42K / steel B09MYDQCXX)
+   that carry every screw length AND the hex nuts, so one kit satisfies the
+   whole optional cover / foot-rail hardware list. Adding a row here is what
+   swaps its plain "hardware store" tag for buy buttons. */
 const HARDWARE_BUY = {
   "M3×6mm screw": [
     { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
     { label: "Steel", url: "https://amzn.to/4gA0NWl" },
   ],
   "M3×12mm screw": [
+    { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
+    { label: "Steel", url: "https://amzn.to/4gA0NWl" },
+  ],
+  // same assortment kits as the screws above — the nuts ship in the same box
+  "M3 hex nut": [
     { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
     { label: "Steel", url: "https://amzn.to/4gA0NWl" },
   ],
@@ -785,6 +790,11 @@ const IMAGE_OVERRIDES = {
   "GEN2 QuickLock - Left": "img/parts/QuickLock.png",
   "GEN2 QuickLock - Right": "img/parts/QuickLock-R.png", // the Left render flipped horizontally (2026-07-10) — they're mirror parts
   "GEN2 Magnet Clip": "img/parts/Magnet Clip.png",
+  // TPU foot — ONE universal render: the foot is length-agnostic (it seats in
+  // the foot rail / case underside slots, identical on every collection), so
+  // there's no per-length set. Needs an override because the row's name carries
+  // parentheses the automatic slug can't produce a file for.
+  "GEN2 Foot (TPU)": "img/parts/TPU Foot.png",
   // L/R stoppers are mirrored parts sharing one render
   "GEN2 Drawer Stopper - Left": "img/parts/Drawer Stopper.png",
   "GEN2 Drawer Stopper - Right": "img/parts/Drawer Stopper.png",
@@ -947,17 +957,18 @@ const IMAGE_OVERRIDES = {
   "GEN2 270 Case Extender - 2W-1H": "img/parts/270/Case Extender 270-2W.png",
   "GEN2 270 Case Extender - 3W-1H": "img/parts/270/Case Extender 270-3W.png",
   "GEN2 270 Case Extender - 4W-1H": "img/parts/270/Case Extender 270-4W.png",
-  // 270 Classic Drawer renders — 16 of 18 catalog sizes (3W/4W × 1.5H/2H
-  // landed with the 2026-07-11 all-lengths batch). Still unmodeled: 1W/2W-3H
-  // (unlike 185/165) — those stay in GEN2.unreleasedParts.
+  // 270 Classic Drawer renders — all 18 catalog sizes (3W/4W × 1.5H/2H landed
+  // with the 2026-07-11 all-lengths batch; 1W/2W-3H followed 2026-08-02).
   "GEN2 270-1W-0.5H Classic Drawer": "img/parts/270/Classic Drawer 270-1W-05H.png",
   "GEN2 270-1W-1H Classic Drawer":   "img/parts/270/Classic Drawer 270-1W-1H.png",
   "GEN2 270-1W-1.5H Classic Drawer": "img/parts/270/Classic Drawer 270-1W-15H.png",
   "GEN2 270-1W-2H Classic Drawer":   "img/parts/270/Classic Drawer 270-1W-2H.png",
+  "GEN2 270-1W-3H Classic Drawer":   "img/parts/270/Classic Drawer 270-1W-3H.png",
   "GEN2 270-2W-0.5H Classic Drawer": "img/parts/270/Classic Drawer 270-2W-05H.png",
   "GEN2 270-2W-1H Classic Drawer":   "img/parts/270/Classic Drawer 270-2W-1H.png",
   "GEN2 270-2W-1.5H Classic Drawer": "img/parts/270/Classic Drawer 270-2W-15H.png",
   "GEN2 270-2W-2H Classic Drawer":   "img/parts/270/Classic Drawer 270-2W-2H.png",
+  "GEN2 270-2W-3H Classic Drawer":   "img/parts/270/Classic Drawer 270-2W-3H.png",
   "GEN2 270-3W-0.5H Classic Drawer": "img/parts/270/Classic Drawer 270-3W-05H.png",
   "GEN2 270-3W-1H Classic Drawer":   "img/parts/270/Classic Drawer 270-3W-1H.png",
   "GEN2 270-3W-1.5H Classic Drawer": "img/parts/270/Classic Drawer 270-3W-15H.png",
@@ -1024,16 +1035,18 @@ const IMAGE_OVERRIDES = {
   "GEN2 115-4W-1.5H Decor Drawer": "img/parts/115/Decor Drawer 115-4W-15H.png",
   "GEN2 115-4W-1H Decor Drawer": "img/parts/115/Decor Drawer 115-4W-1H.png",
   "GEN2 115-4W-2H Decor Drawer": "img/parts/115/Decor Drawer 115-4W-2H.png",
-  // 115 Classic Drawer renders — all 16 catalog sizes (3W/4W landed with the
-  // 2026-07-11 all-lengths batch; no 3H at this length — see unreleasedParts)
+  // 115 Classic Drawer renders — all 18 catalog sizes (3W/4W landed with the
+  // 2026-07-11 all-lengths batch; 1W/2W-3H followed 2026-08-02)
   "GEN2 115-1W-0.5H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-05H.png",
   "GEN2 115-1W-1.5H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-15H.png",
   "GEN2 115-1W-1H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-1H.png",
   "GEN2 115-1W-2H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-2H.png",
+  "GEN2 115-1W-3H Classic Drawer": "img/parts/115/Classic Drawer 115-1W-3H.png",
   "GEN2 115-2W-0.5H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-05H.png",
   "GEN2 115-2W-1.5H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-15H.png",
   "GEN2 115-2W-1H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-1H.png",
   "GEN2 115-2W-2H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-2H.png",
+  "GEN2 115-2W-3H Classic Drawer": "img/parts/115/Classic Drawer 115-2W-3H.png",
   "GEN2 115-3W-0.5H Classic Drawer": "img/parts/115/Classic Drawer 115-3W-05H.png",
   "GEN2 115-3W-1.5H Classic Drawer": "img/parts/115/Classic Drawer 115-3W-15H.png",
   "GEN2 115-3W-1H Classic Drawer": "img/parts/115/Classic Drawer 115-3W-1H.png",
@@ -1085,17 +1098,18 @@ const IMAGE_OVERRIDES = {
   "GEN2 240-4W-1.5H Decor Drawer": "img/parts/240/Decor Drawer 240-4W-15H.png",
   "GEN2 240-4W-1H Decor Drawer": "img/parts/240/Decor Drawer 240-4W-1H.png",
   "GEN2 240-4W-2H Decor Drawer": "img/parts/240/Decor Drawer 240-4W-2H.png",
-  // 240 Classic Drawer renders — 16 of 18 catalog sizes (3W/4W × 1.5H/2H
-  // landed with the 2026-07-11 all-lengths batch). Still unmodeled: 1W/2W-3H
-  // — those stay in GEN2.unreleasedParts.
+  // 240 Classic Drawer renders — all 18 catalog sizes (3W/4W × 1.5H/2H landed
+  // with the 2026-07-11 all-lengths batch; 1W/2W-3H followed 2026-08-02).
   "GEN2 240-1W-0.5H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-05H.png",
   "GEN2 240-1W-1.5H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-15H.png",
   "GEN2 240-1W-1H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-1H.png",
   "GEN2 240-1W-2H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-2H.png",
+  "GEN2 240-1W-3H Classic Drawer": "img/parts/240/Classic Drawer 240-1W-3H.png",
   "GEN2 240-2W-0.5H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-05H.png",
   "GEN2 240-2W-1.5H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-15H.png",
   "GEN2 240-2W-1H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-1H.png",
   "GEN2 240-2W-2H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-2H.png",
+  "GEN2 240-2W-3H Classic Drawer": "img/parts/240/Classic Drawer 240-2W-3H.png",
   "GEN2 240-3W-0.5H Classic Drawer": "img/parts/240/Classic Drawer 240-3W-05H.png",
   "GEN2 240-3W-1.5H Classic Drawer": "img/parts/240/Classic Drawer 240-3W-15H.png",
   "GEN2 240-3W-1H Classic Drawer": "img/parts/240/Classic Drawer 240-3W-1H.png",

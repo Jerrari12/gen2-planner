@@ -450,28 +450,30 @@ test("Classic / EdgeLabel / Classic Pro faceplates omit the handle line (integra
   assert.equal(bomQty(app, "Decor Handles"), 0);     // integrated
 });
 
-// The 115/240/270 Classic Drawer catalogs stop at 2H — no 3H model exists
-// (165/185 have it). Offering it produced a 3D guide whose drawer GLB doesn't
-// exist, which used to hang the viewer forever on the loading spinner. The
-// planner mirrors the viewer generator's COLL[L].classicMaxHH guard via
-// collectionCases.maxClassicH.
-test("classic drawers cap at 2H where no 3H model exists (115/240/270)", () => {
+// 115/240/270 used to cap Classic Drawers at 2H — no 3H model existed, and
+// offering one produced a 3D guide whose drawer GLB was missing, which hung the
+// viewer on its loading spinner. Those six sizes were modeled 2026-08-02, so
+// every length now offers the full 18 and collectionCases carries no
+// maxClassicH at all. The 59's own maxDrawerH cap is unrelated and still holds.
+// This must stay in step with the viewer generator's COLL[L].classicMaxHH.
+test("classic drawers offer 3H at every full-catalog length", () => {
   const { app } = boot();
-  for (const len of [115, 240, 270]) {
-    assert.equal(app.sizeExists(1, 3, "classic", len), false, `${len}: 1W-3H classic must be unavailable`);
-    assert.equal(app.sizeExists(2, 3, "classic", len), false, `${len}: 2W-3H classic must be unavailable`);
+  for (const len of [115, 165, 185, 240, 270]) {
+    assert.equal(app.sizeExists(1, 3, "classic", len), true, `${len}: 1W-3H classic must be available`);
+    assert.equal(app.sizeExists(2, 3, "classic", len), true, `${len}: 2W-3H classic must be available`);
     assert.equal(app.sizeExists(1, 2, "classic", len), true, `${len}: 2H classic still exists`);
     assert.equal(app.sizeExists(1, 3, "decor", len), true, `${len}: 3H DECOR is unaffected`);
   }
-  for (const len of [165, 185])
-    assert.equal(app.sizeExists(1, 3, "classic", len), true, `${len}: 3H classic exists (18-size catalog)`);
-  // a restored legacy/hostile hash with a 3H classic on 240 drops the unit
-  // instead of resurrecting the hang
-  const bad = app.serializeBuild();
-  bad.mount = "under-table"; bad.length = 240; bad.gridH = 6;
-  bad.placed = [{ id: 1, x: 0, y: 6, w: 1, hh: 6, fill: "classic", shelves: 0, closure: "none" }];
-  app.applyBuild(bad);
-  assert.equal(app.state.placed.length, 0, "the impossible 3H classic unit should be dropped by sanitize");
+  // 3W/4W-3H stay illegal everywhere (too large to print), classic included
+  assert.equal(app.sizeExists(3, 3, "classic", 240), false, "3W-3H is not a GEN2 size");
+  // the 59 mini collection caps drawer fills at 1H by its own maxDrawerH
+  assert.equal(app.sizeExists(1, 3, "classic", 59), false, "59: drawers cap at 1H");
+  // a restored hash with a 3H classic on 240 now SURVIVES sanitize
+  const b = app.serializeBuild();
+  b.mount = "under-table"; b.length = 240; b.gridH = 6;
+  b.placed = [{ id: 1, x: 0, y: 6, w: 1, hh: 6, fill: "classic", shelves: 0, closure: "none" }];
+  app.applyBuild(b);
+  assert.equal(app.state.placed.length, 1, "a 240 1W-3H classic is a real size now — sanitize must keep it");
 });
 
 // The handle's FASTENER rides the same `boltOnOnly` gate as the handle row, and
@@ -1137,15 +1139,18 @@ test("sanitizer discards a garbage cabinet interior (falls back to simple)", () 
 
 test("un-modeled drawer sizes show as coming soon with no download links", () => {
   const { app } = boot();
-  // the 2026-07-11 batch modeled every classic size except 3H at 115/240/270,
-  // so the un-modeled example lives at 240 now (3W-1.5H used to be the pick)
-  app.state.length = 240;
-  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "classic" });   // 1W-1H: modeled
-  place(app, { id: 2, x: 1, y: 0, w: 1, hh: 6, fill: "classic" });   // 1W-3H: not modeled at 240
+  // The fixture has had to move twice as batches closed gaps: 240 3W-1.5H, then
+  // 240 1W-3H classic (modeled 2026-08-02). Classic Drawers are complete now, so
+  // the only un-modeled size left in GEN2.unreleasedParts is 270 4W-1H DECOR.
+  // If that one ever ships, this test needs a new fixture — or deleting, if
+  // unreleasedParts empties out entirely.
+  app.state.length = 270;
+  place(app, { id: 1, x: 0, y: 0, w: 4, hh: 2, fill: "decor" });   // 4W-1H: not modeled at 270
+  place(app, { id: 2, x: 4, y: 0, w: 1, hh: 2, fill: "decor" });   // 1W-1H: modeled
   const items = [];
-  for (const s of app.computeBom()) items.push(...s.items.filter((i) => i.name.includes("Classic Drawer")));
+  for (const s of app.computeBom()) items.push(...s.items.filter((i) => i.name.includes("Decor Drawer")));
   const modeled = items.find((i) => i.name.includes("1W-1H"));
-  const unmodeled = items.find((i) => i.name.includes("1W-3H"));
+  const unmodeled = items.find((i) => i.name.includes("4W-1H"));
   assert.equal(modeled.unreleased, false);
   assert.equal(unmodeled.unreleased, true);
 });

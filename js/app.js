@@ -3418,7 +3418,7 @@
     // also wears "· paid link" itself (linkButtons), so the disclosure and the
     // links stay visible together however far the list scrolls.
     if (sections.some((sec) => sec.items.some((it) => it.qty > 0 && it.hardware && HARDWARE_BUY[it.name])))
-      html += `<p class="affiliate-note">Paid links — I earn a commission from purchases made through the Amazon buy buttons in this list, at no extra cost to you. As an Amazon Associate I earn from qualifying purchases. Any equivalent hardware from any retailer works.</p>`;
+      html += `<p class="affiliate-note">Paid links - I earn a commission from purchases made through the Amazon buy buttons in this list, at no extra cost to you. As an Amazon Associate I earn from qualifying purchases. Any equivalent hardware from any retailer works.</p>`;
     wrap.innerHTML = html;
   }
 

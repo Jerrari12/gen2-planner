@@ -6,3 +6,7 @@ package-lock.json
 # GitHub as the public release log, so untracking it would 404 that link.
 CLAUDE.md
 ASSETS-TODO.md
+# Joey's link/catalogue specs. These were sitting UNTRACKED but un-ignored,
+# which is a different thing: one `git add -A` would have published them.
+GEN2_LINKS_UPDATE_*.md
+notes/

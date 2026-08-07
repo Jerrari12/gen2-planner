@@ -3360,9 +3360,14 @@
       });
       html += `</tbody></table></div>`;
     });
-    // affiliate disclosure whenever any rendered hardware row carries buy buttons
+    // Paid-link disclosure whenever any rendered hardware row carries buy
+    // buttons. Wording per FTC guidance ("paid link" is adequate where
+    // "affiliate link" alone may not be) + Amazon's REQUIRED Associate
+    // statement, verbatim — do not paraphrase that sentence. Each buy button
+    // also wears "· paid link" itself (linkButtons), so the disclosure and the
+    // links stay visible together however far the list scrolls.
     if (sections.some((sec) => sec.items.some((it) => it.qty > 0 && it.hardware && HARDWARE_BUY[it.name])))
-      html += `<p class="affiliate-note">Hardware links are Amazon affiliate links — buying through them supports GEN2 development at no extra cost to you.</p>`;
+      html += `<p class="affiliate-note">Paid links — I earn a commission from purchases made through the Amazon buy buttons in this list, at no extra cost to you. As an Amazon Associate I earn from qualifying purchases. Any equivalent hardware from any retailer works.</p>`;
     wrap.innerHTML = html;
   }
 
@@ -3373,7 +3378,11 @@
       // without one keep the plain tag.
       const buy = HARDWARE_BUY[it.name];
       if (!buy) return `<span class="tag">hardware store</span>`;
-      return buy.map((b) => `<a class="btn small" href="${b.url}" target="_blank" rel="noopener sponsored">${b.label}</a>`).join(" ");
+      // "· paid link" ON each button (FTC: adequate wording, right at the link).
+      // Every HARDWARE_BUY url is an Amazon listing today — if a non-paid
+      // vendor ever lands in that table, gate this suffix on the host like the
+      // viewer's isPaidLink() rather than dropping it.
+      return buy.map((b) => `<a class="btn small" href="${b.url}" target="_blank" rel="noopener sponsored">${b.label} · paid link</a>`).join(" ");
     }
     if (it.unreleased) return `<span class="tag soon-tag">coming soon</span>`;
     // ONE button — the site you prefer, or the first that actually carries this

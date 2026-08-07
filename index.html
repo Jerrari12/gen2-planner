@@ -28,8 +28,8 @@
       <!-- Cross-site nav to the official kits gallery (a page of the 3D Build
            Studio site). href is set from KITS_URL in app.js so local dev points
            at the local viewer. -->
-      <a class="nav-pill kits-link" href="https://gen2build.jerrari3d.com/builds/" title="Preconfigured GEN2 builds with ready-made 3D instructions">&#129513; Starter kits</a>
-      <a class="brand-link" href="https://www.jerrari3d.com/gen2-modular-system" target="_blank" rel="noopener">JERRARI3D.com →</a>
+      <a class="nav-pill kits-link" data-track="kits:hero" href="https://gen2build.jerrari3d.com/builds/" title="Preconfigured GEN2 builds with ready-made 3D instructions">&#129513; Starter kits</a>
+      <a class="brand-link" data-track="follow:jerrari3d" href="https://www.jerrari3d.com/gen2-modular-system" target="_blank" rel="noopener">JERRARI3D.com →</a>
     </span>
   </div>
   <!-- The promise up front: the planner's real product is the calculated build
@@ -386,7 +386,7 @@
     <p class="bom-actions-sub">Step-by-step assembly built for this exact layout · plus filament colors, faceplate swaps and hardware options in full 3D.</p>
     <p class="fineprint">
       Quantities for mount hardware are estimates · always confirm against the instructions at
-      <a href="https://www.jerrari3d.com/gen2-modular-system/instructions" target="_blank" rel="noopener">the GEN2 Instruction Hub</a>.
+      <a data-track="help:instructions" href="https://www.jerrari3d.com/gen2-modular-system/instructions" target="_blank" rel="noopener">the GEN2 Instruction Hub</a>.
     </p>
   </section>
 
@@ -441,10 +441,10 @@
 </dialog>
 
 <footer class="footer">
-  GEN2 QuickLock Modular System by <a href="https://www.jerrari3d.com" target="_blank" rel="noopener">JERRARI3D</a>
-  · Models on <a href="https://www.printables.com/@Jerrari" target="_blank" rel="noopener">Printables</a>
-  and <a href="https://thangs.com/designer/Jerrari" target="_blank" rel="noopener">Thangs</a>
-  · <a class="kits-link" href="https://gen2build.jerrari3d.com/builds/">Starter kits</a>
+  GEN2 QuickLock Modular System by <a data-track="follow:jerrari3d" href="https://www.jerrari3d.com" target="_blank" rel="noopener">JERRARI3D</a>
+  · Models on <a data-track="follow:printables" href="https://www.printables.com/@Jerrari" target="_blank" rel="noopener">Printables</a>
+  and <a data-track="follow:thangs" href="https://thangs.com/designer/Jerrari" target="_blank" rel="noopener">Thangs</a>
+  · <a class="kits-link" data-track="kits:footer" href="https://gen2build.jerrari3d.com/builds/">Starter kits</a>
   <!-- release stamp: vYYMM(.DD), same date scheme as the model downloads —
        bump alongside a new CHANGELOG.md entry when announcing an update -->
   · <a class="footer-ver" href="https://github.com/Jerrari12/gen2-planner/blob/main/CHANGELOG.md" target="_blank" rel="noopener">v2607.20</a>
@@ -453,6 +453,8 @@
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script src="js/hero.js"></script>
+<!-- counts the static hero/footer links via their data-track attributes -->
+<script src="js/track-links.js"></script>
 <!-- GoatCounter analytics: cookieless, no consent banner. Counts a pageview on
      load; app.js's track() sends custom events (mount/length/faceplate/share…).
      Loads async and fails silent · the planner never depends on it. -->

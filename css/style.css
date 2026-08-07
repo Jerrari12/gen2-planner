@@ -275,6 +275,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 12px 28px 60px; }
 .space-wrap { display: flex; gap: 16px; flex-wrap: wrap; }
 .space-box {
   flex: 1 1 320px;
+  min-width: 0;            /* see .field-row label — the shrink has to reach here too */
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -399,7 +400,13 @@ details.space-box[open] .sb-sum-status { display: none; }
   outline-offset: 2px;
 }
 .field-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
-.field-row label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--muted); }
+/* ⚠ min-width:0 on every link of the flex chain. A flex item's default
+   min-width:auto refuses to shrink below its CONTENT, and a <select> sizes
+   itself to its LONGEST OPTION LABEL — so the printer picker grew past the
+   viewport when the preset list expanded (2026-08-01), clipping its own
+   chevron off the right edge of a 375px phone. The cap has to be on the
+   label and .printer-pick too, or they just push the overflow up a level. */
+.field-row label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--muted); min-width: 0; max-width: 100%; }
 .field-row input, .field-row select {
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -408,9 +415,11 @@ details.space-box[open] .sb-sum-status { display: none; }
   padding: 8px 10px;
   font-size: 0.9rem;
   min-width: 130px;
+  max-width: 100%;
 }
 .field-row input:focus, .field-row select:focus { outline: none; border-color: var(--accent); }
-.printer-pick { display: flex; align-items: center; gap: 9px; }
+.printer-pick { display: flex; align-items: center; gap: 9px; min-width: 0; max-width: 100%; }
+.printer-pick select { flex: 1 1 auto; min-width: 0; }
 .printer-icon { flex: none; width: 26px; height: 26px; color: var(--muted); display: inline-flex; }
 .printer-icon svg { width: 100%; height: 100%; }
 .printer-icon .pi-print { fill: var(--accent); }
@@ -694,6 +703,15 @@ body.docked .fab-3d { display: none; }
   box-shadow: 0 4px 18px rgba(0,0,0,0.45);
 }
 .fab-3d:hover:not(:disabled) { filter: brightness(1.1); }
+/* ⚠ Both the FAB and "Remove unit" claim the bottom-right corner, and on a
+   phone they genuinely collide — measured ~2900px² of overlap, so a tap meant
+   to delete a unit opened the 3D studio instead. body.fab-clear is set by
+   bindFabAvoidance() only while the unit toolbar is BOTH active and on
+   screen; see the comment there for why "hide it while a unit is selected"
+   would have hidden it for the rest of the session. */
+@media (max-width: 1199px) {
+  body.fab-clear .fab-3d { display: none; }
+}
 .fab-3d:disabled {
   background: var(--panel-2);
   border-color: var(--line);

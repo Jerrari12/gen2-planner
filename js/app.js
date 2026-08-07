@@ -161,8 +161,9 @@
     if (cc && w > cc.maxW) return false;
     if (f === "classic" || f === "decor") {
       if (cc && h > cc.maxDrawerH) return false;
-      // classic-only height cap: 115/240/270 have no 3H Classic Drawer model
-      // (viewer generator mirrors this via COLL[L].classicMaxHH)
+      // classic-only height cap. No length sets it since 2026-08-02 (all six
+      // ship 3H classics), but it stays armed for the next partial catalog —
+      // set it in step with the viewer generator's COLL[L].classicMaxHH.
       if (f === "classic" && cc && cc.maxClassicH && h > cc.maxClassicH) return false;
       return !GEN2.unavailableSizes.includes(sizeToken(w, h));
     }
@@ -287,14 +288,32 @@
         `<div class="card-title">${m.label}</div>` +
         `<div class="card-blurb">${m.blurb}</div>`;
       btn.addEventListener("click", () => {
+        const wasReady = state.mount && state.length;
         state.mount = m.id;
         track("mount:" + m.id);
         enforceMountLength(); // e.g. switching to Tabletop with 59 chosen
         renderMountCards();
         refresh();
+        // Same courtesy the length cards do: move the page on. On a phone the
+        // next step sits entirely below the fold, so picking a mount used to
+        // look like nothing happened — a dead end at the FIRST interaction.
+        advanceTo(!wasReady && state.length ? "#step-layout" : "#step-printer");
       });
       wrap.appendChild(btn);
     });
+  }
+
+  /* Scroll a later step into view after a choice, but ONLY when it isn't
+     already on screen — on a desktop the next step is usually visible and
+     yanking the page would be worse than doing nothing. Smooth, and never
+     fatal if the browser lacks scrollIntoView options. */
+  function advanceTo(sel) {
+    const target = $(sel);
+    if (!target || typeof target.scrollIntoView !== "function") return;
+    const r = target.getBoundingClientRect();
+    const visibleEnough = r.top >= 0 && r.top < innerHeight * 0.7;
+    if (visibleEnough) return;
+    try { target.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { /* noop */ }
   }
 
   function renderLengthCards() {
@@ -334,12 +353,7 @@
           renderLengthCards();
           refresh();
           // first time the layout unlocks, bring it into view
-          if (!wasReady && state.mount) {
-            const target = $("#step-layout");
-            if (typeof target.scrollIntoView === "function") {
-              try { target.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { /* noop */ }
-            }
-          }
+          if (!wasReady && state.mount) advanceTo("#step-layout");
         });
       } else {
         // data-tip (not title): reveals the reason on hover AND on focus, so a
@@ -2256,6 +2270,32 @@
     const saved = parseFloat(localStorage.getItem("gen2-dock-w"));
     if (saved) applyDockW(saved);
   } catch (e) { /* private mode — CSS default stands */ }
+  /* ---- FAB vs the unit toolbar (2026-08-02) ----
+     Both claim the bottom-right corner on a phone, and they genuinely collide:
+     ~2900px² of "Remove unit" sat under the floating 3D button, so a tap meant
+     to delete a unit opened the Studio instead.
+     ⚠ "Hide it while a unit is selected" is NOT available: there is no deselect
+     gesture (state.selectedUnit clears only on remove / clear / example /
+     restore), so the FAB would stay hidden for the rest of the session. It
+     steps aside only while the toolbar is BOTH active and actually on screen —
+     precisely when you're editing — and comes back as soon as you scroll away.
+     Purely an enhancement: without IntersectionObserver the FAB just behaves
+     as it always did. */
+  let toolbarOnScreen = false;
+  function syncFabAvoidance() {
+    const tb = $(".unit-toolbar");
+    document.body.classList.toggle("fab-clear",
+      toolbarOnScreen && !!tb && tb.classList.contains("active"));
+  }
+  function bindFabAvoidance() {
+    const tb = $(".unit-toolbar");
+    if (!tb || typeof IntersectionObserver !== "function") return;
+    new IntersectionObserver((entries) => {
+      toolbarOnScreen = entries[entries.length - 1].isIntersecting;
+      syncFabAvoidance();
+    }, { threshold: 0 }).observe(tb);
+  }
+
   function bindDockGrip() {
     const grip = $("#dock-grip");
     if (!grip) return;
@@ -2549,6 +2589,17 @@
       return { code: "wall-05h", text: "Fix the build first · Wall Mount top-row cases can't be 0.5H · they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top." };
     if (state.mount === "under-table" && !VIEWER_UT_LENGTHS.includes(+state.length))
       return { code: "no-ut-rails", text: "3D instructions can't show under-table " + state.length + " builds yet · the rail models aren't in the 3D part library. Table Top and Wall Mount work for every collection." };
+    // ⚠ These two MIRROR the viewer generator's own refusals (generate.js:
+    // "Cabinet units need case-extender models…" / "Shelves taller than 1H…").
+    // Without them the button stayed lit on a cabinet or tall-shelf layout and
+    // the hand-off opened a new tab straight onto an error overlay — the exact
+    // failure the reason-gate exists to prevent, and a well-travelled path:
+    // shelf + cabinet are ~31% of fill picks. Keep the pair in step; if case
+    // extenders ever reach the 3D library, both sides drop together.
+    if (state.placed.some((p) => p.fill === "cabinet"))
+      return { code: "cabinet", text: "3D instructions can't show Cabinet units yet · they need case-extender models that aren't in the 3D part library. You can still plan and print them." };
+    if (state.placed.some((p) => p.fill === "shelf" && p.hh !== 2))
+      return { code: "shelf-tall", text: "3D instructions can only show 1H shelves · taller ones use case extenders that aren't in the 3D part library yet. You can still plan and print them." };
     return null;
   }
   /* Each distinct limitation is counted ONCE per session — and only after the
@@ -4010,6 +4061,7 @@
     // docked split view controls (wide screens; see the dock block above)
     $("#start-fresh").addEventListener("click", startFresh);
     bindDockGrip();
+    bindFabAvoidance();
     $("#dock-tab").addEventListener("click", () => { track("dock:expand"); openDock(false); });
     $("#dock-collapse").addEventListener("click", closeDock);
     $("#dock-popout").addEventListener("click", popOutStudio);
@@ -4178,6 +4230,7 @@
     syncOptionsToViewer(); // mirror any option change into an open 3D viewer tab
     syncLayoutToViewer();  // …and any layout change (debounced full-build post)
     updateDock();          // reveal/restore the docked split view when eligible
+    syncFabAvoidance();    // selection can change without the toolbar moving on screen
     snapshotHistory();     // every settled state becomes an undo step (coalesced)
 
     // Palette icon accents (size boxes, active fill details) wear the chosen

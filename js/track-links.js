@@ -29,13 +29,32 @@
     } catch (e) { /* ignore — never let tracking throw */ }
   }
 
+  /* Affiliate clicks: WHICH listing, not just "an affiliate link was clicked".
+     Resolved from HARDWARE_BUY by href rather than from a data- attribute,
+     because renderBom() builds those buttons as an HTML string in app.js —
+     this way the ids live in one place (data.js) and can't drift out of step.
+     The ids match the viewer's BUY table, so a magnet click from either app
+     lands on the same dashboard row despite the two GoatCounter sites.
+     ⚠ app.js's own outEvent() still emits a flat `hardware:buy` for these.
+     That rollup is HIDDEN on the dashboard rather than removed here, so this
+     file stays independent of app.js — see SHOWN_ABOVE in viewer/stats. */
+  function hardwareId(href) {
+    if (typeof HARDWARE_BUY === "undefined") return null;
+    for (var name in HARDWARE_BUY)
+      for (var i = 0; i < HARDWARE_BUY[name].length; i++)
+        if (HARDWARE_BUY[name][i].url === href) return HARDWARE_BUY[name][i].id || null;
+    return null;
+  }
+
   // No boot queue, unlike the viewer's track(): every one of these is a click,
   // so count.js has long since loaded by the time one fires.
   document.addEventListener("click", function (e) {
     var t = e.target;
     if (!t || typeof t.closest !== "function") return;   // e.g. a document-level target
     var a = t.closest("a[data-track]");
-    if (a) send(a.getAttribute("data-track"));
+    if (a) { send(a.getAttribute("data-track")); return; }
+    a = t.closest('a[rel~="sponsored"]');                // the affiliate buy buttons
+    if (a) send("buy:hardware:" + (hardwareId(a.getAttribute("href")) || "unknown"));
   });
 
   if (typeof window !== "undefined" && window.__GEN2_PLANNER_TEST__)

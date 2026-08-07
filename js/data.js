@@ -693,31 +693,31 @@ const LINK_OVERRIDES = {
    swaps its plain "hardware store" tag for buy buttons. */
 const HARDWARE_BUY = {
   "M3×6mm screw": [
-    { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
-    { label: "Steel", url: "https://amzn.to/4gA0NWl" },
+    { id: "m3-assort-stainless", label: "Stainless", url: "https://amzn.to/4ymX5G8" },
+    { id: "m3-assort-steel", label: "Steel", url: "https://amzn.to/4gA0NWl" },
   ],
   "M3×12mm screw": [
-    { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
-    { label: "Steel", url: "https://amzn.to/4gA0NWl" },
+    { id: "m3-assort-stainless", label: "Stainless", url: "https://amzn.to/4ymX5G8" },
+    { id: "m3-assort-steel", label: "Steel", url: "https://amzn.to/4gA0NWl" },
   ],
   // same assortment kits as the screws above — the nuts ship in the same box
   "M3 hex nut": [
-    { label: "Stainless", url: "https://amzn.to/4ymX5G8" },
-    { label: "Steel", url: "https://amzn.to/4gA0NWl" },
+    { id: "m3-assort-stainless", label: "Stainless", url: "https://amzn.to/4ymX5G8" },
+    { id: "m3-assort-steel", label: "Steel", url: "https://amzn.to/4gA0NWl" },
   ],
   // the handle fastener — the one REQUIRED buy on a bolt-on-handle build
   "M3×6mm button head screw": [
-    { label: "Buy M3×6 button head", url: "https://amzn.to/4x4opHK" },
+    { id: "m3-button-head", label: "Buy M3×6 button head", url: "https://amzn.to/4x4opHK" },
   ],
   "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)": [
-    { label: "#6", url: "https://amzn.to/4s487gc" },
-    { label: "#8", url: "https://amzn.to/4pTWDuq" },
+    { id: "woodscrew-6", label: "#6", url: "https://amzn.to/4s487gc" },
+    { id: "woodscrew-8", label: "#8", url: "https://amzn.to/4pTWDuq" },
   ],
   "Magnets 10×2mm or 6×2mm": [
-    { label: "10×2mm", url: "https://amzn.to/4sesPKm" },
-    { label: "6×2mm", url: "https://amzn.to/4aH1ASw" },
-    { label: "N52 10×2mm", url: "https://amzn.to/4q4JX3Z" },
-    { label: "N52 6×2mm", url: "https://amzn.to/49BZyC0" },
+    { id: "magnet-10x2", label: "10×2mm", url: "https://amzn.to/4sesPKm" },
+    { id: "magnet-6x2", label: "6×2mm", url: "https://amzn.to/4aH1ASw" },
+    { id: "magnet-n52-10x2", label: "N52 10×2mm", url: "https://amzn.to/4q4JX3Z" },
+    { id: "magnet-n52-6x2", label: "N52 6×2mm", url: "https://amzn.to/49BZyC0" },
   ],
 };
 

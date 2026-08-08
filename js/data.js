@@ -113,6 +113,14 @@ const GEN2 = {
     { id: "classicpro", label: "Classic Pro", integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://classic.jerrari3d.com/",
       img: "img/parts/Faceplate-ClassicPro.jpg",
       blurb: "Swappable labels and accents with a classic, premium finish · restyle and relabel any drawer in seconds. Built-in handle. Included with the GEN2 Club." },
+    // The PREMIUM Chevron series (2026-08-08, Joey's call). club + NO
+    // integratedHandle — the first family wearing BOTH markers: the ✦ spark
+    // (club) and the wrench (bolt-on handle → computeBom keeps the handle +
+    // M3 screw rows). No labelGen key — its absence is what hides the
+    // label-generator pill.
+    { id: "chevron",    label: "Chevron",     club: true, sub: "Continuous pattern · multicolor",
+      img: "img/parts/Faceplate-Chevron.jpg",
+      blurb: "The 45 degree chevron runs continuously across drawers · side by side and stacked, the pattern never breaks. Every face strip can take its own filament color in the slicer. Bolt-on handle. Included with the GEN2 Club." },
   ],
   doorStyles: [
     { id: "essential",  label: "Essential" },
@@ -662,6 +670,7 @@ const LINK_OVERRIDES = {
   // from the style label, and the BACK COVER rows linkAs it too — so this one
   // entry keeps both row types off the fallback search URLs.
   "GEN2 Decor - Faceplates - Classic Series":     { p: "https://www.printables.com/model/1280870-gen2-decor-faceplates-classic-series", t: "https://than.gs/m/1334047" },
+  "GEN2 Decor - Faceplates - Chevron Series":     { p: "https://www.printables.com/model/968654-gen2-decor-faceplates-chevron-series", t: "https://than.gs/m/1116950" },
 
   // ---- Decor handle series (parts-list handle row links the chosen style) ----
   "GEN2 Decor Handles - BlockBar Series": { p: "https://www.printables.com/model/965604-gen2-decor-handles-blockbar-series", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Decor%20-%20Handles%20-%20BlockBar-1116949" },
@@ -1225,11 +1234,12 @@ function partImage(name, variant) {
   }
   // "Classic Pro" MUST precede "Classic" in the alternation — leftmost-first
   // matching would otherwise try the shorter one on a Classic Pro name
-  const fp = name.match(/^GEN2 (Essential|EdgeLabel|Classic Pro|Classic) Decor Faceplate - (.+)$/);
+  const fp = name.match(/^GEN2 (Essential|EdgeLabel|Classic Pro|Classic|Chevron) Decor Faceplate - (.+)$/);
   if (fp) {
     if (fp[1] === "EdgeLabel") return "img/parts/EdgeLabel_" + fp[2].replace(/\./g, "") + ".png";
     if (fp[1] === "Classic") return "img/parts/ClassicDecor_" + fp[2].replace(/\./g, "") + ".png";
     if (fp[1] === "Classic Pro") return "img/parts/ClassicPro_" + fp[2].replace(/\./g, "") + ".png";
+    if (fp[1] === "Chevron") return "img/parts/Chevron_" + fp[2].replace(/\./g, "") + ".png";
     return "img/parts/Faceplate-" + fp[1].replace(" ", "") + ".jpg";
   }
   // universal faceplate back covers: per-size renders (2026-07-13 batch),

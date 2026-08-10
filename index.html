@@ -18,8 +18,21 @@
      fallback, "no key" can no longer mean light, and a cleared/blocked
      localStorage must fail safe to the default rather than to the opposite.
      ('retrowave' was the value's dev-era name; anything but "light" = dark.) -->
-<script>document.documentElement.dataset.theme = "dark";
-try { if (localStorage.getItem("gen2-theme") === "light") delete document.documentElement.dataset.theme; } catch (e) {}</script>
+<script>(function () {
+  // A cross-site nav link can hand over the other site's choice (?theme=&tt=).
+  // The planner and the studio/kits pages are separate ORIGINS, so localStorage
+  // can't reach across — newest stamp wins, the same rule the palette and
+  // store-preference relays use. No stamp on either side = nothing to adopt.
+  try {
+    var q = new URLSearchParams(location.search), v = q.get("theme"), tt = +q.get("tt") || 0;
+    if ((v === "dark" || v === "light") && tt >= (+localStorage.getItem("gen2-theme:t") || 0)) {
+      localStorage.setItem("gen2-theme", v);
+      localStorage.setItem("gen2-theme:t", String(tt || Date.now()));
+    }
+  } catch (e) {}
+  document.documentElement.dataset.theme = "dark";
+  try { if (localStorage.getItem("gen2-theme") === "light") delete document.documentElement.dataset.theme; } catch (e) {}
+})();</script>
 </head>
 <body>
 
@@ -486,6 +499,8 @@ try { if (localStorage.getItem("gen2-theme") === "light") delete document.docume
       try { localStorage.setItem("gen2-theme", "dark"); } catch (e) {}
       name = "theme:dark";
     }
+    // stamp the choice so a cross-site handoff can tell whose pick is newer
+    try { localStorage.setItem("gen2-theme:t", String(Date.now())); } catch (e) {}
     sync();
     try {
       if (window.goatcounter && window.goatcounter.count)

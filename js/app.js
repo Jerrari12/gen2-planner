@@ -2015,6 +2015,27 @@
      (the kits page carries the mirror-image link back to the planner). */
   const KITS_URL = INSTRUCTIONS_VIEWER_URL + "builds/";
   for (const a of document.querySelectorAll(".kits-link")) a.href = KITS_URL;
+  /* Hand the light/dark choice across the origin boundary. The two sites keep
+     separate localStorage, so a nav link carries the current pick + its stamp
+     and the far side adopts it only if it's newer (its own head snippet does
+     the comparing). Rewritten in a CAPTURE-phase click, not once at load, so
+     the value is whatever the switch says at the moment you click — and
+     searchParams.set keeps it idempotent across repeat clicks. Nothing stored
+     = nothing appended, so an untouched visitor just meets the default. */
+  const withTheme = (href) => {
+    try {
+      const v = localStorage.getItem("gen2-theme");
+      if (v !== "dark" && v !== "light") return href;
+      const u = new URL(href, location.href);
+      u.searchParams.set("theme", v);
+      u.searchParams.set("tt", localStorage.getItem("gen2-theme:t") || "0");
+      return u.href;
+    } catch (e) { return href; }
+  };
+  document.addEventListener("click", (e) => {
+    const a = e.target && e.target.closest && e.target.closest("a.kits-link");
+    if (a) a.href = withTheme(a.href);
+  }, true);
   // keep the child ref (NO noopener) so build-option changes sync both ways;
   // cross-origin still limits the child to postMessage, so it's safe first-party.
   let viewerWin = null, applyingRemoteOpts = false, lastSentOpts = null;

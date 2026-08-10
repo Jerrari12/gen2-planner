@@ -17,6 +17,16 @@
   --bad: #e5534b;
   --wood: #6b5138;
   --radius: 10px;
+  /* dark "well" surfaces (tooltips, modals, popovers) + the image wells inside
+     them — same values the rules always used, moved into tokens so the
+     retrowave block can retint them. */
+  --well: #1d1e20;
+  --well-2: #2c2d31;
+  /* the card hero-image fade stops app.js bakes into inline gradients —
+     the rgba forms of --panel-2, at the alphas each call site always used */
+  --card-fade-45: rgba(44, 45, 49, 0.45);
+  --card-fade-40: rgba(44, 45, 49, 0.4);
+  --card-fade-0: rgba(44, 45, 49, 0);
   font-size: 16px;
 }
 
@@ -119,6 +129,37 @@ a { color: var(--accent); }
 .brand-link { font-size: 0.85rem; text-decoration: none; color: var(--muted); }
 .brand-link:hover { color: var(--accent); }
 .hero-bar-actions { display: flex; align-items: center; gap: 16px; }
+/* the dark-mode switch — a small sun/moon slider in the hero bar (Joey
+   2026-08-08, replacing the text pill). State renders from aria-checked so
+   the pre-paint head snippet and the click handler share one source of
+   truth; the theme itself lives in the DARK MODE block at the end of this
+   file. The knob covers the current side's icon, leaving the destination
+   visible - the same convention as the reference toggles Joey picked. */
+#theme-toggle {
+  position: relative; flex: none;
+  width: 46px; height: 24px; padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 999px;
+  background: rgba(20, 21, 23, 0.35); cursor: pointer;
+}
+#theme-toggle:hover { border-color: var(--accent); }
+#theme-toggle .tt-sun, #theme-toggle .tt-moon {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 13px; height: 13px; color: #d7d8db; opacity: 0.85; pointer-events: none;
+}
+#theme-toggle .tt-sun { left: 5px; }
+#theme-toggle .tt-moon { right: 5px; }
+#theme-toggle .tt-knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+#theme-toggle[aria-checked="true"] .tt-knob {
+  transform: translateX(22px);
+  background: #303469;
+  box-shadow: 0 0 8px rgba(56, 220, 255, 0.55);
+}
 /* The auto-resume escape hatch. Sits under the hero (see #reset-bar in
    index.html), NOT in the nav — quiet ghost pill, and only rendered once a
    layout exists to clear. */
@@ -339,7 +380,7 @@ details.space-box[open] .sb-sum-status { display: none; }
   transform: translateX(-50%);
   width: max-content;
   max-width: 260px;
-  background: #1d1e20;
+  background: var(--well);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -373,7 +414,7 @@ details.space-box[open] .sb-sum-status { display: none; }
   transform: translateX(-50%);
   width: max-content;
   max-width: 230px;
-  background: #1d1e20;
+  background: var(--well);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -828,7 +869,7 @@ body.docked .fab-3d { display: none; }
 .label-gen {
   display: inline-block; margin-top: 10px;
   font-size: 0.8rem; font-weight: 700; text-decoration: none;
-  color: #1d1e20; background: var(--accent);
+  color: var(--on-accent); background: var(--accent);
   border: 1px solid var(--accent); border-radius: 999px; padding: 6px 14px;
 }
 .label-gen:hover { background: #ffa161; border-color: #ffa161; }
@@ -940,7 +981,7 @@ body.docked .fab-3d { display: none; }
   position: fixed;
   z-index: 90;
   pointer-events: none;   /* never traps the cursor or blocks clicks */
-  background: #1d1e20;
+  background: var(--well);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px;
@@ -952,7 +993,7 @@ body.docked .fab-3d { display: none; }
   height: 220px;
   object-fit: contain;
   border-radius: 6px;
-  background: #2c2d31;
+  background: var(--well-2);
 }
 .thumb-zoom .tz-name {
   display: block;
@@ -968,7 +1009,7 @@ body.docked .fab-3d { display: none; }
 /* Instructional-video modal: a native <dialog> (backdrop, ESC, focus handling
    for free). The 16:9 frame holds the lazy YouTube embed. */
 .video-modal {
-  background: #1d1e20;
+  background: var(--well);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -983,7 +1024,7 @@ body.docked .fab-3d { display: none; }
   background: none; border: 0; color: var(--muted); font-size: 1.5rem;
   line-height: 1; cursor: pointer; padding: 2px 8px; border-radius: 6px;
 }
-.vm-close:hover { color: var(--text); background: #2c2d31; }
+.vm-close:hover { color: var(--text); background: var(--well-2); }
 .vm-frame { aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
 .vm-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
 .vm-yt {
@@ -1019,7 +1060,7 @@ body.docked .fab-3d { display: none; }
   bottom: calc(100% + 8px);
   width: 184px;
   max-width: calc(100vw - 24px);
-  background: #1d1e20;
+  background: var(--well);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 8px;
@@ -1040,7 +1081,7 @@ body.docked .fab-3d { display: none; }
   width: 100%;
   height: auto;
   border-radius: 6px;
-  background: #2c2d31;
+  background: var(--well-2);
   margin-bottom: 7px;
 }
 .tip-card-text {
@@ -1576,4 +1617,79 @@ body.docked .fab-3d { display: none; }
   .bom-table, .bom-table td { border-color: #ccc; background: #fff; color: #000; }
   #bom h3 { color: #000; }
   a { color: #000; }
+}
+
+/* ========================= DARK MODE (retrowave) ============================
+   Opt-in look (the hero-bar sun/moon switch; localStorage 'gen2-theme' =
+   'dark' - the aesthetic is retrowave, the user-facing NAME is dark mode). THE DEFAULT
+   LOOK IS UNTOUCHED: every rule here is scoped under html[data-theme=
+   "retrowave"], which outranks :root, so deleting this block plus the toggle
+   removes the theme without a trace. --accent deliberately stays JERRARI
+   orange in both themes - the action color is brand, not theme. The docked
+   3D studio FOLLOWS this toggle (app.js relays {gen2:'theme'} on change +
+   viewerReady): its stage goes navy/cyan-grid in retrowave, and its light
+   stage stays the color-accurate default with a disclaimer line in the
+   filament picker (viewer STAGE_THEMES; Joey's design 2026-08-08). */
+html[data-theme="dark"] {
+  --bg: #0d0e21;
+  --panel: #151735;
+  --panel-2: #10112a;
+  --line: #303469;
+  --text: #edeffd;
+  /* measured, not eyeballed: #9297c9 sat at 6.21:1 on the dark page - fine for
+     AA, short of AAA on the long helper copy. This clears 7:1 while staying
+     clearly secondary to --text. */
+  --muted: #a7abdb;
+  --on-accent: #180d20;
+  --blue: #38dcff;        /* neon cyan takes the 2nd part-coding slot */
+  --blue-dim: #1e93b4;
+  --good: #3cf0b0;
+  --bad: #ff4f6d;
+  --well: #0a0b1c;
+  --well-2: #131530;
+  --card-fade-45: rgba(16, 17, 42, 0.45);
+  --card-fade-40: rgba(16, 17, 42, 0.4);
+  --card-fade-0: rgba(16, 17, 42, 0);
+}
+/* a faint magenta wash at the top so the page isn't one flat navy */
+html[data-theme="dark"] body {
+  background:
+    radial-gradient(1100px 480px at 50% -120px, rgba(255, 62, 165, 0.06), transparent 70%),
+    var(--bg);
+}
+/* hero: the GEN2 product photo STAYS (Joey 2026-08-08 - the hero exists to
+   show the product), parallax pan and all; the retrowave treatment is a
+   violet/magenta tint on .hero-shade (which never pans) plus a subtle cyan
+   floor grid on the ::after pseudo-element (also pan-proof). */
+html[data-theme="dark"] .hero-bg::after {
+  content: '';
+  position: absolute; left: -18%; right: -18%; bottom: -14px; height: 44%;
+  background:
+    repeating-linear-gradient(to right, rgba(56, 220, 255, 0.30) 0 1px, transparent 1px 86px),
+    repeating-linear-gradient(to top, rgba(56, 220, 255, 0.33) 0 1px, transparent 1px 36px);
+  transform: perspective(340px) rotateX(58deg);
+  transform-origin: 50% 100%;
+  opacity: 0.28;
+  pointer-events: none;
+}
+html[data-theme="dark"] .hero-shade {
+  background:
+    linear-gradient(to bottom,
+      rgba(22, 8, 46, 0.5) 0%, rgba(34, 16, 70, 0.28) 42%,
+      rgba(13, 14, 33, 0.88) 86%, var(--bg) 100%),
+    radial-gradient(620px 300px at 74% 82%, rgba(255, 62, 165, 0.2), transparent 70%);
+}
+/* neon: cards glow cyan on hover, orange when chosen - glow is reserved for
+   interaction so body text stays calm and readable */
+html[data-theme="dark"] .fp-card:hover,
+html[data-theme="dark"] #mount-cards .card:hover,
+html[data-theme="dark"] .len-card:hover { box-shadow: 0 0 14px rgba(56, 220, 255, 0.22); }
+html[data-theme="dark"] .fp-card.active,
+html[data-theme="dark"] #mount-cards .card.active,
+html[data-theme="dark"] .len-card.active { box-shadow: 0 0 16px rgba(255, 138, 64, 0.30); }
+/* the docked studio's LIVE chip goes neon mint */
+html[data-theme="dark"] .dock-live {
+  color: var(--good);
+  border-color: rgba(60, 240, 176, 0.53);
+  text-shadow: 0 0 6px rgba(60, 240, 176, 0.5);
 }

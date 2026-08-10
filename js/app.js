@@ -276,7 +276,7 @@
       // Optional hero photo fades in from the dark card (left) → image (right).
       if (m.img) {
         btn.style.backgroundImage =
-          `linear-gradient(to right, var(--panel) 0%, var(--panel) 55%, rgba(44,45,49,0.45) 80%, rgba(44,45,49,0) 100%), url("${m.img}")`;
+          `linear-gradient(to right, var(--panel) 0%, var(--panel) 55%, var(--card-fade-45) 80%, var(--card-fade-0) 100%), url("${m.img}")`;
       }
       // Wall + Under-Table fix to the building with wood screws; Tabletop just
       // stands on its feet. Same corner marker the faceplate cards use, so
@@ -641,7 +641,7 @@
         // A cropped hero fades in from the dark card on the left → photo on the right.
         if (s.img) {
           card.style.backgroundImage =
-            `linear-gradient(to right, var(--panel-2) 0%, var(--panel-2) 38%, rgba(44,45,49,0.4) 72%, rgba(44,45,49,0) 100%), url("${s.img}")`;
+            `linear-gradient(to right, var(--panel-2) 0%, var(--panel-2) 38%, var(--card-fade-40) 72%, var(--card-fade-0) 100%), url("${s.img}")`;
         }
         // 🔩 = this style's handle BOLTS ON, so choosing it means ordering M3
         // screws before the build can be finished. Integrated-grip styles print
@@ -2141,6 +2141,19 @@
     if (!viewerWin || viewerWin.closed) return;
     try { viewerWin.postMessage({ gen2: "store", t: linkSiteT, store: linkSite }, "*"); } catch (e) { /* tab closed */ }
   }
+  /* The retrowave look rides to the studio so its stage matches the planner
+     (light stage stays the color-accurate default there — see the viewer's
+     STAGE_THEMES). The toggle itself is a standalone inline script in
+     index.html; observing the html[data-theme] attribute keeps the two
+     decoupled, and viewerReady replays the current value like the palette. */
+  function postThemeToViewer() {
+    if (!viewerWin || viewerWin.closed) return;
+    try { viewerWin.postMessage({ gen2: "theme", theme: document.documentElement.dataset.theme || "light" }, "*"); } catch (e) { /* tab closed */ }
+  }
+  try {
+    new MutationObserver(postThemeToViewer)
+      .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  } catch (e) { /* ancient browser — the viewerReady replay still covers boot */ }
   function applyRemoteSite(d) {
     if (!d || typeof d.t !== "number" || !siteById[d.store]) return;
     if (d.t <= linkSiteT) { if (linkSiteT > d.t) postSiteToViewer(); return; } // ours is newer — teach the other side
@@ -4083,9 +4096,10 @@
         // a viewer just booted (or reloaded itself onto a new mount/length) —
         // hand it the current state immediately so it can't sit stale
         lastSentLayout = null;
-        postLayoutNow();
-        postColorsToViewer(); // …and the newest filament palette (see the relay)
-        if (linkSiteT) postSiteToViewer(); // …and the preferred model site
+        postThemeToViewer(); // the planner's look first (cheap cosmetic), so the stage matches at once
+        postColorsToViewer(); // …the newest filament palette (see the relay)
+        if (linkSiteT) postSiteToViewer(); // …the preferred model site
+        postLayoutNow(); // …and the layout LAST — the handshake's final word stays the build (tests pin this)
         return;
       }
       if (d.gen2 === "colors") {

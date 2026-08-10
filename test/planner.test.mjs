@@ -389,8 +389,8 @@ test("tabletop: a 1W build bills 1 CU + 1 CL + 4 feet, no foot rails", () => {
   assert.equal(bomQty(app, "Cover Lower (CL)"), 1);
   assert.equal(bomQty(app, "Foot (TPU)"), 4);        // 2*(N+1)
   assert.equal(bomQty(app, "Foot Rail"), 0);         // single bottom case
-  assert.equal(bomQty(app, "6mm screw"), 1);         // cover M3, 1 per W
-  assert.equal(bomQty(app, "12mm screw"), 0);
+  assert.equal(bomQty(app, "6mm socket head screw"), 1);         // cover M3, 1 per W
+  assert.equal(bomQty(app, "12mm socket head screw"), 0);
 });
 
 test("tabletop: a 3W build (three 1W cases) staggers covers and adds foot rails", () => {
@@ -402,8 +402,8 @@ test("tabletop: a 3W build (three 1W cases) staggers covers and adds foot rails"
   assert.equal(bomQty(app, "Foot Rail Upper (FR-U)"), 2);
   assert.equal(bomQty(app, "Foot Rail Lower (FR-L)"), 2);
   assert.equal(bomQty(app, "Foot (TPU)"), 8);        // 2*(3+1)
-  assert.equal(bomQty(app, "6mm screw"), 3);
-  assert.equal(bomQty(app, "12mm screw"), 3);
+  assert.equal(bomQty(app, "6mm socket head screw"), 3);
+  assert.equal(bomQty(app, "12mm socket head screw"), 3);
   assert.equal(bomQty(app, "M3 hex nut"), 6);        // 3 covers + 3 foot rails
 });
 

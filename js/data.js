@@ -350,10 +350,10 @@ const GEN2 = {
 
       // Optional M3 hardware, 1 per W. Nuts are shared by covers + foot rails.
       const nuts = cov.screws + frScrews;
-      items.push({ name: "M3×6mm screw", qty: cov.screws, hardware: true, optional: true,
-        note: "Optional · secures the covers, 1 per 1W (threads into an M3 nut in the Cover Lower)." });
-      if (frUsed) items.push({ name: "M3×12mm screw", qty: frScrews, hardware: true, optional: true,
-        note: "Optional · screws the foot rails into the case's M3 nut slots, 1 per 1W." });
+      items.push({ name: "M3×6mm socket head screw", qty: cov.screws, hardware: true, optional: true,
+        note: "Optional · secures the covers, 1 per 1W (threads into an M3 nut in the Cover Lower). Socket head · any M3 head style that clears the pocket works." });
+      if (frUsed) items.push({ name: "M3×12mm socket head screw", qty: frScrews, hardware: true, optional: true,
+        note: "Optional · screws the foot rails into the case's M3 nut slots, 1 per 1W. Socket head · any M3 head style that clears the slot works." });
       items.push({ name: "M3 hex nut", qty: nuts, hardware: true, optional: true,
         note: "Optional · pairs with the M3 cover / foot-rail screws above." });
       return items;
@@ -383,8 +383,8 @@ const GEN2 = {
       const coverUnits = ctx.wallStagger ? ctx.runs : ctx.topCases.map((w) => ({ width: w }));
       const cov = buildCoverItems(ctx.len, coverUnits);
       cov.items.forEach((i) => items.push(i));
-      items.push({ name: "M3×6mm screw", qty: cov.screws, hardware: true, optional: true,
-        note: "Optional · secures the covers, 1 per 1W." });
+      items.push({ name: "M3×6mm socket head screw", qty: cov.screws, hardware: true, optional: true,
+        note: "Optional · secures the covers, 1 per 1W. Socket head · any M3 head style that clears the pocket works." });
       items.push({ name: "M3 hex nut", qty: cov.screws, hardware: true, optional: true,
         note: "Optional · pairs with the M3 cover screws above." });
       return items;
@@ -701,11 +701,11 @@ const LINK_OVERRIDES = {
    whole optional cover / foot-rail hardware list. Adding a row here is what
    swaps its plain "hardware store" tag for buy buttons. */
 const HARDWARE_BUY = {
-  "M3×6mm screw": [
+  "M3×6mm socket head screw": [
     { id: "m3-assort-stainless", label: "Stainless", url: "https://amzn.to/4ymX5G8" },
     { id: "m3-assort-steel", label: "Steel", url: "https://amzn.to/4gA0NWl" },
   ],
-  "M3×12mm screw": [
+  "M3×12mm socket head screw": [
     { id: "m3-assort-stainless", label: "Stainless", url: "https://amzn.to/4ymX5G8" },
     { id: "m3-assort-steel", label: "Steel", url: "https://amzn.to/4gA0NWl" },
   ],
@@ -812,8 +812,8 @@ const IMAGE_OVERRIDES = {
   // renderBom() looks these up specially: it.hardware skips partImage()'s
   // auto-pattern (these names don't follow the "GEN2 ..." convention anyway)
   // and falls back to hardware.svg, never the "coming soon" placeholder.
-  "M3×6mm screw": "img/parts/Screw.png",
-  "M3×12mm screw": "img/parts/Screw.png",
+  "M3×6mm socket head screw": "img/parts/Screw.png",
+  "M3×12mm socket head screw": "img/parts/Screw.png",
   "M3×6mm button head screw": "img/parts/ButtonHeadScrew_M3-6.png",
   "M3 hex nut": "img/parts/Nut.png",
   "Magnets 10×2mm or 6×2mm": "img/parts/Magnets.png",

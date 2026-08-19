@@ -1992,16 +1992,33 @@
     const m = (location.hash || "").match(/build=([^&]+)/);
     if (!m) return false;
     if (applyBuildHash(m[1])) return true;
-    showDamagedLink();
+    showDamagedLink(true);
     track("error:share-link-damaged");
     return "damaged";
   }
+  // Drop a damaged #build= from the address bar. Every recovery path calls
+  // this: leaving the broken hash in place means a reload shows the error
+  // again and copying the address shares the broken link onward.
+  function clearShareHash() {
+    // window.history EXPLICITLY: the undo/redo stack below is a const named
+    // `history` and shadows the global - bare history.replaceState here is a
+    // TypeError on the undo object (caught by the test suite, not in review).
+    if (/build=/.test(location.hash || "")) window.history.replaceState(null, "", location.pathname + location.search);
+  }
   // The damaged-link notice: a persistent banner at the top of <main> (the
   // #board-warnings box is wiped by every refresh, so it cannot hold this).
-  // Recovery actions: reload the sender's link after a fresh copy, or - only
-  // when one exists - explicitly load the user's own saved build. Explicit is
-  // the difference: restoring it is fine as a CHOICE, never as a default.
-  function showDamagedLink() {
+  // Recovery is always visible: Dismiss clears the broken hash and leaves
+  // whatever is on the board. "Load my last build instead" appears only at
+  // BOOT and only when a saved build exists - restoring it is fine as a
+  // CHOICE, never as a default. It is deliberately NOT offered when a bad
+  // link arrives mid-session (offerSaved=false): there it would replace the
+  // user's live work with an older snapshot, a second silent-substitution
+  // bug wearing a recovery label. (And deliberately not the existing "Start
+  // fresh" control, which WIPES the saved session - offering that next to a
+  // button whose whole value is that saved session invites destroying it.)
+  function showDamagedLink(offerSaved) {
+    const prev = document.getElementById("share-link-warn");
+    if (prev) prev.remove();
     const box = document.createElement("div");
     box.className = "warn";
     box.id = "share-link-warn";
@@ -2010,17 +2027,40 @@
     box.appendChild(msg);
     let saved = null;
     try { saved = JSON.parse(LAST_BUILD_RAW); } catch (e) { /* none */ }
-    if (saved && Array.isArray(saved.placed) && saved.placed.length) {
+    if (offerSaved && saved && Array.isArray(saved.placed) && saved.placed.length) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn small warn-fix";
       btn.textContent = "Load my last build instead";
-      btn.addEventListener("click", () => { if (applyBuild(saved)) box.remove(); });
+      btn.addEventListener("click", () => { if (applyBuild(saved)) { box.remove(); clearShareHash(); } });
       box.appendChild(btn);
     }
+    const dis = document.createElement("button");
+    dis.type = "button";
+    dis.className = "btn small warn-fix";
+    dis.textContent = "Dismiss";
+    dis.addEventListener("click", () => { box.remove(); clearShareHash(); });
+    box.appendChild(dis);
     const main = document.querySelector("main");
     if (main) main.prepend(box);
   }
+  // A #build= link opened INTO an already-open planner tab is a hash-only
+  // navigation - the page does not reload and boot never re-runs, so without
+  // this the tab keeps showing the old build under the new address (the same
+  // wrong-BOM hazard as the silent boot fallthrough, one level up). Scoped to
+  // build= hashes; reads location.hash rather than the event so back/forward
+  // between shared links restores each one through the same path.
+  window.addEventListener("hashchange", () => {
+    const m = (location.hash || "").match(/build=([^&]+)/);
+    if (!m) return;                                   // not a share link - not ours
+    if (applyBuildHash(m[1])) {
+      const prev = document.getElementById("share-link-warn");
+      if (prev) prev.remove();                        // a good link supersedes the warning
+    } else {
+      showDamagedLink(false);
+      track("error:share-link-damaged");
+    }
+  });
 
   function shareLink() {
     if (!state.placed.length) return;

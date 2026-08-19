@@ -1718,11 +1718,76 @@ test("the banner offers the saved build as an explicit choice - and only then lo
   assert.equal(doc.getElementById("share-link-warn"), null);   // banner dismissed itself
 });
 
-test("a damaged link with no saved build warns without offering a recovery build", () => {
+test("a damaged link with no saved build offers Dismiss but no recovery build", () => {
   const { doc } = bootWith({ url: "http://localhost/#build=not!valid@base64" });
   const warn = doc.getElementById("share-link-warn");
   assert.ok(warn);
-  assert.equal(warn.querySelector("button"), null);
+  const btns = [...warn.querySelectorAll("button")].map((b) => b.textContent);
+  assert.deepEqual(btns, ["Dismiss"]);
+});
+
+/* Hash-only navigation: a #build= link opened into an ALREADY-OPEN tab does
+   not reload the page, so boot never re-runs. Without a hashchange handler
+   the tab keeps showing the old build under the new address - the same
+   wrong-BOM hazard as the boot fallthrough, one level up. */
+
+const HASH_BUILD_B = { mount: "under-table", length: 185, printer: "any", gridW: 6, gridH: 4,
+  placed: [{ id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" },
+           { id: 2, x: 2, y: 0, w: 2, hh: 2, fill: "decor" },
+           { id: 3, x: 0, y: 2, w: 1, hh: 1, fill: "decor" }] };
+const HASH_V1_B = Buffer.from(JSON.stringify(HASH_BUILD_B), "utf8").toString("base64");
+const goHash = (window, h) => { window.location.hash = h; window.dispatchEvent(new window.Event("hashchange")); };
+
+test("opening a second share link in the same tab applies the new build", () => {
+  const { app, window } = bootWith({ url: "http://localhost/#build=" + HASH_V1 });
+  assert.equal(app.state.placed.length, 1);
+  goHash(window, "#build=" + HASH_V1_B);
+  assert.equal(app.state.placed.length, 3);      // the NEW link's build
+});
+
+test("back/forward between shared links restores each build", () => {
+  const { app, window } = bootWith({ url: "http://localhost/#build=" + HASH_V1 });
+  goHash(window, "#build=" + HASH_V1_B);
+  assert.equal(app.state.placed.length, 3);
+  goHash(window, "#build=" + HASH_V1);           // the back button's effect
+  assert.equal(app.state.placed.length, 1);
+});
+
+test("a damaged link into an open tab warns, keeps the current build, offers no recovery build", () => {
+  const { app, window, doc } = bootWith({ lastBuild: RESUME_BUILD, url: "http://localhost/#build=" + HASH_V1 });
+  goHash(window, "#build=not!valid@base64");
+  assert.equal(app.state.placed.length, 1);      // live work untouched
+  const warn = doc.getElementById("share-link-warn");
+  assert.ok(warn);
+  const btns = [...warn.querySelectorAll("button")].map((b) => b.textContent);
+  assert.deepEqual(btns, ["Dismiss"]);           // mid-session, no old-snapshot offer
+});
+
+test("a good link supersedes the damaged-link warning", () => {
+  const { window, doc, app } = bootWith({ url: "http://localhost/#build=not!valid@base64" });
+  assert.ok(doc.getElementById("share-link-warn"));
+  goHash(window, "#build=" + HASH_V1);
+  assert.equal(doc.getElementById("share-link-warn"), null);
+  assert.equal(app.state.placed.length, 1);
+});
+
+test("a non-build hash change is ignored", () => {
+  const { app, window, doc } = bootWith({ url: "http://localhost/#build=" + HASH_V1 });
+  goHash(window, "#something-else");
+  assert.equal(app.state.placed.length, 1);
+  assert.equal(doc.getElementById("share-link-warn"), null);
+});
+
+test("recovery actions clean the damaged hash out of the address", () => {
+  // "Load my last build instead" - reloading must not re-show the error, and
+  // copying the address must not share the broken link onward.
+  const a = bootWith({ lastBuild: RESUME_BUILD, url: "http://localhost/#build=not!valid@base64" });
+  [...a.doc.querySelectorAll("#share-link-warn button")].find((b) => b.textContent.startsWith("Load")).click();
+  assert.ok(!/build=/.test(a.window.location.hash));
+  // Dismiss does the same.
+  const b = bootWith({ url: "http://localhost/#build=not!valid@base64" });
+  [...b.doc.querySelectorAll("#share-link-warn button")].find((x) => x.textContent === "Dismiss").click();
+  assert.ok(!/build=/.test(b.window.location.hash));
 });
 
 test("valid base64 wrapping a non-build payload is treated as damaged, not applied", () => {

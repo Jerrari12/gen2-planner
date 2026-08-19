@@ -1680,6 +1680,58 @@ test("a #build= link beats the auto-saved session", () => {
   assert.equal(app.state.placed.length, 1);
 });
 
+/* ---------------- Share-link decode hardening ----------------
+   A #build= link that cannot be decoded used to fail silently and fall
+   through to the auto-saved session - the user's OWN previous build shown
+   under someone else's link, which is how a wrong BOM gets printed. These pin
+   the contract: v1 links decode unchanged, percent-encoded copies of valid
+   links are rescued, and a genuinely damaged link fails LOUDLY with the saved
+   build offered only as an explicit choice. */
+
+const HASH_BUILD = { mount: "under-table", length: 185, printer: "any", gridW: 6, gridH: 4,
+  placed: [{ id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" }] };
+const HASH_V1 = Buffer.from(JSON.stringify(HASH_BUILD), "utf8").toString("base64");
+
+test("a percent-encoded copy of a valid link still restores the shared build", () => {
+  const { app, doc } = bootWith({ lastBuild: RESUME_BUILD, url: "http://localhost/#build=" + encodeURIComponent(HASH_V1) });
+  assert.equal(app.state.length, 185);           // the link's build won
+  assert.equal(app.state.placed.length, 1);
+  assert.equal(doc.getElementById("share-link-warn"), null);   // and no warning
+});
+
+test("a damaged link never falls through to the saved build, and says so", () => {
+  const { app, doc } = bootWith({ lastBuild: RESUME_BUILD, url: "http://localhost/#build=not!valid@base64" });
+  assert.equal(app.state.placed.length, 0);      // NOT the saved wall/240 build
+  assert.notEqual(app.state.mount, "wall");
+  const warn = doc.getElementById("share-link-warn");
+  assert.ok(warn, "damaged-link banner is shown");
+  assert.match(warn.textContent, /damaged or incomplete/);
+});
+
+test("the banner offers the saved build as an explicit choice - and only then loads it", () => {
+  const { app, doc } = bootWith({ lastBuild: RESUME_BUILD, url: "http://localhost/#build=not!valid@base64" });
+  const btn = doc.querySelector("#share-link-warn button");
+  assert.ok(btn, "recovery button present when a saved build exists");
+  btn.click();
+  assert.equal(app.state.mount, "wall");         // the saved build, by explicit click
+  assert.equal(app.state.placed.length, 2);
+  assert.equal(doc.getElementById("share-link-warn"), null);   // banner dismissed itself
+});
+
+test("a damaged link with no saved build warns without offering a recovery build", () => {
+  const { doc } = bootWith({ url: "http://localhost/#build=not!valid@base64" });
+  const warn = doc.getElementById("share-link-warn");
+  assert.ok(warn);
+  assert.equal(warn.querySelector("button"), null);
+});
+
+test("valid base64 wrapping a non-build payload is treated as damaged, not applied", () => {
+  const junk = Buffer.from(JSON.stringify({ hello: "world" }), "utf8").toString("base64");
+  const { app, doc } = bootWith({ lastBuild: RESUME_BUILD, url: "http://localhost/#build=" + junk });
+  assert.equal(app.state.placed.length, 0);
+  assert.ok(doc.getElementById("share-link-warn"));
+});
+
 test("changes auto-save: the stored build tracks the latest settled state", () => {
   const { app, window } = bootWith({});
   app.state.mount = "tabletop";

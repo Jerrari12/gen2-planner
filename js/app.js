@@ -1970,12 +1970,56 @@
   // base64(JSON) of the build, UTF-8 safe.
   const encodeBuildHash = () => btoa(unescape(encodeURIComponent(JSON.stringify(serializeBuild()))));
   function applyBuildHash(hash) {
-    try { return applyBuild(JSON.parse(decodeURIComponent(escape(atob(hash))))); } catch (e) { return false; }
+    // v1 decode, unchanged and tried FIRST, so every link ever printed keeps
+    // decoding byte-for-byte: base64(JSON), UTF-8-safe.
+    const parse = (h) => { try { return JSON.parse(decodeURIComponent(escape(atob(h)))); } catch (e) { return null; } };
+    let data = parse(hash);
+    // Messaging apps and some paste paths percent-encode the hash ('=' becomes
+    // %3D) and atob throws. URI-decoding leaves base64's '+' and '/' alone, so
+    // this fallback can never mis-read a valid raw hash - it only rescues
+    // encoded copies of one.
+    if (data === null) { try { data = parse(decodeURIComponent(hash)); } catch (e) { /* not URI-encoded either */ } }
+    return data ? applyBuild(data) : false;
   }
-  // Load a build from a #build=… link on first open.
+  // Load a build from a #build=… link on first open. Returns true (loaded),
+  // false (no link), or "damaged" - and the LAST one is the point: an explicit
+  // share link that cannot be decoded used to fail SILENTLY, so the session
+  // resume below showed the user's own previous build under a friend's link.
+  // A wrong build means a wrong BOM - someone can print or buy the wrong
+  // parts while trusting the link. Fail loudly instead, and never fall
+  // through to unrelated state.
   function loadBuildFromHash() {
     const m = (location.hash || "").match(/build=([^&]+)/);
-    return m ? applyBuildHash(m[1]) : false;
+    if (!m) return false;
+    if (applyBuildHash(m[1])) return true;
+    showDamagedLink();
+    track("error:share-link-damaged");
+    return "damaged";
+  }
+  // The damaged-link notice: a persistent banner at the top of <main> (the
+  // #board-warnings box is wiped by every refresh, so it cannot hold this).
+  // Recovery actions: reload the sender's link after a fresh copy, or - only
+  // when one exists - explicitly load the user's own saved build. Explicit is
+  // the difference: restoring it is fine as a CHOICE, never as a default.
+  function showDamagedLink() {
+    const box = document.createElement("div");
+    box.className = "warn";
+    box.id = "share-link-warn";
+    const msg = document.createElement("div");
+    msg.textContent = "⚠ This shared build link is damaged or incomplete, so the build it points to can't be shown. Ask for the link to be copied again (Save & share · Copy link), or paste it directly instead of forwarding it.";
+    box.appendChild(msg);
+    let saved = null;
+    try { saved = JSON.parse(LAST_BUILD_RAW); } catch (e) { /* none */ }
+    if (saved && Array.isArray(saved.placed) && saved.placed.length) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn small warn-fix";
+      btn.textContent = "Load my last build instead";
+      btn.addEventListener("click", () => { if (applyBuild(saved)) box.remove(); });
+      box.appendChild(btn);
+    }
+    const main = document.querySelector("main");
+    if (main) main.prepend(box);
   }
 
   function shareLink() {
@@ -4342,12 +4386,15 @@
   bindStepCollapse();
   applyBoardColors();
   refresh();
-  loadBuildFromHash();   // open a shared #build=… link, if present
+  const sharedLink = loadBuildFromHash();   // open a shared #build=… link, if present
   // Resume the previous session's build — closing the tab shouldn't cost the
   // layout. Anything explicit wins: if the hash restored a build (or the page
   // somehow starts non-empty), skip. An empty saved state means the user
   // deliberately cleared before leaving — respect it and start blank.
-  if (!state.placed.length && LAST_BUILD_RAW) {
+  // A DAMAGED share link also blocks the resume: silently showing the user's
+  // own build under someone else's link is how a wrong BOM gets printed. The
+  // banner offers the saved build as an explicit choice instead.
+  if (sharedLink !== "damaged" && !state.placed.length && LAST_BUILD_RAW) {
     try {
       const last = JSON.parse(LAST_BUILD_RAW);
       if (last && Array.isArray(last.placed) && last.placed.length && applyBuild(last)) track("resume-build");

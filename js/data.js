@@ -435,8 +435,13 @@ const GEN2 = {
       id: "magnet", label: "Magnets",
       tip: "Soft-close: a magnet clip bridges the drawer and its case.",
       parts: [
-        { name: () => "GEN2 Magnet Clip", qtyPerDrawer: 1, linkAs: "GEN2 Hardware",
-          note: "Bridges the drawer and its case for a magnetic soft-close catch. Wider drawers have extra slots if you'd like to add more." },
+        // 2 per drawer: the closure is a FACING PAIR — one clip on the case
+        // back, one on the drawer back, a magnet seated in each. The clip
+        // file prints a single clip (measured 2026-08-20: one body per STL),
+        // and the 3D viewer places + bills 2 per drawer; billing 1 here
+        // under-supplied every magnet build by half.
+        { name: () => "GEN2 Magnet Clip", qtyPerDrawer: 2, linkAs: "GEN2 Hardware",
+          note: "One clips to the case back, one to the drawer back · the pair meets for a magnetic soft-close catch. Wider drawers have extra slots if you'd like to add more." },
         { name: () => "Magnets 10×2mm or 6×2mm", qtyPerDrawer: 2, hardware: true,
           note: "Seat in the magnet clips. Standard strength suits most builds · the N52s hold noticeably harder (can be too strong for smaller drawers)." },
       ],

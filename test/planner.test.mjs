@@ -1222,7 +1222,10 @@ test("drawer closures: per-drawer opt-in billing, default none", () => {
   assert.equal(bomQty(app, "Magnets 10"), 0);
 
   app.state.placed[0].closure = "magnet";               // opt one drawer in
-  assert.equal(bomQty(app, "Magnet Clip"), 1);
+  // 2 clips per drawer: the closure is a facing pair (case-back + drawer-back
+  // clip, a magnet in each) — matches the viewer's placement + the one-clip-
+  // per-STL file. Billing 1 was the 2026-08-20 under-supply bug.
+  assert.equal(bomQty(app, "Magnet Clip"), 2);
   assert.equal(bomQty(app, "Magnets 10"), 2);
 
   // toolbar: picker shows for drawers with Push-Click disabled ("soon")
@@ -1237,7 +1240,7 @@ test("drawer closures: per-drawer opt-in billing, default none", () => {
   select(app, 2);
   [...doc.querySelectorAll("#ut-closure-seg button")].find((b) => b.textContent.includes("Magnets")).click();
   assert.equal(app.state.placed[1].closure, "magnet");
-  assert.equal(bomQty(app, "Magnet Clip"), 2);
+  assert.equal(bomQty(app, "Magnet Clip"), 4);          // 2 drawers × 2 clips
 
   // hidden for non-drawers
   place(app, { id: 3, x: 2, y: 0, w: 1, hh: 2, fill: "cabinet" });

@@ -26,6 +26,7 @@
     wallStagger: false,     // wall covers: false = per-column (default), true = staggered top
     removedStoppers: [],    // "<unitId>:<localCol>" keys — stopper pairs removed in the 3D viewer
     backCover: false,       // optional decor-faceplate back cover (every faceplate style seats the same part)
+    feet: "tpu",            // tabletop feet: "tpu" (printed, default) | "adhesive" (purchased rubber feet) - one-for-one alternatives, the BOM bills the pick
   };
 
   const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 10 };
@@ -1742,7 +1743,7 @@
 
   // The fields that make a build reproducible (setup + layout).
   const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
-    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "removedStoppers", "gridW", "gridH", "placed", "nextId"];
+    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "feet", "removedStoppers", "gridW", "gridH", "placed", "nextId"];
 
   const serializeBuild = () => {
     const o = {};
@@ -1774,6 +1775,7 @@
     d.handleStyle = idIn(GEN2.handleStyles, d.handleStyle, GEN2.handleStyles[0].id);
     d.wallStagger = !!d.wallStagger;
     d.backCover = !!d.backCover;
+    d.feet = d.feet === "adhesive" ? "adhesive" : "tpu";
     // removedStoppers: dedupe + keep only well-formed "<unitId>:<localCol>" keys
     // (stale keys for since-deleted columns are harmless — the BOM/generator ignore them)
     d.removedStoppers = Array.isArray(d.removedStoppers)
@@ -2149,7 +2151,7 @@
     if (applyingRemoteOpts || !viewerWin || viewerWin.closed) return;
     const closures = {};
     state.placed.forEach((u) => { if (u.fill === "decor" || u.fill === "classic") closures[u.id] = u.closure === "magnet" ? "magnet" : "none"; });
-    const opts = { closures, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover };
+    const opts = { closures, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu" };
     const json = JSON.stringify(opts);
     if (json === lastSentOpts) return;
     lastSentOpts = json;
@@ -3419,6 +3421,7 @@
       cols: occupiedColumns().length,
       runs,
       wallStagger: state.wallStagger,
+      feet: state.feet,                       // tabletop: "tpu" | "adhesive" (the BOM bills the pick)
       topCases: topCases().map((p) => p.w),   // top-row case widths (per-column covers)
       railMix: mix,
       railScrews: Object.entries(mix).reduce((sum, [w, n]) => sum + n * GEN2.railScrews(+w), 0),
@@ -4155,6 +4158,11 @@
     $("#wall-stagger-seg").querySelectorAll("[data-stagger]").forEach((btn) => {
       btn.addEventListener("click", () => { state.wallStagger = btn.dataset.stagger === "on"; refresh(); });
     });
+    // Tabletop feet: print TPU feet or buy adhesive rubber feet - the BOM
+    // bills the pick (never both); same count, same spots either way.
+    $("#feet-seg").querySelectorAll("[data-feet]").forEach((btn) => {
+      btn.addEventListener("click", () => { state.feet = btn.dataset.feet === "adhesive" ? "adhesive" : "tpu"; track("feet:" + state.feet); refresh(); });
+    });
     // preferred model site — the explicit control for people who'd rather set
     // it up front than discover it via a row's ▾
     const siteSel = $("#link-site");
@@ -4233,6 +4241,7 @@
         if (Array.isArray(o.removedStoppers))
           state.removedStoppers = o.removedStoppers.filter((k) => typeof k === "string" && /^\d+:\d+$/.test(k));
         if (typeof o.wallStagger === "boolean") state.wallStagger = o.wallStagger;
+        if (o.feet === "tpu" || o.feet === "adhesive") state.feet = o.feet;
         if (o.handleStyle && GEN2.handleStyles.some((h) => h.id === o.handleStyle)) state.handleStyle = o.handleStyle;
         if (o.faceStyle && GEN2.faceplateStyles.some((s) => s.id === o.faceStyle)) state.faceStyle = o.faceStyle;
         if (typeof o.backCover === "boolean") state.backCover = o.backCover;
@@ -4400,6 +4409,14 @@
     // "how covers stack" guide, grouped together below the board.
     $("#cover-panel").hidden = !(state.mount === "tabletop" || state.mount === "wall");
     $("#wall-stagger").hidden = state.mount !== "wall";
+    $("#feet-opt").hidden = state.mount !== "tabletop";
+    if (state.mount === "tabletop") {
+      $("#feet-seg").querySelectorAll("[data-feet]").forEach((b) =>
+        b.classList.toggle("active", b.dataset.feet === (state.feet === "adhesive" ? "adhesive" : "tpu")));
+      $("#feet-hint").textContent = state.feet === "adhesive"
+        ? "Stick to the flat pads around the underside slots · same count and spots as printed feet."
+        : "Snap into the underside slots · a single bottom case takes them directly, a row of two or more in the lower foot rail.";
+    }
     if (state.mount === "wall") {
       $("#wall-stagger-seg").querySelectorAll("[data-stagger]").forEach((b) =>
         b.classList.toggle("active", (b.dataset.stagger === "on") === state.wallStagger));

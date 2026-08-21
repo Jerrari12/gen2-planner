@@ -343,10 +343,23 @@ const GEN2 = {
           .forEach((i) => items.push(i));
       }
 
-      items.push({
-        name: P.foot(), qty: feet, linkAs: kit,
-        note: "Snap into the bottom of the build · or use store-bought adhesive rubber feet instead.",
-      });
+      // Feet: printed TPU feet OR adhesive rubber feet - a one-for-one
+      // alternative (same count, same support spots: the adhesive ones stick
+      // to the flat pads around the slots). The BOM carries the SELECTED
+      // option only, never both (confirmed 2026-08-21). Count is per RUN:
+      // a single bottom-row case takes them directly, a row of two or more
+      // cases takes them in the lower foot rail.
+      if (ctx.feet === "adhesive") {
+        items.push({
+          name: "Adhesive rubber feet", qty: feet, hardware: true,
+          note: "Stick to the flat pads around the underside slots · same count and spots as printed TPU feet (into the lower foot rail when the bottom row has two or more cases).",
+        });
+      } else {
+        items.push({
+          name: P.foot(), qty: feet, linkAs: kit,
+          note: "Snap into the underside slots · into the lower foot rail when the bottom row has two or more cases. Or pick adhesive rubber feet instead (same count, same spots).",
+        });
+      }
 
       // Optional M3 hardware, 1 per W. Nuts are shared by covers + foot rails.
       const nuts = cov.screws + frScrews;
@@ -732,6 +745,12 @@ const HARDWARE_BUY = {
     { id: "magnet-6x2", label: "6×2mm", url: "https://amzn.to/4aH1ASw" },
     { id: "magnet-n52-10x2", label: "N52 10×2mm", url: "https://amzn.to/4q4JX3Z" },
     { id: "magnet-n52-6x2", label: "N52 6×2mm", url: "https://amzn.to/49BZyC0" },
+  ],
+  // the purchased one-for-one alternative to printed TPU feet (2026-08-21):
+  // same count, same support spots, stuck to the flat pads around the slots.
+  // Billed INSTEAD of the TPU feet when the build picks "Buy adhesive feet".
+  "Adhesive rubber feet": [
+    { id: "rubber-feet", label: "Rubber feet", url: "https://amzn.to/4cEanSB" },
   ],
 };
 

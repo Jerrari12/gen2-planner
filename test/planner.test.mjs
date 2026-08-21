@@ -381,6 +381,27 @@ test("a case overhanging on one end is flagged unsupported; filling the other en
 /* ---- Itemized Table Top Kit / Wall covers BOM ----
    gridH=4 → rows()=8, so a 1H (hh=2) case at y=6 sits on the floor. */
 
+test("tabletop feet: adhesive rubber feet replace the TPU feet one-for-one (same count), never both", () => {
+  const { app } = boot();
+  app.state.mount = "tabletop";
+  place(app, { id: 1, x: 0, y: 6, w: 2, hh: 2, fill: "classic" });
+  assert.equal(bomQty(app, "Foot (TPU)"), 6);            // 2*(2+1), the default
+  assert.equal(bomQty(app, "Adhesive rubber feet"), 0);
+  app.state.feet = "adhesive";
+  assert.equal(bomQty(app, "Adhesive rubber feet"), 6);  // the same count, the purchased option
+  assert.equal(bomQty(app, "Foot (TPU)"), 0);            // and the printed row is gone
+  const row = app.computeBom().flatMap((s) => s.items).find((i) => i.name === "Adhesive rubber feet");
+  assert.equal(row.hardware, true);                      // a hardware-store row (buy chip + disclosure)
+  // the pick rides the build: sanitize keeps it, an unknown value falls back to printed
+  const out = app.serializeBuild();
+  assert.equal(out.feet, "adhesive");
+  app.state.feet = "tpu";
+  app.applyBuild(out);
+  assert.equal(app.state.feet, "adhesive");
+  app.applyBuild(Object.assign({}, out, { feet: "nonsense" }));
+  assert.equal(app.state.feet, "tpu");
+});
+
 test("tabletop: a 1W build bills 1 CU + 1 CL + 4 feet, no foot rails", () => {
   const { app } = boot();
   app.state.mount = "tabletop";

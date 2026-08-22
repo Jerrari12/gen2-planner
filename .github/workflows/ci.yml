@@ -1,0 +1,62 @@
+name: Gates
+
+# ⚠ THIS WORKFLOW DOES NOT PUBLISH. Read this before changing that.
+#
+# The planner is BRANCH-DEPLOYED today: GitHub's built-in "pages build and
+# deployment" run publishes the repo root on every push to main, with the
+# custom domain set by the CNAME file (gen2planner.jerrari3d.com). Recorded
+# 2026-08-22 from the deployments API: 80 such runs, every one named "pages
+# build and deployment", none from a repo-owned workflow.
+#
+# "Run the gates" and "publish production" are SEPARATE concerns, and this
+# file is only the first. Until 2026-08-22 the planner had NO CI at all, so
+# every protection in the repo was local-only - on the one path that reaches
+# users, that is the same as absent. This workflow runs the suite and the
+# requirement-scope receipt gate on every push and PR, and does nothing else.
+#
+# ⚠ The branch deploy keeps publishing regardless of whether this passes. A
+# failing gate here is a LOUD RED MARK, not a blocked deploy. Making it block
+# requires switching the Pages source from "branch" to "GitHub Actions" in
+# the repository settings, adding deploy steps here, and is a production change
+# that needs Joey's explicit approval - not a side effect of merging a test
+# workflow. The prepared deploy steps and the rollback path are in
+# .github/DEPLOY-MIGRATION.md.
+#
+# LINK 1 of the requirement-scope chain is enforced here:
+#   planner source -> completed-sync RECEIPT -> consumer pin -> consumer bytes
+# test/requirement-scope-receipt.test.mjs needs no consumer checkout, which is
+# exactly the topology of this job: a consumer-free proof that the source was
+# synced. A direct edit to js/requirement-scope.js fails this job until
+# `npm run sync:contract` completes.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install (jsdom for the suite)
+        run: npm ci --no-audit --no-fund
+
+      # The whole suite, the receipt gate included, on a checkout that contains
+      # ONLY this repository.
+      - name: Test
+        run: npm test
+
+      # The same link in the sync tool's own words. --check never writes and
+      # tolerates the absent consumers by design.
+      - name: Verify the contract sync receipt
+        run: npm run check:contract

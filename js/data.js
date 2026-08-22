@@ -12,135 +12,26 @@
    Parts flagged `unreleased` show a "coming soon" tag instead of links.
    ========================================================================= */
 
-/* =========================================================================
-   REQUIREMENT SCOPE (contract v2, 2026-08-22)
-   =========================================================================
-   Every BOM row says WHY it is in the bill, because a single `optional`
-   boolean could not. A case is not-optional because nothing stands without
-   it; a magnet clip is not-optional only because that drawer chose magnetic
-   closure. Downstream that difference is the whole ballgame: it shipped a
-   homepage claiming "8 bought items" when the real requirement was 4.
-
-   TWO ORTHOGONAL FACTS, never merged:
-     requirement -> the OBLIGATION. core | option | enhancement.
-     basis       -> the SELECTION that explains this variant. Legal on ANY
-                    scope, and it never changes the scope. Forbidding it on
-                    core is exactly what leaves feet and mount parts unable
-                    to say why they are the ones present.
-
-   THE TEST, in order:
-     1. What obligation does this part satisfy?
-     2. Does that obligation exist in EVERY valid build of the selected
-        architecture?            -> core   (even if a variant swaps the part)
-     3. Is it activated only by an independently disableable capability?
-                                 -> option (carries optionId)
-     4. Can it be omitted with architecture and capabilities intact?
-                                 -> enhancement
-
-   ⚠ "core" means core for THIS RESOLVED build, not common to every possible
-   GEN2 configuration. An under-table build's rails are core; changing mount
-   legitimately swaps one set of core rows for another.
-
-   The four totals every consumer must use instead of improvising:
-     minimum build  = core
-     selected plan  = core + option        <- the viewer's "required"
-     enhancements   = enhancement
-     complete       = all three
-   ========================================================================= */
-const REQ_SCOPES = ['core', 'option', 'enhancement'];
-
-/** Selection provenance. `selectedCount` is how many subjects chose it - the
- *  shared BOM stores TOTALS only; which drawer stays in the viewer's assembly
- *  data (Joey, 2026-08-22), so there is deliberately no per-subject list. */
-function basis(axis, choice, subjectType, selectedCount) {
-  const b = { axis, choice, subjectType };
-  if (typeof selectedCount === 'number') b.selectedCount = selectedCount;
-  return b;
+/* REQUIREMENT SCOPE - the classification contract is NOT defined here.
+   It lives in js/requirement-scope.js, loaded as a classic script BEFORE this
+   file, and is vendored byte-for-byte into the viewer. One author for the
+   policy; both apps still compute their own facts and pass them in.
+   ⚠ If GEN2_REQ is missing, the script tag ordering in index.html broke -
+   fail loudly rather than silently emitting unclassified rows. */
+if (typeof GEN2_REQ === 'undefined') {
+  throw new Error('requirement-scope.js must load before data.js (see index.html script order)');
 }
-/** An obligation present in every valid build of this architecture. */
-function core(obligationId) { return { scope: 'core', obligationId }; }
-/** Required BECAUSE a capability was selected. `optionId` names which. */
-function option(obligationId, optionId) { return { scope: 'option', obligationId, optionId }; }
-/** Omittable with the architecture and every selected capability intact. */
-function enhancement(obligationId) { return { scope: 'enhancement', obligationId }; }
-
-/* ONE ROW, SEVERAL CAUSES.
-   Some rows are in the bill for more than one reason at once, and the reasons
-   can differ in strength. The Cover Lower is the case that forced this: the
-   stagger solver marks the lower layer structurally REQUIRED on runs of 3W and
-   up but merely optional on 1W/2W - and the lower cover is also what drawer
-   stoppers seat into. So on one build a Cover Lower can be core (the layout
-   needs it), option (stoppers need it), or an enhancement for rigidity alone,
-   and a build mixing run widths hits several of those at once.
-   ⚠ DO NOT SPLIT THE PHYSICAL ROW. One SKU is one row: the planner's build
-   tracker keys on name+variant, so two rows for one part would share a
-   checkbox and mark each other done. Instead the row keeps ONE resolved
-   `requirement` - the STRONGEST reason present, which is what totals and
-   grouping use - plus a `reasons` array preserving every explanation.
-   ⚠ Minimum-build totals read the strongest scope per ROW, never the reasons;
-   a row is either in the minimum bill or it is not. The reasons exist to
-   answer "why is this here", which is a sentence, not a sum. */
-const SCOPE_RANK = { enhancement: 0, option: 1, core: 2 };
-
-/** Resolve several reasons into one row-level requirement, keeping them all.
- *  Returns { requirement, reasons } ready to spread onto a row. */
-function resolveReasons(reasons) {
-  const list = (reasons || []).filter(Boolean);
-  if (!list.length) return {};
-  const strongest = list.reduce((a, b) => (SCOPE_RANK[b.scope] > SCOPE_RANK[a.scope] ? b : a));
-  // the row-level requirement never carries an optionId unless the STRONGEST
-  // reason is itself an option - otherwise a core row would claim one and fail
-  // validation, which is correct: a core row is not caused by an option
-  const requirement = { scope: strongest.scope, obligationId: strongest.obligationId };
-  if (strongest.scope === 'option' && strongest.optionId) requirement.optionId = strongest.optionId;
-  return list.length === 1 ? { requirement } : { requirement, reasons: list };
-}
-
-/** Fail closed. Returns a list of problems; empty means the row is well-formed.
- *  ⚠ Contradictions are ERRORS, not warnings: a row that claims `option` with
- *  no `optionId` cannot be routed to a column, and that is precisely the shape
- *  of the defect this contract exists to prevent. */
-function validateRequirement(row) {
-  const p = [], r = row.requirement;
-  if (!r) return p;                       // unmigrated - counted by the ratchet, not fatal yet
-  if (!REQ_SCOPES.includes(r.scope)) p.push(`bad scope ${JSON.stringify(r.scope)}`);
-  if (!r.obligationId) p.push('no obligationId');
-  if (r.scope === 'option' && !r.optionId) p.push('option scope without an optionId');
-  if (r.scope !== 'option' && r.optionId) p.push(`optionId on a ${r.scope} row`);
-  const checkBasis = (b, where) => {
-    if (!b) return;
-    if (!b.axis || !b.choice) p.push(`${where}basis needs an axis and a choice`);
-    if (!['build', 'unit'].includes(b.subjectType)) p.push(`${where}bad basis.subjectType ${JSON.stringify(b.subjectType)}`);
-    if ('selectedCount' in b && !(b.selectedCount > 0)) p.push(`${where}basis.selectedCount must be a positive count`);
-  };
-  checkBasis(row.basis, '');
-  if (row.reasons) {
-    if (row.reasons.length < 2) p.push('reasons is for rows with SEVERAL causes - drop it or add the others');
-    let strongest = -1;
-    row.reasons.forEach((rr, i) => {
-      const w = `reason ${i}: `;
-      if (!REQ_SCOPES.includes(rr.scope)) p.push(`${w}bad scope ${JSON.stringify(rr.scope)}`);
-      if (!rr.obligationId) p.push(`${w}no obligationId`);
-      if (rr.scope === 'option' && !rr.optionId) p.push(`${w}option scope without an optionId`);
-      checkBasis(rr.basis, w);
-      strongest = Math.max(strongest, SCOPE_RANK[rr.scope] ?? -1);
-    });
-    // ⚠ the row-level scope MUST equal the strongest reason, or totals and the
-    // explanation disagree - the row would be billed one way and explained another
-    if (strongest >= 0 && SCOPE_RANK[r.scope] !== strongest) {
-      p.push(`row scope "${r.scope}" is not the strongest of its reasons`);
-    }
-  }
-  return p.map((m) => `${row.name}: ${m}`);
-}
+const REQ = GEN2_REQ;
+const core = REQ.core, option = REQ.option, enhancement = REQ.enhancement;
+const basis = REQ.basis, resolveReasons = REQ.resolveReasons;
 
 const GEN2 = {
 
-  /* The requirement-scope constructors, exposed on GEN2 so every BOM builder
-     reaches them the same way (app.js builds rows too, not just this file).
-     See the contract block above for the taxonomy and the four totals. */
-  req: { core, option, enhancement, basis, validate: validateRequirement, SCOPES: REQ_SCOPES },
-  bomSchemaVersion: 2,
+  /* The shared classification contract, re-exposed on GEN2 so every BOM builder
+     reaches it the same way (app.js builds rows too, not just this file).
+     ⚠ This is a REFERENCE to the vendored module, never a reimplementation. */
+  req: REQ,
+  bomSchemaVersion: REQ.CONTRACT_VERSION,
 
   // Physical size of one grid unit
   units: {

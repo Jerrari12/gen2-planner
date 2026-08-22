@@ -25,7 +25,7 @@ function boot() {
   const dom = new JSDOM(read("index.html"), { runScripts: "outside-only" });
   const { window } = dom;
   window.__GEN2_PLANNER_TEST__ = true;            // opt in to the test hook
-  window.eval(read("js/data.js") + "\n" + read("js/app.js"));
+  window.eval(read("js/requirement-scope.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
   const app = window.__GEN2_PLANNER_TEST__;       // hook replaces the flag
 
   app.state.mount = "under-table";
@@ -709,7 +709,7 @@ test("3D instructions button targets the local viewer from localhost, the deploy
     window.__GEN2_PLANNER_TEST__ = true;
     let opened = null;
     window.open = (u) => { opened = u; return null; };
-    window.eval(read("js/data.js") + "\n" + read("js/app.js"));
+    window.eval(read("js/requirement-scope.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
     const app = window.__GEN2_PLANNER_TEST__;
     app.state.mount = "wall";
     app.state.length = 185;
@@ -730,7 +730,7 @@ test("official-kit exporter: hidden in prod, exports a versioned wrapper with a 
     const dom = new JSDOM(read("index.html"), { runScripts: "outside-only", url });
     const { window } = dom;
     window.__GEN2_PLANNER_TEST__ = true;
-    window.eval(read("js/data.js") + "\n" + read("js/app.js"));
+    window.eval(read("js/requirement-scope.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
     return { window, app: window.__GEN2_PLANNER_TEST__, doc: window.document };
   };
   // prod: the authoring button never shows (ids are mintable by repo commit only)
@@ -1673,7 +1673,7 @@ function bootWith({ lastBuild, url } = {}) {
   const { window } = dom;
   if (lastBuild) window.localStorage.setItem("gen2-last-build", JSON.stringify(lastBuild));
   window.__GEN2_PLANNER_TEST__ = true;
-  window.eval(read("js/data.js") + "\n" + read("js/app.js"));
+  window.eval(read("js/requirement-scope.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
   return { window, app: window.__GEN2_PLANNER_TEST__, doc: window.document };
 }
 

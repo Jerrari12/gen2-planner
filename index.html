@@ -484,6 +484,9 @@
   · <a class="footer-ver" href="https://github.com/Jerrari12/gen2-planner/blob/main/CHANGELOG.md" target="_blank" rel="noopener">v2608.08</a>
 </footer>
 
+<!-- The shared requirement-scope contract. MUST load before data.js, which
+     throws if it is missing. Vendored byte-for-byte into the viewer. -->
+<script src="js/requirement-scope.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script src="js/hero.js"></script>

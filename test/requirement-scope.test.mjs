@@ -195,7 +195,7 @@ test('⚠ RATCHET: unmigrated rows may only ever DECREASE', () => {
      faceplate, handles, QuickLock, covers, foot rails, feet, stoppers, M3.
      ⚠ Every `option`-scoped row is already migrated, which is the class that
      actually caused the shipped defect; what remains is the mechanical part. */
-  const BASELINE = { tabletop: 15, 'under-table': 8 };
+  const BASELINE = { tabletop: 13, 'under-table': 8 };
   for (const mount of Object.keys(BASELINE)) {
     const { app } = boot(mount);
     app.state.placed.push({ id: 1, x: 0, y: 0, w: 2, hh: 2, fill: 'decor', shelves: 0, closure: 'magnet' });

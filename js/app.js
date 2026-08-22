@@ -3414,6 +3414,8 @@
           note: "Optional but recommended · a Left + Right pair per 1W stops a drawer from pulling all the way out. They snap into the base of the case above (or the covers over a top row). Under-table top-row drawers don't need them · the rail has stoppers built in.",
           linkAs: "GEN2 Hardware",
           optional: true,
+          // recommended and removable: omitting them keeps every selected capability intact
+          requirement: GEN2.req.enhancement("drawer.retention"),
         },
         {
           name: "GEN2 Drawer Stopper - Right",
@@ -3421,6 +3423,7 @@
           note: "Optional · mirrored partner to the Left stoppers above.",
           linkAs: "GEN2 Hardware",
           optional: true,
+          requirement: GEN2.req.enhancement("drawer.retention"),
         },
       );
       if (items.length) sections.push({ title: "Hardware", items });

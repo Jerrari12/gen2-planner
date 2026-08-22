@@ -2,3 +2,10 @@
 *.ico binary
 *.png binary
 *.jpg binary
+
+# ⚠ THE REQUIREMENT-SCOPE CONTRACT IS HASH-PINNED across three repos, and the
+# pin is computed from the WORKING FILE. Without a fixed line ending a Windows
+# checkout gets CRLF, the sha256 changes, and every drift gate fails on a fresh
+# clone - a false "someone edited it" that the obvious fix (bump the hash)
+# would launder into a real split.
+requirement-scope.js text eol=lf

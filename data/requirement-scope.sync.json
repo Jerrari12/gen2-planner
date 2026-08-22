@@ -1,5 +1,5 @@
 {
-  "_comment": "Written ONLY by tools/sync-requirement-scope.mjs after every consumer copy, pin and contract test passed. Logical consumer names, never paths. Planner CI fails if js/requirement-scope.js no longer matches sourceHash - edit the source, then sync.",
+  "_comment": "Written ONLY by tools/sync-requirement-scope.mjs after every consumer copy, pin, contract test AND the cross-tool parity suite passed. Logical consumer names, never paths. Planner CI fails if js/requirement-scope.js no longer matches sourceHash - edit the source, then sync.",
   "contractVersion": 2,
   "sourceHash": "3c42b9768681ee9737a4c064f1386c95222c21733cae744b3d8001f5455d3167",
   "sourceFile": "js/requirement-scope.js",
@@ -15,5 +15,17 @@
       "dest": "src/lib/requirement-scope.js"
     }
   },
-  "completedAt": "2026-08-22T20:02:43.672Z"
+  "parity": {
+    "verified": true,
+    "suite": "viewer/test/requirement-parity.test.mjs",
+    "fixtures": [
+      "closure 0/2",
+      "closure 1/2",
+      "closure 2/2",
+      "185-tabletop-2w2h",
+      "185-tabletop-3w2h",
+      "under-table"
+    ]
+  },
+  "completedAt": "2026-08-22T21:11:50.478Z"
 }

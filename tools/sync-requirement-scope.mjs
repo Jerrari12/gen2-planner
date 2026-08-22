@@ -214,6 +214,24 @@ try {
     say(`\n  planner: ${FULL ? 'full suite' : 'contract test'}…`);
     const own = FULL ? ['npm', ['test', '--silent']] : ['node', ['--test', 'test/requirement-scope.test.mjs']];
     execFileSync(own[0], own[1], { cwd: PLANNER, stdio: 'inherit', shell: process.platform === 'win32' });
+
+    /* ---------- phase 3b: BEHAVIOURAL PARITY, never skipped here ----------
+       Byte equality proves the consumers hold the same policy. It does not
+       prove they ASK it the same questions - the viewer once classified the
+       3W kit's Cover Lower as option while the planner said core, because one
+       gathered the stagger fact per case and the other per run. The parity
+       suite in the viewer runs the committed fixtures through both tools.
+       Standalone CI may skip it (the other repos are absent there). A
+       write-mode sync has EVERY repository present by construction, so here a
+       missing dependency is a setup fault and the suite FAILS with the fix
+       named; the receipt below is only ever written after it passed. */
+    const viewer = planned.find((p) => p.c.name === 'viewer');
+    if (!viewer) throw new Error('parity needs the viewer consumer, which was not planned');
+    say(`\n  cross-tool parity (viewer ⇄ planner), REQUIRED…`);
+    execFileSync('node', ['--test', 'test/requirement-parity.test.mjs'], {
+      cwd: viewer.c.root, stdio: 'inherit', shell: process.platform === 'win32',
+      env: { ...process.env, GEN2_REQUIRE_PARITY: '1', GEN2_PLANNER_ROOT: PLANNER },
+    });
   }
 
   /* ---------- phase 4: the RECEIPT, last, inside the journal ---------- */
@@ -225,11 +243,18 @@ try {
   // would fail the no-machine-specifics test the moment CI read it
   for (const p of planned) consumers[p.c.name] = { hash: srcHash, contractVersion: version, dest: p.c.dest.split('\\').join('/') };
   writeFileSync(RECEIPT, JSON.stringify({
-    _comment: 'Written ONLY by tools/sync-requirement-scope.mjs after every consumer copy, pin and contract test passed. Logical consumer names, never paths. Planner CI fails if js/requirement-scope.js no longer matches sourceHash - edit the source, then sync.',
+    _comment: 'Written ONLY by tools/sync-requirement-scope.mjs after every consumer copy, pin, contract test AND the cross-tool parity suite passed. Logical consumer names, never paths. Planner CI fails if js/requirement-scope.js no longer matches sourceHash - edit the source, then sync.',
     contractVersion: version,
     sourceHash: srcHash,
     sourceFile: 'js/requirement-scope.js',
     consumers,
+    /* The receipt stands for TWO facts, not one: the bytes are synchronised
+       AND the committed fixtures classified identically in both tools when
+       run together. A --skip-tests sync cannot make the second claim and
+       says so, so nobody reads a byte-only sync as a behavioural one. */
+    parity: SKIP_TESTS
+      ? { verified: false, note: 'synced with --skip-tests; cross-tool parity NOT run' }
+      : { verified: true, suite: 'viewer/test/requirement-parity.test.mjs', fixtures: ['closure 0/2', 'closure 1/2', 'closure 2/2', '185-tabletop-2w2h', '185-tabletop-3w2h', 'under-table'] },
     completedAt: new Date().toISOString(),
   }, null, 2) + '\n', 'utf8');
   say(`\n  receipt written: data/requirement-scope.sync.json`);

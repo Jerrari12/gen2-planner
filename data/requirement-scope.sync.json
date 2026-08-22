@@ -1,0 +1,19 @@
+{
+  "_comment": "Written ONLY by tools/sync-requirement-scope.mjs after every consumer copy, pin and contract test passed. Logical consumer names, never paths. Planner CI fails if js/requirement-scope.js no longer matches sourceHash - edit the source, then sync.",
+  "contractVersion": 2,
+  "sourceHash": "3c42b9768681ee9737a4c064f1386c95222c21733cae744b3d8001f5455d3167",
+  "sourceFile": "js/requirement-scope.js",
+  "consumers": {
+    "viewer": {
+      "hash": "3c42b9768681ee9737a4c064f1386c95222c21733cae744b3d8001f5455d3167",
+      "contractVersion": 2,
+      "dest": "viewer/js/vendor/requirement-scope.js"
+    },
+    "site": {
+      "hash": "3c42b9768681ee9737a4c064f1386c95222c21733cae744b3d8001f5455d3167",
+      "contractVersion": 2,
+      "dest": "src/lib/requirement-scope.js"
+    }
+  },
+  "completedAt": "2026-08-22T20:02:43.672Z"
+}

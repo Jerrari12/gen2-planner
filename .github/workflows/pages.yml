@@ -1,0 +1,73 @@
+name: Deploy planner to GitHub Pages
+
+# Publishes the repo root on every push to main. Until 2026-08-22 the planner
+# deployed straight from the branch with NO test step, so every protection in
+# the repo was local-only - which, on the one path that reaches users, is the
+# same as absent.
+#
+# This workflow is also where LINK 1 of the requirement-scope chain is enforced:
+#   planner source -> completed-sync RECEIPT -> consumer pin -> consumer bytes
+# test/requirement-scope-receipt.test.mjs needs no consumer checkout: it proves
+# js/requirement-scope.js matches data/requirement-scope.sync.json, the record
+# of the last sync that reached every consumer. A direct edit to the source
+# fails this job until `npm run sync:contract` completes. The two consumers
+# enforce their own links in their own CI.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install (jsdom for the suite)
+        run: npm ci --no-audit --no-fund
+
+      # The whole suite, the receipt gate included. It runs on a checkout that
+      # contains ONLY this repository, which is exactly the topology the
+      # receipt exists for: a consumer-free proof that the source was synced.
+      - name: Test (blocks the deploy)
+        run: npm test
+
+      # Belt and braces: the same link, reported in the sync tool's own words.
+      # --check never writes, and tolerates the absent consumers by design.
+      - name: Verify the contract sync receipt
+        run: npm run check:contract
+
+      # ⚠ Upload a CLEAN copy, not the checkout. `path: .` would publish the
+      # runner's node_modules (tens of MB of jsdom), the test suite, the tools
+      # and the sync receipt - none of which the planner serves. Rsync the
+      # tracked site files only; git knows exactly which those are.
+      - name: Stage the site files only
+        run: |
+          mkdir -p /tmp/site
+          git ls-files -z | grep -zvE '^(test/|tools/|data/requirement-scope\.sync\.json|package(-lock)?\.json|\.github/|\.gitattributes|\.gitignore)' \
+            | xargs -0 -I{} cp --parents {} /tmp/site/
+          echo "staged $(find /tmp/site -type f | wc -l) files"
+          test -f /tmp/site/index.html || { echo "::error::index.html missing from the staged site"; exit 1; }
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/site
+      - id: deployment
+        uses: actions/deploy-pages@v4

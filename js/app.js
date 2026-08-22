@@ -3345,6 +3345,18 @@
       sections.push({ title: "Faceplates & Handles", items });
     }
 
+    /* Is anything sitting on top of this unit? Stoppers slot into the underside
+       of whatever is above - the case above, or the covers over a top row.
+       ⚠ Hoisted to the computeBom scope 2026-08-22: it was block-scoped to the
+       hardware section, and the COVER LOWER's requirement needs the same answer
+       (stoppers seat into it, which is one of the reasons it can be required).
+       One definition, so the stopper rows and the cover row cannot disagree
+       about whether this build has stoppers at all. */
+    const hasUnitAbove = (p) => {
+      for (let cx = p.x; cx < p.x + p.w; cx++) if (unitAt(cx, p.y - 1)) return true;
+      return false;
+    };
+
     // Hardware that attaches to a drawer or case: QuickLocks (per case) plus the
     // optional soft-close magnet clips + magnets (per Decor drawer). Grouped here
     // so all drawer/case hardware sits together instead of split across sections.
@@ -3386,10 +3398,8 @@
       // covers over a top row. The under-table RAIL has stoppers built in, so
       // drawers hanging directly from it need none. Drawers only: stoppers
       // have no function in a shelf or cabinet.
-      const hasUnitAbove = (p) => {
-        for (let cx = p.x; cx < p.x + p.w; cx++) if (unitAt(cx, p.y - 1)) return true;
-        return false;
-      };
+      // (hasUnitAbove is defined once at the computeBom scope - the Cover Lower's
+      //  requirement needs the same answer, and two copies would drift)
       // per-1W stopper pairs the user removed in the 3D viewer drop out of the count
       const removedStop = new Set(state.removedStoppers || []);
       const keptCols = (p) => { let n = 0; for (let k = 0; k < p.w; k++) if (!removedStop.has(`${p.id}:${k}`)) n++; return n; };
@@ -3425,10 +3435,22 @@
       bottomCases: state.placed.filter((p) =>
         p.y + p.hh === floor && p.x >= run.start && p.x < run.start + run.len).length,
     }));
+    /* ⚠ Does this build actually bill stoppers? The COVER LOWER is what they
+       seat into, so their presence is one of the reasons a Cover Lower can be
+       required (Joey, 2026-08-22). buildCoverItems lives in data.js and cannot
+       see `state`, so the answer is computed here and passed in - the same
+       rule the stopper rows below use, kept in one expression so the two
+       cannot disagree about whether stoppers exist. */
+    const removedStopCtx = new Set(state.removedStoppers || []);
+    const hasStoppers = state.placed.some((p) =>
+      (p.fill === "classic" || p.fill === "decor") &&
+      (state.mount !== "under-table" || hasUnitAbove(p)) &&
+      Array.from({ length: p.w }, (_, k) => k).some((k) => !removedStopCtx.has(`${p.id}:${k}`)));
     const ctx = {
       len,
       cols: occupiedColumns().length,
       runs,
+      hasStoppers,
       wallStagger: state.wallStagger,
       feet: state.feet,                       // tabletop: "tpu" | "adhesive" (the BOM bills the pick)
       topCases: topCases().map((p) => p.w),   // top-row case widths (per-column covers)

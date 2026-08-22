@@ -205,3 +205,86 @@ test('⚠ RATCHET: unmigrated rows may only ever DECREASE', () => {
       + un.map((r) => r.name).join('\n  '));
   }
 });
+
+/* ---------- the Cover Lower: one row, several causes ---------- */
+
+/** A tabletop build of `width` 1W columns, with stoppers kept or all removed. */
+function coverFixture(width, { stoppers }) {
+  const { app, GEN2 } = boot('tabletop');
+  app.state.placed.push({ id: 1, x: 0, y: 0, w: width, hh: 2, fill: 'decor', shelves: 0, closure: 'none' });
+  // stoppers are per-1W and removable; clearing every key is how a build has none
+  app.state.removedStoppers = stoppers ? [] : Array.from({ length: width }, (_, k) => `1:${k}`);
+  app.refresh();
+  return { app, GEN2 };
+}
+const lowerRow = (app) => find(app, 'Cover Lower')[0];
+const reasonScopes = (row) => (row.reasons ? Array.from(row.reasons).map((r) => r.scope).sort() : null);
+
+test('COVER LOWER a: simple layout, no stoppers -> enhancement', () => {
+  /* 2W is a single-piece cover run, so the stagger does not need the lower
+     layer; with no stoppers to seat, it is there for rigidity alone. */
+  const { app } = coverFixture(2, { stoppers: false });
+  const row = lowerRow(app);
+  assert.ok(row, 'a covered build still bills a Cover Lower');
+  assert.equal(row.requirement.scope, 'enhancement');
+  assert.equal(row.requirement.obligationId, 'top.rigidity');
+  assert.equal(row.reasons, undefined, 'one cause needs no reasons array');
+});
+
+test('COVER LOWER b: stoppers on an otherwise-unnecessary layer -> option', () => {
+  const { app } = coverFixture(2, { stoppers: true });
+  const row = lowerRow(app);
+  assert.equal(row.requirement.scope, 'option');
+  assert.equal(row.requirement.optionId, 'drawer.stoppers',
+    'it must name the feature that made it required');
+  assert.equal(row.requirement.obligationId, 'drawer.stopper.seat');
+});
+
+test('COVER LOWER c: staggered multi-piece layout -> core, with a layout basis', () => {
+  /* 3W tiles as 1W+2W across both layers with offset seams, and brickTiling
+     marks lowerOptional false: the layers tie the sections together. */
+  const { app } = coverFixture(3, { stoppers: false });
+  const row = lowerRow(app);
+  assert.equal(row.requirement.scope, 'core');
+  assert.equal(row.requirement.obligationId, 'top.enclosure');
+  assert.equal(row.basis, undefined, 'a single reason carries its basis on the reason, not the row');
+});
+
+test('COVER LOWER d: staggered AND stoppers -> core, BOTH reasons preserved', () => {
+  const { app } = coverFixture(3, { stoppers: true });
+  const row = lowerRow(app);
+  assert.equal(row.requirement.scope, 'core', 'the strongest reason wins the row');
+  assert.deepEqual(reasonScopes(row), ['core', 'option'], 'and neither explanation is lost');
+  const opt = Array.from(row.reasons).find((r) => r.scope === 'option');
+  assert.equal(opt.optionId, 'drawer.stoppers');
+  const cor = Array.from(row.reasons).find((r) => r.scope === 'core');
+  assert.equal(cor.basis.axis, 'cover.layout');
+  assert.equal(cor.basis.choice, 'staggered');
+  // ⚠ the row-level requirement must NOT claim the option's id - it is core
+  assert.equal(row.requirement.optionId, undefined);
+});
+
+test('⚠ the Cover Lower stays ONE row however many causes it has', () => {
+  /* Splitting by cause would collide with the build tracker, whose key is
+     name + variant: two rows for one part share a checkbox and mark each
+     other done. */
+  for (const [w, st] of [[2, false], [2, true], [3, false], [3, true]]) {
+    const { app } = coverFixture(w, { stoppers: st });
+    const byName = {};
+    for (const r of find(app, 'Cover Lower')) {
+      const key = r.name + (r.variant ? ' · ' + r.variant : '');
+      byName[key] = (byName[key] || 0) + 1;
+    }
+    for (const [key, n] of Object.entries(byName)) {
+      assert.equal(n, 1, `${w}W stoppers=${st}: "${key}" appeared ${n} times`);
+    }
+  }
+});
+
+test('a resolved row always validates, whatever its reasons', () => {
+  for (const [w, st] of [[2, false], [2, true], [3, false], [3, true]]) {
+    const { app, GEN2 } = coverFixture(w, { stoppers: st });
+    const problems = rows(app).flatMap((r) => Array.from(GEN2.req.validate(r)));
+    assert.deepEqual(problems, [], `${w}W stoppers=${st}`);
+  }
+});

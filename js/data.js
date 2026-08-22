@@ -64,6 +64,38 @@ function option(obligationId, optionId) { return { scope: 'option', obligationId
 /** Omittable with the architecture and every selected capability intact. */
 function enhancement(obligationId) { return { scope: 'enhancement', obligationId }; }
 
+/* ONE ROW, SEVERAL CAUSES.
+   Some rows are in the bill for more than one reason at once, and the reasons
+   can differ in strength. The Cover Lower is the case that forced this: the
+   stagger solver marks the lower layer structurally REQUIRED on runs of 3W and
+   up but merely optional on 1W/2W - and the lower cover is also what drawer
+   stoppers seat into. So on one build a Cover Lower can be core (the layout
+   needs it), option (stoppers need it), or an enhancement for rigidity alone,
+   and a build mixing run widths hits several of those at once.
+   ⚠ DO NOT SPLIT THE PHYSICAL ROW. One SKU is one row: the planner's build
+   tracker keys on name+variant, so two rows for one part would share a
+   checkbox and mark each other done. Instead the row keeps ONE resolved
+   `requirement` - the STRONGEST reason present, which is what totals and
+   grouping use - plus a `reasons` array preserving every explanation.
+   ⚠ Minimum-build totals read the strongest scope per ROW, never the reasons;
+   a row is either in the minimum bill or it is not. The reasons exist to
+   answer "why is this here", which is a sentence, not a sum. */
+const SCOPE_RANK = { enhancement: 0, option: 1, core: 2 };
+
+/** Resolve several reasons into one row-level requirement, keeping them all.
+ *  Returns { requirement, reasons } ready to spread onto a row. */
+function resolveReasons(reasons) {
+  const list = (reasons || []).filter(Boolean);
+  if (!list.length) return {};
+  const strongest = list.reduce((a, b) => (SCOPE_RANK[b.scope] > SCOPE_RANK[a.scope] ? b : a));
+  // the row-level requirement never carries an optionId unless the STRONGEST
+  // reason is itself an option - otherwise a core row would claim one and fail
+  // validation, which is correct: a core row is not caused by an option
+  const requirement = { scope: strongest.scope, obligationId: strongest.obligationId };
+  if (strongest.scope === 'option' && strongest.optionId) requirement.optionId = strongest.optionId;
+  return list.length === 1 ? { requirement } : { requirement, reasons: list };
+}
+
 /** Fail closed. Returns a list of problems; empty means the row is well-formed.
  *  ⚠ Contradictions are ERRORS, not warnings: a row that claims `option` with
  *  no `optionId` cannot be routed to a column, and that is precisely the shape
@@ -75,11 +107,29 @@ function validateRequirement(row) {
   if (!r.obligationId) p.push('no obligationId');
   if (r.scope === 'option' && !r.optionId) p.push('option scope without an optionId');
   if (r.scope !== 'option' && r.optionId) p.push(`optionId on a ${r.scope} row`);
-  if (row.basis) {
-    const b = row.basis;
-    if (!b.axis || !b.choice) p.push('basis needs an axis and a choice');
-    if (!['build', 'unit'].includes(b.subjectType)) p.push(`bad basis.subjectType ${JSON.stringify(b.subjectType)}`);
-    if ('selectedCount' in b && !(b.selectedCount > 0)) p.push('basis.selectedCount must be a positive count');
+  const checkBasis = (b, where) => {
+    if (!b) return;
+    if (!b.axis || !b.choice) p.push(`${where}basis needs an axis and a choice`);
+    if (!['build', 'unit'].includes(b.subjectType)) p.push(`${where}bad basis.subjectType ${JSON.stringify(b.subjectType)}`);
+    if ('selectedCount' in b && !(b.selectedCount > 0)) p.push(`${where}basis.selectedCount must be a positive count`);
+  };
+  checkBasis(row.basis, '');
+  if (row.reasons) {
+    if (row.reasons.length < 2) p.push('reasons is for rows with SEVERAL causes - drop it or add the others');
+    let strongest = -1;
+    row.reasons.forEach((rr, i) => {
+      const w = `reason ${i}: `;
+      if (!REQ_SCOPES.includes(rr.scope)) p.push(`${w}bad scope ${JSON.stringify(rr.scope)}`);
+      if (!rr.obligationId) p.push(`${w}no obligationId`);
+      if (rr.scope === 'option' && !rr.optionId) p.push(`${w}option scope without an optionId`);
+      checkBasis(rr.basis, w);
+      strongest = Math.max(strongest, SCOPE_RANK[rr.scope] ?? -1);
+    });
+    // ⚠ the row-level scope MUST equal the strongest reason, or totals and the
+    // explanation disagree - the row would be billed one way and explained another
+    if (strongest >= 0 && SCOPE_RANK[r.scope] !== strongest) {
+      p.push(`row scope "${r.scope}" is not the strongest of its reasons`);
+    }
   }
   return p.map((m) => `${row.name}: ${m}`);
 }
@@ -405,7 +455,7 @@ const GEN2 = {
     "tabletop": (ctx) => {
       const P = GEN2.partNames;
       const kit = `GEN2 Table Top Kit V2 - ${ctx.len}`;
-      const cov = buildCoverItems(ctx.len, ctx.runs);
+      const cov = buildCoverItems(ctx.len, ctx.runs, { hasStoppers: ctx.hasStoppers });
       const items = cov.items.slice();
 
       // Foot rails only where a run's bottom row is more than one case (separate
@@ -482,7 +532,7 @@ const GEN2 = {
       // top case gets its own cover (1W/2W = a single piece; 3W/4W still tile
       // internally to reach the width), so columns lift off independently.
       const coverUnits = ctx.wallStagger ? ctx.runs : ctx.topCases.map((w) => ({ width: w }));
-      const cov = buildCoverItems(ctx.len, coverUnits);
+      const cov = buildCoverItems(ctx.len, coverUnits, { hasStoppers: ctx.hasStoppers });
       cov.items.forEach((i) => items.push(i));
       items.push({ name: "M3×6mm socket head screw", qty: cov.screws, hardware: true, optional: true,
         note: "Optional · secures the covers, 1 per 1W. Socket head · any M3 head style that clears the pocket works." });
@@ -653,21 +703,54 @@ function mixLines(mix, nameFn, len, extra) {
 // Returns { items, screws } where screws = optional M3-6mm count (1 per W).
 // Covers got their own per-length product pages 2026-07-11 — rows link there
 // now, not to the Table Top Kit bundle.
-function buildCoverItems(len, runs) {
+function buildCoverItems(len, runs, opts) {
   const P = GEN2.partNames;
+  const hasStoppers = !!(opts && opts.hasStoppers);
   const cu = {}, cl = {};
   let screws = 0;
+  /* ⚠ `lowerOptional` USED TO BE THROWN AWAY HERE. brickTiling() computes it
+     per run - false on runs of 3W and up, where the staggered layout needs
+     both layers to tie the sections together - and this function aggregated
+     every Cover Lower into one mix without ever reading it. The fact survived
+     only inside the note string below, so nothing downstream could act on it.
+     Now each run contributes its CAUSE, and the row resolves them. */
+  let staggerRequired = false, rigidityOnly = false;
   runs.forEach((run) => {
     const t = brickTiling(run.width);
     addMix(cu, t.upper);
     addMix(cl, t.lower);
+    if (t.lowerOptional) rigidityOnly = true; else staggerRequired = true;
     screws += run.width;
   });
+
+  /* THE COVER LOWER'S REASONS, per Joey 2026-08-22. A run whose layout needs
+     the lower layer makes it core; stoppers make it required by that choice
+     (they seat INTO the lower cover); otherwise it is a rigidity enhancement.
+     A build can hit several of these at once, so they are all preserved and
+     the strongest wins the row. */
+  const lowerReasons = [];
+  if (staggerRequired) {
+    lowerReasons.push(Object.assign(core('top.enclosure'),
+      { basis: basis('cover.layout', 'staggered', 'build') }));
+  }
+  if (hasStoppers) {
+    lowerReasons.push(Object.assign(option('drawer.stopper.seat', 'drawer.stoppers'),
+      { basis: basis('drawer.stoppers', 'on', 'build') }));
+  }
+  if (rigidityOnly && !staggerRequired && !hasStoppers) {
+    lowerReasons.push(enhancement('top.rigidity'));
+  }
+
   const covers = `GEN2 ${len} Covers`;
   const items = [];
-  mixLines(cu, P.coverUpper, len, { linkAs: covers, note: "Snaps over the Cover Lower for a smooth finished top." })
+  mixLines(cu, P.coverUpper, len, Object.assign(
+    { linkAs: covers, note: "Snaps over the Cover Lower for a smooth finished top." },
+    // the UPPER layer is what closes the top on every covered build
+    { requirement: core('top.enclosure') }))
     .forEach((i) => items.push(i));
-  mixLines(cl, P.coverLower, len, { linkAs: covers, note: "Optional on 1W/2W-only builds, but needed for drawer stoppers and rigidity." })
+  mixLines(cl, P.coverLower, len, Object.assign(
+    { linkAs: covers, note: "Optional on 1W/2W-only builds, but needed for drawer stoppers and rigidity." },
+    resolveReasons(lowerReasons)))
     .forEach((i) => items.push(i));
   return { items, screws };
 }

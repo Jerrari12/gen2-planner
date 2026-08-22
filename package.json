@@ -2,9 +2,11 @@
   "name": "gen2-planner",
   "version": "1.0.0",
   "private": true,
-  "description": "GEN2 QuickLock Modular System planner — a static, build-free web tool.",
+  "description": "GEN2 QuickLock Modular System planner \u2014 a static, build-free web tool.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "sync:contract": "node tools/sync-requirement-scope.mjs",
+    "check:contract": "node tools/sync-requirement-scope.mjs --check"
   },
   "devDependencies": {
     "jsdom": "^24.1.3"

@@ -12,7 +12,85 @@
    Parts flagged `unreleased` show a "coming soon" tag instead of links.
    ========================================================================= */
 
+/* =========================================================================
+   REQUIREMENT SCOPE (contract v2, 2026-08-22)
+   =========================================================================
+   Every BOM row says WHY it is in the bill, because a single `optional`
+   boolean could not. A case is not-optional because nothing stands without
+   it; a magnet clip is not-optional only because that drawer chose magnetic
+   closure. Downstream that difference is the whole ballgame: it shipped a
+   homepage claiming "8 bought items" when the real requirement was 4.
+
+   TWO ORTHOGONAL FACTS, never merged:
+     requirement -> the OBLIGATION. core | option | enhancement.
+     basis       -> the SELECTION that explains this variant. Legal on ANY
+                    scope, and it never changes the scope. Forbidding it on
+                    core is exactly what leaves feet and mount parts unable
+                    to say why they are the ones present.
+
+   THE TEST, in order:
+     1. What obligation does this part satisfy?
+     2. Does that obligation exist in EVERY valid build of the selected
+        architecture?            -> core   (even if a variant swaps the part)
+     3. Is it activated only by an independently disableable capability?
+                                 -> option (carries optionId)
+     4. Can it be omitted with architecture and capabilities intact?
+                                 -> enhancement
+
+   ⚠ "core" means core for THIS RESOLVED build, not common to every possible
+   GEN2 configuration. An under-table build's rails are core; changing mount
+   legitimately swaps one set of core rows for another.
+
+   The four totals every consumer must use instead of improvising:
+     minimum build  = core
+     selected plan  = core + option        <- the viewer's "required"
+     enhancements   = enhancement
+     complete       = all three
+   ========================================================================= */
+const REQ_SCOPES = ['core', 'option', 'enhancement'];
+
+/** Selection provenance. `selectedCount` is how many subjects chose it - the
+ *  shared BOM stores TOTALS only; which drawer stays in the viewer's assembly
+ *  data (Joey, 2026-08-22), so there is deliberately no per-subject list. */
+function basis(axis, choice, subjectType, selectedCount) {
+  const b = { axis, choice, subjectType };
+  if (typeof selectedCount === 'number') b.selectedCount = selectedCount;
+  return b;
+}
+/** An obligation present in every valid build of this architecture. */
+function core(obligationId) { return { scope: 'core', obligationId }; }
+/** Required BECAUSE a capability was selected. `optionId` names which. */
+function option(obligationId, optionId) { return { scope: 'option', obligationId, optionId }; }
+/** Omittable with the architecture and every selected capability intact. */
+function enhancement(obligationId) { return { scope: 'enhancement', obligationId }; }
+
+/** Fail closed. Returns a list of problems; empty means the row is well-formed.
+ *  ⚠ Contradictions are ERRORS, not warnings: a row that claims `option` with
+ *  no `optionId` cannot be routed to a column, and that is precisely the shape
+ *  of the defect this contract exists to prevent. */
+function validateRequirement(row) {
+  const p = [], r = row.requirement;
+  if (!r) return p;                       // unmigrated - counted by the ratchet, not fatal yet
+  if (!REQ_SCOPES.includes(r.scope)) p.push(`bad scope ${JSON.stringify(r.scope)}`);
+  if (!r.obligationId) p.push('no obligationId');
+  if (r.scope === 'option' && !r.optionId) p.push('option scope without an optionId');
+  if (r.scope !== 'option' && r.optionId) p.push(`optionId on a ${r.scope} row`);
+  if (row.basis) {
+    const b = row.basis;
+    if (!b.axis || !b.choice) p.push('basis needs an axis and a choice');
+    if (!['build', 'unit'].includes(b.subjectType)) p.push(`bad basis.subjectType ${JSON.stringify(b.subjectType)}`);
+    if ('selectedCount' in b && !(b.selectedCount > 0)) p.push('basis.selectedCount must be a positive count');
+  }
+  return p.map((m) => `${row.name}: ${m}`);
+}
+
 const GEN2 = {
+
+  /* The requirement-scope constructors, exposed on GEN2 so every BOM builder
+     reaches them the same way (app.js builds rows too, not just this file).
+     See the contract block above for the taxonomy and the four totals. */
+  req: { core, option, enhancement, basis, validate: validateRequirement, SCOPES: REQ_SCOPES },
+  bomSchemaVersion: 2,
 
   // Physical size of one grid unit
   units: {
@@ -304,6 +382,13 @@ const GEN2 = {
           variant: `${w}W section`,
           qty: count,
           note: "All rail widths are in the same download · print the section sizes listed.",
+          // ⚠ CORE, not option. An under-table build cannot hang without its
+          // rails, so they are core FOR THIS RESOLVED ARCHITECTURE; the basis
+          // records which mount put them here. Typing mount parts `option`
+          // would make the minimum build claim an under-table setup needs no
+          // rail at all.
+          requirement: GEN2.req.core('mount.install'),
+          basis: GEN2.req.basis('mount', 'under-table', 'build'),
         });
       });
       items.push({
@@ -311,6 +396,9 @@ const GEN2 = {
         qty: ctx.railScrews,
         note: "Hardware store item · minimum 4 / 6 / 8 / 10 screws per 1W / 2W / 3W / 4W rail section.",
         hardware: true,
+        // bought, and the rail does not mount without them - core, like the rail
+        requirement: GEN2.req.core('mount.install'),
+        basis: GEN2.req.basis('mount', 'under-table', 'build'),
       });
       return items;
     },

@@ -3363,12 +3363,21 @@
         const n = state.placed.filter((p) =>
           (p.fill === "classic" || p.fill === "decor") && p.closure === c.id).length;
         if (!n) return;
+        /* ⚠ THE CANONICAL `option` ROWS. These exist ONLY because n drawers
+           chose this closure - drawers work without them, and "None" sits
+           right beside it in the picker. `n` is the selectedCount the
+           contract wants: the shared BOM stores TOTALS, and which drawer
+           chose it stays in the viewer's assembly data. subjectType 'unit'
+           because closure is per-drawer, so one aggregated row can be caused
+           by a subset of the build. */
         c.parts.forEach((x) => items.push({
           name: x.name(len),
           qty: x.qtyPerDrawer * n,
           note: x.note,
           hardware: x.hardware,
           linkAs: x.linkAs,
+          requirement: GEN2.req.option('drawer.closure', `drawer.closure.${c.id}`),
+          basis: GEN2.req.basis('drawer.closure', c.id, 'unit', n),
         }));
       });
       // Optional drawer stoppers: a Left + Right pair per 1W of drawer width

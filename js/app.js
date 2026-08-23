@@ -939,12 +939,19 @@
     if (!plan || !plan.eligible.length) return 0;
     pushHistoryNow();
     plan.eligible.forEach((p) => { p.fill = plan.to; });
+    convertOutcome = null;               // a stale outcome must not render mid-refresh
+    refresh();
     // a single drawer's switch needs no report - its seg re-lights and the
     // inspector title changes under the pointer; the bulk surfaces report
-    // because the change happened somewhere else on the page
-    convertOutcome = surface === "unit" ? null
-      : { to: plan.to, n: plan.eligible.length, skipped: plan.skipped.length, reasons: plan.reasons, sig: layoutSig() };
-    refresh();
+    // because the change happened somewhere else on the page. The signature
+    // is taken AFTER refresh: refresh-time normalisation (syncTabletopGrid
+    // can rebase every p.y) would otherwise change it immediately and the
+    // outcome would never show.
+    if (surface !== "unit") {
+      convertOutcome = { to: plan.to, n: plan.eligible.length, skipped: plan.skipped.length, reasons: plan.reasons, sig: layoutSig() };
+      renderFillBridge();
+      renderDrawerTypeMaster();
+    }
     pushHistoryNow();
     track(surface === "unit" ? "convert:" + plan.to : "convert-all:" + plan.to + ":" + surface);
     return plan.eligible.length;
@@ -1056,11 +1063,21 @@
       }
       if (plan.skipped.length) btn.dataset.tip = skipText(plan);
       box.appendChild(btn);
-      const keep = document.createElement("p");
-      keep.className = "fill-convert-hint";
-      keep.textContent = "Converting keeps every drawer's position, size, label and closure · the parts list follows"
-        + (to === "decor" ? " (Decor adds the faceplates and whatever the faceplate style needs)." : " (Classic drops the faceplates and their hardware).");
-      box.appendChild(keep);
+      // the reason a drawer stays behind is READABLE, not hover-only (review:
+      // the tip CSS did not even cover this button, and touch has no hover)
+      if (plan.skipped.length) {
+        const skip = document.createElement("p");
+        skip.className = "fill-convert-hint fill-convert-skip";
+        skip.textContent = skipText(plan) + ".";
+        box.appendChild(skip);
+      }
+      if (plan.eligible.length) {
+        const keep = document.createElement("p");
+        keep.className = "fill-convert-hint";
+        keep.textContent = "Converting keeps every drawer's position, size, label and closure · the parts list follows"
+          + (to === "decor" ? " (Decor adds the faceplates and whatever the faceplate style needs)." : " (Classic drops the faceplates and their hardware).");
+        box.appendChild(keep);
+      }
     }
     if (outcome) {
       const st = document.createElement("p");
@@ -1992,6 +2009,10 @@
      tab (a poisoned state would otherwise crash every refresh()).
      Returns how many units were dropped, for the caller's warning. */
   const LABEL_MAX = 40;   // mirrors the #ut-label input's maxlength
+  // One bound for unit ids AND the nextId watermark: a valid id is a safe
+  // positive integer <= ID_MAX; anything else mints fresh. One rule, so the
+  // "never reuse a freed id" guarantee has no range where it silently fails.
+  const ID_MAX = 1e9;
   function sanitizeBuild(d) {
     const int = (v, min, max, fb) => {
       v = Math.round(Number(v));
@@ -2043,9 +2064,15 @@
       // every restore, which re-pointed a stopper key at whichever unit
       // inherited the number the moment a deletion had left the ids sparse
       // (found by the drawer-conversion review's undo test). Anything unusable
-      // (missing, junk, a duplicate) is minted fresh below, never recycled.
-      const rawId = Math.round(Number(u.id));
-      const id = Number.isInteger(rawId) && rawId > 0 && !usedIds.has(rawId) ? rawId : null;
+      // (missing, junk, fractional, a duplicate, out of range) is minted fresh
+      // below, never recycled. Validate the RAW value, never round: rounding
+      // aliased a hostile 7.4 onto a legitimate 7, whose stopper keys then
+      // named the wrong unit - the exact failure this exists to prevent. The
+      // ID_MAX bound is shared with nextId so the watermark can never sit
+      // below a kept id, and next++ stays in safe-integer territory (at 2^53
+      // it stops advancing and mints DUPLICATES; both review catches).
+      const rawId = Number(u.id);
+      const id = Number.isSafeInteger(rawId) && rawId > 0 && rawId <= ID_MAX && !usedIds.has(rawId) ? rawId : null;
       if (id) usedIds.add(id);
       const unit = { id, x, y, w, hh, fill: u.fill,
                      shelves: int(u.shelves, 0, Math.max(0, h - 1), 0) };
@@ -2072,7 +2099,7 @@
     // Fresh ids mint above BOTH the highest kept id and the file's own nextId,
     // so a number freed by a deletion is never handed to a later placement
     // (a stale stopper key could otherwise find a new owner).
-    let next = Math.max(int(d.nextId, 1, 1e9, 1), Math.max(0, ...kept.map((k) => k.id || 0)) + 1);
+    let next = Math.max(int(d.nextId, 1, ID_MAX, 1), Math.max(0, ...kept.map((k) => k.id || 0)) + 1);
     kept.forEach((k) => { if (!k.id) k.id = next++; });
     d.placed = kept;
     d.nextId = next;
@@ -4681,6 +4708,14 @@
       if (v) u.label = v; else delete u.label;
       renderBoard();
       updateLabelGenLink();   // keep the handoff link's labels current as you type
+      // The label is build state like any other: give it the SAME coalesced
+      // snapshot every mutation gets (350 ms after typing settles it becomes
+      // its own undo entry + auto-save). Without this it only ever reached
+      // history inside the NEXT action's entry - and the change listener
+      // below cannot cover the board, whose mousedown preventDefault()
+      // suppresses the blur that fires change (review's reproduced case:
+      // type, drag a unit, undo - both vanished together).
+      snapshotHistory();
     });
     // Committing the label (Enter, or leaving the field) is a real change:
     // its own undo entry, auto-saved, posted to the viewer. Until 2026-08-23

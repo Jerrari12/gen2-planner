@@ -405,8 +405,8 @@ details.space-box[open] .sb-sum-status { display: none; }
    Reuses the info-tip tooltip look. Set via data-tip in app.js.
    .card.tipped = an ENABLED card carrying an advisory tip (e.g. the length
    card's "no 3D guide yet" badge) — same tooltip, card stays clickable. */
-.card.disabled[data-tip], .card.tipped[data-tip], .palette-item.disabled[data-tip], .seg button.disabled[data-tip], .seg button.tipped[data-tip] { position: relative; }
-.card.disabled[data-tip]::after, .card.tipped[data-tip]::after, .palette-item.disabled[data-tip]::after, .seg button.disabled[data-tip]::after, .seg button.tipped[data-tip]::after {
+.card.disabled[data-tip], .card.tipped[data-tip], .palette-item.disabled[data-tip], .seg button.disabled[data-tip], .seg button.tipped[data-tip], .fill-convert .btn[data-tip] { position: relative; }
+.card.disabled[data-tip]::after, .card.tipped[data-tip]::after, .palette-item.disabled[data-tip]::after, .seg button.disabled[data-tip]::after, .seg button.tipped[data-tip]::after, .fill-convert .btn[data-tip]::after {
   content: attr(data-tip);
   position: absolute;
   bottom: calc(100% + 8px);
@@ -433,7 +433,8 @@ details.space-box[open] .sb-sum-status { display: none; }
 .card.tipped[data-tip]:hover::after, .card.tipped[data-tip]:focus::after,
 .palette-item.disabled[data-tip]:hover::after, .palette-item.disabled[data-tip]:focus::after,
 .seg button.disabled[data-tip]:hover::after, .seg button.disabled[data-tip]:focus::after,
-.seg button.tipped[data-tip]:hover::after, .seg button.tipped[data-tip]:focus::after {
+.seg button.tipped[data-tip]:hover::after, .seg button.tipped[data-tip]:focus::after,
+.fill-convert .btn[data-tip]:hover::after, .fill-convert .btn[data-tip]:focus::after {
   opacity: 1;
   visibility: visible;
 }
@@ -1141,6 +1142,7 @@ body.docked .fab-3d { display: none; }
 .fill-convert .btn.disabled { opacity: 0.45; cursor: not-allowed; }
 .fill-convert .btn[data-tip] { position: relative; }
 .fill-convert-hint { margin: 8px 0 0; font-size: 0.72rem; color: var(--muted); }
+.fill-convert-skip { color: var(--text); }
 .fill-convert-status { margin-top: 8px; }
 .palette-units { font-size: 0.72rem; color: var(--muted); margin: -6px 0 8px; }
 .palette-inside { font-size: 0.74rem; color: var(--accent); margin: 6px 0 0; font-weight: 600; }
@@ -1650,6 +1652,9 @@ body.docked .fab-3d { display: none; }
   .ut-actions { flex: 1 1 100%; }
   .ut-closure { flex-wrap: wrap; }
   .ut-closure .seg { flex-wrap: wrap; }
+  /* a wrapped seg is overflow:visible now (the tips), so a button landing on
+     an outer corner paints its own radius instead of relying on the parent */
+  .ut-closure .seg button, #drawer-type-seg button { border-radius: 7px; }
   #ut-remove { margin-left: auto; }   /* keep Remove reachable at the row's end */
 
   /* Parts-list rows adapt to width instead of overflowing: smaller thumb, and

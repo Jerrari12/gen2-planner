@@ -76,9 +76,10 @@ const masterBtn = (doc, label) => [...doc.querySelectorAll("#drawer-type-seg but
 
 test("bulk conversion is one clean undo step: sparse ids, stopper keys, a half-typed label and closures all survive undo/redo; autosave, share hash, BOM and the viewer post agree", async () => {
   const { app, doc, window: win, stored } = boot();
-  const msgs = [];
+  const msgs = [], events = [];
   const fakeViewer = { closed: false, postMessage: (m) => msgs.push(m), focus() {} };
   win.open = () => fakeViewer;
+  win.goatcounter = { count: (o) => events.push(o.path) };  // fixed-vocabulary analytics
 
   // sparse ids (a unit was deleted in between), one with magnets + a removed stopper pair
   place(app, { id: 2, x: 0, y: 0, w: 1, hh: 2, fill: "classic" });
@@ -131,11 +132,14 @@ test("bulk conversion is one clean undo step: sparse ids, stopper keys, a half-t
   app.undoRedo(+1);
   assert.equal(canon(app.serializeBuild()), afterStr, "redo = the exact post-conversion build");
 
-  // the viewer's debounced layout post carries the converted fills and the same ids
+  // the viewer's debounced layout post carries the converted fills and the same
+  // ids - and there is exactly ONE post for the whole bulk change
   await sleep(450);
-  const layout = msgs.filter((m) => m.gen2 === "layout").at(-1);
-  assert.ok(layout, "a layout was posted");
-  assert.equal(layout.build.placed.map((u) => `${u.id}:${u.fill}`).join(), "2:decor,7:decor");
+  const layouts = msgs.filter((m) => m.gen2 === "layout");
+  assert.equal(layouts.length, 1, "one debounced layout post for the whole conversion");
+  assert.equal(layouts[0].build.placed.map((u) => `${u.id}:${u.fill}`).join(), "2:decor,7:decor");
+  assert.deepEqual(events.filter((e) => e.startsWith("convert")), ["convert-all:decor:palette"],
+    "one fixed-vocabulary event names the target and the surface - never a count or reason");
 });
 
 /* ---------- restore keeps ids (the sanitizer bug the test above exposed) ---------- */
@@ -156,6 +160,27 @@ test("restore preserves valid unique ids and nextId, and prunes stopper keys who
   assert.equal([...app.state.removedStoppers].sort().join(), "2:0,7:0,7:1");
 });
 
+test("id validation reads the RAW value: a fractional 7.4 can never alias the legitimate 7, and unsafe or huge ids mint fresh UNIQUE ids", () => {
+  const { app } = boot();
+  // review catch #1: Math.round(7.4) -> 7 stole the real 7's identity, so the
+  // stopper key "7:0" named the wrong unit; and at 2^53 next++ stopped
+  // advancing, so two invalid ids were both "minted" as the SAME number
+  app.applyBuild({ mount: "under-table", length: 185, gridW: 6, gridH: 4,
+    placed: [
+      { id: 7.4, x: 0, y: 0, w: 1, hh: 2, fill: "decor" },                    // fractional -> fresh
+      { id: 7, x: 1, y: 0, w: 2, hh: 2, fill: "decor" },                      // the REAL 7 keeps its id
+      { id: Number.MAX_SAFE_INTEGER + 1, x: 3, y: 0, w: 1, hh: 2, fill: "decor" }, // unsafe -> fresh
+      { id: 2e9, x: 4, y: 0, w: 1, hh: 2, fill: "decor" },                    // over ID_MAX -> fresh
+    ],
+    removedStoppers: ["7:0", "7:1"] });
+  const ids = app.state.placed.map((u) => u.id);
+  assert.equal(ids[1], 7, "the legitimate integer 7 keeps its identity");
+  assert.equal(new Set(ids).size, 4, "every id unique - no 2^53 duplicate minting");
+  assert.ok(ids.every((i) => Number.isSafeInteger(i) && i >= 1 && i <= 1e9), "all ids inside the one documented bound");
+  assert.equal([...app.state.removedStoppers].sort().join(), "7:0,7:1", "the stopper keys still name the REAL 7 (a 2W drawer)");
+  assert.equal(app.state.placed[1].w, 2, "and that unit is the 2W the keys belong to");
+});
+
 test("a restore without nextId derives it above the highest kept id (ids are never reused)", () => {
   const { app } = boot();
   app.applyBuild({ mount: "under-table", length: 185, gridW: 6, gridH: 4,
@@ -167,7 +192,7 @@ test("a restore without nextId derives it above the highest kept id (ids are nev
 /* ---------- per-unit control ---------- */
 
 test("the toolbar's Drawer type seg converts the selected drawer in place and keeps everything else", () => {
-  const { app, doc } = boot();
+  const { app, doc, window: win } = boot();
   const u = place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "classic", closure: "magnet", label: "BITS" });
   place(app, { id: 2, x: 2, y: 0, w: 1, hh: 2, fill: "classic" });
   select(app, 1);
@@ -179,7 +204,9 @@ test("the toolbar's Drawer type seg converts the selected drawer in place and ke
   assert.ok(fillBtn(doc, "Classic Drawer").classList.contains("active"));
   assert.equal(bomQty(app, "Decor Faceplate"), 0);
 
+  win.goatcounter = { count: (o) => win.__events.push(o.path) }; win.__events = [];
   fillBtn(doc, "Decor Drawer").click();
+  assert.deepEqual(win.__events.filter((e) => e.startsWith("convert")), ["convert:decor"]);
   assert.equal(u.fill, "decor");
   assert.equal(u.id, 1); assert.equal(u.x, 0); assert.equal(u.y, 0); assert.equal(u.w, 2); assert.equal(u.hh, 2);
   assert.equal(u.closure, "magnet"); assert.equal(u.label, "BITS");
@@ -323,7 +350,55 @@ test("the palette bridge appears only when the palette's family differs from dra
   assert.equal(doc.querySelector("#fill-convert").hidden, true);
 });
 
+test("an all-blocked bridge says WHY in plain text - the reason is never hover-only", () => {
+  const { app, doc } = boot();
+  app.state.printer = "custom";
+  app.state.customBed = { x: 190, y: 190 };             // 2W Classic fits in neither orientation
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" });
+  app.state.fill = "classic";                            // the palette wants Classic now
+  app.refresh();
+  const offer = doc.querySelector("#fill-convert");
+  assert.equal(offer.hidden, false);
+  const btn = offer.querySelector("button");
+  assert.equal(btn.getAttribute("aria-disabled"), "true");
+  assert.match(btn.textContent, /Can't convert/);
+  const skip = offer.querySelector(".fill-convert-skip");
+  assert.ok(skip, "the skip line renders as text");
+  assert.match(skip.textContent, /1 stays Decor Drawer: .*won't fit/);
+  // a partial plan shows the same line beside the eligible-count button:
+  // on a 270 x 190 bed the 2W Classic fits (rotated) but a 3W (264 x 195)
+  // fits in neither orientation
+  place(app, { id: 2, x: 2, y: 0, w: 3, hh: 2, fill: "decor" });
+  app.state.customBed = { x: 270, y: 190 };
+  app.refresh();
+  const btn2 = doc.querySelector("#fill-convert button");
+  assert.match(btn2.textContent, /Convert the 1 that can change/);
+  assert.match(doc.querySelector("#fill-convert .fill-convert-skip").textContent, /1 stays Decor Drawer/);
+});
+
 /* ---------- the label commit this feature depends on ---------- */
+
+test("a typed label is its own undo step even when a BOARD edit follows without any blur (the mousedown-preventDefault case)", async () => {
+  // review catch #2, reproduced: board mousedown preventDefault() suppresses
+  // the blur, change never fires, and the label rode into the next board
+  // mutation's history entry - undoing that mutation deleted the label too.
+  // The input handler now snapshots under the app's own 350 ms coalescing.
+  const { app, doc, window: win } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" });
+  app.refresh(); app.pushHistoryNow();
+  select(app, 1);
+  const input = doc.querySelector("#ut-label");
+  input.value = "bits";
+  input.dispatchEvent(new win.Event("input", { bubbles: true }));
+  await sleep(450);                                     // the label's own coalesced entry lands
+  place(app, { id: 2, x: 1, y: 0, w: 1, hh: 2, fill: "decor" });  // a board edit, no blur ever fired
+  app.refresh(); app.pushHistoryNow();
+  app.undoRedo(-1);                                     // undo the board edit only
+  assert.equal(app.state.placed.length, 1, "the placement is undone");
+  assert.equal(app.state.placed[0].label, "BITS", "the label SURVIVES - it was its own entry");
+  app.undoRedo(-1);                                     // now undo the label itself
+  assert.equal("label" in app.state.placed[0], false);
+});
 
 test("a label commits on change: it reaches the undo history, the auto-save and the viewer without another action", async () => {
   const { app, doc, window: win, stored } = boot();

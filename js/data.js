@@ -333,9 +333,14 @@ const GEN2 = {
         });
       });
       items.push({
-        name: "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
+        name: "Countersunk wood screws (#6/#8)",
         qty: ctx.railScrews,
-        note: "Hardware store item · minimum 4 / 6 / 8 / 10 screws per 1W / 2W / 3W / 4W rail section.",
+        // Joey's under-table default (2026-08-23): #6 x 3/4" - the 31.8 mm model the
+        // viewer used to show went through a 25 mm top. The recommendation lives
+        // in the NOTE, never the name: the name is the link/image key shared with
+        // the wall row, and a second key would put two near-identical screw cards
+        // on the site's purchased-hardware page.
+        note: "Hardware store item · #6 × 3/4\" (3.5 × 19 mm) is the default - it reaches about 16 mm into the top, so check the surface is thick enough first and choose a length that cannot break through. Minimum 4 / 6 / 8 / 10 screws per 1W / 2W / 3W / 4W rail section.",
         hardware: true,
         // bought, and the rail does not mount without them - core, like the rail
         requirement: GEN2.req.core('mount.install'),
@@ -411,9 +416,11 @@ const GEN2 = {
         });
       });
       items.push({
-        name: "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)",
+        name: "Countersunk wood screws (#6/#8)",
         qty: ctx.cols * GEN2.wallMount.screwsPer1W,
-        note: "Hardware store item · 2 screws per 1W. Use anchors appropriate for your wall type.",
+        // wall guidance is deliberately SEPARATE from the under-table default
+        // (Joey, 2026-08-23): the right screw length or anchor depends on the wall
+        note: "Hardware store item · 2 screws per 1W. Length and anchors depend on the wall material.",
         hardware: true,
       });
       // Wall builds cap the top with the same covers (they close the exposed
@@ -798,8 +805,8 @@ const HARDWARE_BUY = {
   "M3×6mm button head screw": [
     { id: "m3-button-head", label: "Buy M3×6 button head", url: "https://amzn.to/4x4opHK" },
   ],
-  "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)": [
-    { id: "woodscrew-6", label: "#6", url: "https://amzn.to/4s487gc" },
+  "Countersunk wood screws (#6/#8)": [
+    { id: "woodscrew-6", label: "#6 × 3/4\"", url: "https://amzn.to/4s487gc" },
     { id: "woodscrew-8", label: "#8", url: "https://amzn.to/4pTWDuq" },
   ],
   "Magnets 10×2mm or 6×2mm": [
@@ -903,7 +910,7 @@ const IMAGE_OVERRIDES = {
   "M3×6mm button head screw": "img/parts/ButtonHeadScrew_M3-6.png",
   "M3 hex nut": "img/parts/Nut.png",
   "Magnets 10×2mm or 6×2mm": "img/parts/Magnets.png",
-  "Countersunk wood screws (#6/#8 up to 1/2\", or 3.5×16mm)": "img/parts/Wood Screw.png",
+  "Countersunk wood screws (#6/#8)": "img/parts/Wood Screw.png",
   // 185 Decor Drawer renders (2026-07) live in img/parts/185/ with a
   // "Decor Drawer 185-<size>" scheme — no dots in filenames (0.5H → 05H).
   // All 18 catalog sizes; case-sensitive once hosted on GitHub Pages.

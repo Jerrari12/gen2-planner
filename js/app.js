@@ -267,6 +267,43 @@
     `<span class="needs-hw" title="${title}"><svg viewBox="3.5 3.5 14.4 14.4" aria-hidden="true">` +
     `<g transform="rotate(-45 12 12)"><path d="${HW_PATH}"/></g></svg></span>`;
 
+  /* THE ONE SETTER for the mount (2026-08-23, Joey). Switching mounts moves
+     the whole layout, as a rigid group, to the new mount's anchor edge: a
+     tabletop build grows UP from the surface, so the layout's lowest edge
+     sits on the bottom row; under-table and wall builds hang DOWN from
+     theirs, so the highest edge sits on the top row. Before this, every
+     unit kept its absolute row, so a valid tabletop layout became a hanging
+     one with an empty row ABOVE it (unsupported, Fix structure, or move
+     every unit by hand) and switching back left an empty row BELOW. A pure
+     vertical translation: x, w, hh, fill, closure, label, ids and order are
+     untouched, so a genuine internal support gap stays exactly as invalid as
+     it was - Fix structure is for those, never for boundary space a mount
+     switch introduced. Under-table <-> wall are both top-anchored, so a flush
+     layout does not move. Atomic by construction: the caller's refresh()
+     snapshots mount + rows as ONE undo entry, one share link, one auto-save
+     and one viewer post (the viewer reloads on a mount change and reads the
+     rebased rows from the same hash). Restores (applyBuild) never come
+     through here - a snapshot carries its own rows. */
+  function setMount(id) {
+    const prev = state.mount;
+    state.mount = id;
+    if (prev !== id) rebaseToMountEdge();
+    enforceMountLength(); // e.g. switching to Tabletop with 59 chosen
+  }
+
+  /* Shift every unit by ONE delta so the layout touches the current mount's
+     anchor edge. Returns the delta in half-rows (0 = nothing moved). Never
+     pushes anything off the board: the layout already fits the grid, and
+     the shift only closes the gap between it and an edge. */
+  function rebaseToMountEdge() {
+    if (!state.placed.length) return 0;
+    const top = Math.min(...state.placed.map((p) => p.y));
+    const bottom = Math.max(...state.placed.map((p) => p.y + p.hh));
+    const delta = state.mount === "tabletop" ? rows() - bottom : 0 - top;   // 0 - top, not -top: a flush layout must report 0, never -0
+    if (delta) state.placed.forEach((p) => { p.y += delta; });
+    return delta;
+  }
+
   function renderMountCards() {
     const wrap = $("#mount-cards");
     wrap.innerHTML = "";
@@ -290,9 +327,8 @@
         `<div class="card-blurb">${m.blurb}</div>`;
       btn.addEventListener("click", () => {
         const wasReady = state.mount && state.length;
-        state.mount = m.id;
+        setMount(m.id);       // + the layout rebase, one change with the mount
         track("mount:" + m.id);
-        enforceMountLength(); // e.g. switching to Tabletop with 59 chosen
         renderMountCards();
         refresh();
         // Same courtesy the length cards do: move the page on. On a phone the
@@ -1899,6 +1935,11 @@
     // next undo's flush sees a "change" and pushes a phantom entry, making
     // every second undo press a no-op.
     history.stack[history.idx] = JSON.stringify(serializeBuild());
+    // The auto-save must follow an undo too: pushHistoryNow() is the only
+    // other writer and the restore's refresh() is guarded out of it, so
+    // undoing a change and closing the tab used to resume the UNDONE state
+    // (found 2026-08-23 while proving the mount-switch rebase is atomic).
+    store.set("gen2-last-build", history.stack[history.idx]);
     updateHistoryButtons();
   }
   function updateHistoryButtons() {
@@ -4501,6 +4542,7 @@
       computeBom, selectedUnit, interiorFill, interiorComplete, interiorCellsLeft, placeCompartment,
       fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks, sagRisks,
       mountBlocksLength, enforceMountLength, wallTopHalfHeight, fixWallTops,
+      setMount, rebaseToMountEdge, unsupportedUnits,
       encodeBuildHash, applyBuildHash,
       undoRedo, pushHistoryNow, history, buildMeta,
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,

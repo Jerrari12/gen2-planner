@@ -1834,3 +1834,169 @@ test("changes auto-save: the stored build tracks the latest settled state", () =
   assert.equal(stored.length, 185);
 });
 
+
+/* ---------------------------------------------------------------------------
+   Mount switch = a rigid vertical rebase of the layout (Joey, 2026-08-23).
+   Tabletop builds grow UP from the surface, hanging builds grow DOWN from
+   theirs; switching used to keep every absolute row, so a valid layout became
+   "unsupported" with an empty row above (or below) it and the user had to
+   click Fix structure or move everything by hand. Now the whole arrangement
+   moves as one group to the new mount's edge, as ONE change. */
+
+/* The real user path: click the mount card. Cards render in GEN2.mounts order. */
+function clickMount(doc, app, id) {
+  const card = [...doc.querySelectorAll("#mount-cards .card")]
+    .find((b) => b.textContent.includes({ "under-table": "Under-Table", tabletop: "Tabletop", wall: "Wall Mount" }[id]));
+  assert.ok(card, "mount card " + id);
+  card.click();
+  return card;
+}
+const rowsOf = (app) => app.state.gridH * 2;
+const topOf = (app) => Math.min(...app.state.placed.map((p) => p.y));
+const bottomOf = (app) => Math.max(...app.state.placed.map((p) => p.y + p.hh));
+/* Everything about a layout EXCEPT its absolute vertical anchor. */
+const shape = (app) => {
+  const top = topOf(app);
+  return app.state.placed.map((p) => ({ ...p, y: p.y - top })).sort((a, b) => a.id - b.id);
+};
+/* The starter's arrangement: a 2W-1H over two 1W-1H, anchored at `y0`. */
+function starterAt(app, y0) {
+  place(app, { id: 1, x: 0, y: y0, w: 2, hh: 2, fill: "decor" }).closure = "magnet";
+  place(app, { id: 2, x: 0, y: y0 + 2, w: 1, hh: 2, fill: "classic" });
+  const c = place(app, { id: 3, x: 1, y: y0 + 2, w: 1, hh: 2, fill: "decor" });
+  c.closure = "none"; c.label = "M3 screws";
+}
+
+test("mount rebase 1: a valid tabletop layout moves flush to the top when it becomes under-table", () => {
+  const { app, doc } = boot();
+  app.state.mount = "tabletop";
+  starterAt(app, rowsOf(app) - 4);                    // bottom-flush, the tabletop way
+  app.refresh();                                      // the auto grid height settles around it
+  assert.equal(bottomOf(app), rowsOf(app), "fixture sits on the surface");
+  assert.equal(app.unsupportedUnits().length, 0, "fixture is valid");
+  const before = shape(app);
+  clickMount(doc, app, "under-table");
+  assert.equal(app.state.mount, "under-table");
+  assert.equal(topOf(app), 0, "the highest occupied edge touches the mounting surface");
+  assert.equal(app.unsupportedUnits().length, 0, "and the SAME arrangement is still valid");
+  assert.doesNotMatch(warnsText(doc), /supported on both ends/i);
+  assert.deepEqual(shape(app), before, "relative positions and every field survive");
+});
+
+test("mount rebase 2: a valid tabletop layout moves flush to the top when it becomes wall-mounted", () => {
+  const { app, doc } = boot();
+  app.state.mount = "tabletop";
+  starterAt(app, rowsOf(app) - 4);
+  app.refresh();
+  const before = shape(app);
+  clickMount(doc, app, "wall");
+  assert.equal(app.state.mount, "wall");
+  assert.equal(topOf(app), 0);
+  assert.equal(app.unsupportedUnits().length, 0);
+  assert.deepEqual(shape(app), before);
+});
+
+test("mount rebase 3: a valid hanging layout moves flush to the bottom when it becomes tabletop", () => {
+  const { app, doc } = boot();                        // under-table
+  starterAt(app, 0);                                  // top-flush, the hanging way
+  app.refresh();
+  assert.equal(app.unsupportedUnits().length, 0);
+  const before = shape(app);
+  clickMount(doc, app, "tabletop");
+  assert.equal(app.state.mount, "tabletop");
+  // the tabletop grid re-sizes itself around the stack; the layout must still
+  // sit ON the surface afterwards, not a row above it
+  assert.equal(bottomOf(app), rowsOf(app), "the lowest occupied edge touches the tabletop surface");
+  assert.equal(app.unsupportedUnits().length, 0);
+  assert.doesNotMatch(warnsText(doc), /supported on both ends/i);
+  assert.deepEqual(shape(app), before);
+});
+
+test("mount rebase 4: under-table <-> wall moves nothing - both hang from the top", () => {
+  const { app, doc } = boot();
+  starterAt(app, 0);
+  app.refresh();
+  const rowsBefore = JSON.stringify(app.state.placed);
+  clickMount(doc, app, "wall");
+  assert.equal(JSON.stringify(app.state.placed), rowsBefore, "wall: identical rows");
+  clickMount(doc, app, "under-table");
+  assert.equal(JSON.stringify(app.state.placed), rowsBefore, "and back: identical rows");
+  assert.equal(app.rebaseToMountEdge(), 0, "a flush layout has nothing to rebase");
+});
+
+test("mount rebase 5: a pure translation - x, sizes, fills, closures, labels, ids all unchanged, one delta for every unit", () => {
+  const { app } = boot();
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor" }).closure = "magnet";
+  place(app, { id: 2, x: 2, y: 0, w: 1, hh: 1, fill: "classic" });   // a 0.5H beside it
+  place(app, { id: 3, x: 0, y: 2, w: 1, hh: 2, fill: "decor" }).closure = "none";
+  place(app, { id: 4, x: 1, y: 2, w: 1, hh: 4, fill: "classic" });   // a 2H tall one
+  app.state.placed[0].label = "bits";
+  app.state.placed[3].label = "long things";
+  app.refresh();
+  const before = app.state.placed.map((p) => ({ ...p }));
+  app.setMount("tabletop");
+  const deltas = new Set(app.state.placed.map((p, i) => p.y - before[i].y));
+  assert.equal(deltas.size, 1, "every unit moved by the same delta");
+  assert.ok([...deltas][0] > 0, "and it moved DOWN toward the tabletop surface");
+  app.state.placed.forEach((p, i) => {
+    const { y: _a, ...restAfter } = p;
+    const { y: _b, ...restBefore } = before[i];
+    assert.deepEqual(restAfter, restBefore, "unit " + p.id + " is otherwise untouched");
+  });
+  assert.equal(app.state.placed.length, before.length, "nothing added or removed");
+});
+
+test("mount rebase 6: a genuinely broken structure stays broken - the rebase never fixes, adds or removes", () => {
+  const { app, doc } = boot();                        // under-table
+  place(app, { id: 1, x: 0, y: 0, w: 2, hh: 2 });     // on the surface
+  place(app, { id: 2, x: 0, y: 4, w: 1, hh: 2 });     // an EMPTY row between them: unsupported
+  app.refresh();
+  assert.equal(app.unsupportedUnits().length, 1, "fixture is internally broken");
+  assert.match(warnsText(doc), /supported on both ends/i);
+  const n = app.state.placed.length;
+  clickMount(doc, app, "tabletop");
+  assert.equal(bottomOf(app), rowsOf(app), "rebased to the new surface");
+  assert.equal(app.unsupportedUnits().length, 1, "the same internal gap is still a fault");
+  assert.match(warnsText(doc), /supported on both ends/i);
+  assert.equal(app.state.placed.length, n, "no support case was quietly added");
+  // Fix structure is what resolves a real fault - and only when asked
+  app.fixStructure(); app.refresh();
+  assert.equal(app.unsupportedUnits().length, 0);
+});
+
+test("mount rebase 7: one undo restores the previous mount AND the previous rows together", () => {
+  const { app, doc } = boot();
+  app.state.mount = "tabletop";
+  starterAt(app, rowsOf(app) - 4);
+  app.refresh();
+  app.pushHistoryNow();                               // settle the baseline entry
+  const rowsBefore = app.state.placed.map((p) => p.y);
+  const gridBefore = app.state.gridH;
+  clickMount(doc, app, "wall");
+  app.pushHistoryNow();                               // flush the coalesced snapshot
+  assert.equal(app.state.mount, "wall");
+  assert.notDeepEqual(app.state.placed.map((p) => p.y), rowsBefore, "the switch moved the layout");
+  app.undoRedo(-1);
+  assert.equal(app.state.mount, "tabletop", "ONE undo: the mount is back");
+  assert.deepEqual(app.state.placed.map((p) => p.y), rowsBefore, "...and so are the rows");
+  assert.equal(app.state.gridH, gridBefore);
+  app.undoRedo(+1);
+  assert.equal(app.state.mount, "wall", "ONE redo: the mount again");
+  assert.equal(topOf(app), 0, "...with the rebased rows");
+});
+
+test("undo auto-saves too: the stored build is the state you SEE, not the one you undid", () => {
+  const { app, window } = bootWith({});
+  app.state.mount = "tabletop";
+  app.state.length = 185;
+  place(app, { id: 1, x: 0, y: 6, w: 2, hh: 2 });
+  app.refresh();
+  app.pushHistoryNow();                          // baseline: tabletop, one unit
+  app.setMount("wall"); app.refresh();
+  app.pushHistoryNow();                          // the switch (+ its rebase) is one entry
+  assert.equal(JSON.parse(window.localStorage.getItem("gen2-last-build")).mount, "wall");
+  app.undoRedo(-1);
+  const stored = JSON.parse(window.localStorage.getItem("gen2-last-build"));
+  assert.equal(stored.mount, "tabletop", "closing the tab after an undo resumes what is on screen");
+  assert.equal(stored.placed.map((p) => p.y).join(), app.state.placed.map((p) => p.y).join()); // strings: jsdom arrays are another realm
+});

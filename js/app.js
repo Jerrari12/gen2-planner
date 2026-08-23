@@ -646,6 +646,7 @@
       seg.appendChild(btn);
     });
     $("#fill-blurb").textContent = fillDef().blurb;
+    renderFillBridge();
   }
 
   // GEN2 Club — a monthly membership (on BOTH Printables and Thangs) that includes
@@ -790,6 +791,7 @@
     build("#door-style-seg", GEN2.doorStyles, state.doorStyle, (id) => { state.doorStyle = id; });
     renderHandleCards();
     renderHardwareMasters();
+    renderDrawerTypeMaster();
     const hasDecor = state.placed.some((p) => p.fill === "decor");
     const faceDef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
     $("#faceplate-style-pick").hidden = !hasDecor;
@@ -800,10 +802,11 @@
     // that choice; more handled faceplates will arrive, keeping this dynamic.
     $("#handle-style-pick").hidden = !(hasDecor && faceDef && !faceDef.integratedHandle);
     $("#hardware-pick").hidden = !state.placed.some((p) => p.fill === "decor" || p.fill === "classic");
+    $("#drawer-type-pick").hidden = !state.placed.some(isDrawerUnit);
     // Hide the whole Customize step when no pick applies, so it doesn't render
     // as an empty highlighted box between the board and the parts list.
     const styleRow = document.querySelector(".bom-style-row");
-    const nothingToCustomize = $("#faceplate-style-pick").hidden && $("#door-style-pick").hidden && $("#hardware-pick").hidden;
+    const nothingToCustomize = $("#faceplate-style-pick").hidden && $("#door-style-pick").hidden && $("#hardware-pick").hidden && $("#drawer-type-pick").hidden;
     if (styleRow) styleRow.hidden = nothingToCustomize;
     if (nothingToCustomize) $("#step-customize").hidden = true;
     updateLabelGenLink();
@@ -873,6 +876,198 @@
         btn.addEventListener("click", () => { o.apply(); refresh(); });
         sseg.appendChild(btn);
       });
+    }
+  }
+
+  /* ---- Drawer family conversion: Classic Drawer <-> Decor Drawer (2026-08-23) ----
+     Both drawer families seat in the same cases, so a placed drawer can change
+     family IN PLACE: only `fill` moves - id, position, size, label, closure
+     and the viewer's stopper keys all stay. Until now the only path was
+     remove + re-place (a friend of Joey's rebuilt a large layout for it),
+     while the explainer promised "swap them anytime". THREE surfaces, ONE
+     plan/apply pair, so counts, skips and the outcome line can never
+     disagree: the selected-unit toolbar (one drawer), the Customize master
+     (every drawer - the hardware masters' pattern) and the palette bridge
+     (the moment of intent: the other family's tile was just picked while this
+     family sits on the grid). Hard-coded to the two drawer fills: shelf and
+     cabinet are not drawers and carry their own state.
+     Naming rule (Joey): the buttons say "Classic Drawer" / "Decor Drawer" in
+     full - a bare "Classic" one step above the Classic FACEPLATE cards is the
+     confusion this feature must not add. The faceplate stays a BUILD-WIDE
+     choice; the inspector says so in the Customize heading's own words. */
+  const DRAWER_FILLS = ["classic", "decor"];
+  const isDrawerUnit = (p) => DRAWER_FILLS.includes(p.fill);
+  const otherDrawerFill = (f) => (f === "classic" ? "decor" : "classic");
+  const plural = (n, one, many) => (n === 1 ? one : many);
+
+  // Why `p` can't become `to` (null = it can). Catalog first, printer second:
+  // sizeExists is the lineup (the armed classic-only height cap included),
+  // fitProblem the bed - the Classic handle adds depth, so a wide Classic can
+  // fail a bed its Decor twin fits. Placement gates on exactly these two, so a
+  // conversion can never produce a drawer the palette would have greyed out.
+  function convertProblem(p, to) {
+    const h = p.hh / 2;
+    if (!sizeExists(p.w, h, to)) return `${sizeToken(p.w, h)} ${fillDef(to).label} isn't in the ${state.length} lineup`;
+    return fitProblem(p.w, to);
+  }
+
+  /* Plan a conversion to `to` of `units` (default: every drawer of the other
+     family): who can change, who can't, and why - reasons grouped with counts
+     so a surface can say "2 stay Classic Drawers: won't fit your bed" without
+     prose per unit. Pure: nothing moves until applyConversion. */
+  function planConversion(to, units) {
+    const plan = { to, eligible: [], skipped: [], reasons: [] };
+    const why = new Map();
+    (units || state.placed.filter((p) => isDrawerUnit(p) && p.fill !== to)).forEach((p) => {
+      if (!isDrawerUnit(p) || p.fill === to) return;
+      const problem = convertProblem(p, to);
+      if (problem) { plan.skipped.push(p); why.set(problem, (why.get(problem) || 0) + 1); }
+      else plan.eligible.push(p);
+    });
+    plan.reasons = [...why.entries()].map(([text, n]) => ({ text, n }));
+    return plan;
+  }
+
+  /* Apply a plan as ONE undo step. The flush BEFORE matters: history coalesces
+     for 350 ms and a label commits only on change, so without it a label typed
+     moments earlier would ride inside the conversion's entry and Undo would
+     delete it too. The flush AFTER lands the entry (and the auto-save) now,
+     not after the idle window. `surface` is the control's fixed id for
+     analytics - never a count or a reason. Returns how many changed. */
+  let convertOutcome = null;   // the last BULK conversion's result, shown until the layout changes again
+  function applyConversion(plan, surface) {
+    if (!plan || !plan.eligible.length) return 0;
+    pushHistoryNow();
+    plan.eligible.forEach((p) => { p.fill = plan.to; });
+    // a single drawer's switch needs no report - its seg re-lights and the
+    // inspector title changes under the pointer; the bulk surfaces report
+    // because the change happened somewhere else on the page
+    convertOutcome = surface === "unit" ? null
+      : { to: plan.to, n: plan.eligible.length, skipped: plan.skipped.length, reasons: plan.reasons, sig: layoutSig() };
+    refresh();
+    pushHistoryNow();
+    track(surface === "unit" ? "convert:" + plan.to : "convert-all:" + plan.to + ":" + surface);
+    return plan.eligible.length;
+  }
+  const convertOutcomeCurrent = () => (convertOutcome && convertOutcome.sig === layoutSig() ? convertOutcome : null);
+  // The outcome line both bulk surfaces show (role=status): what changed,
+  // what didn't and why, and the way back.
+  function convertOutcomeText(o) {
+    const to = fillDef(o.to).label, from = fillDef(otherDrawerFill(o.to)).label;
+    let t = `✓ ${o.n} ${plural(o.n, "drawer", "drawers")} converted to ${to}${plural(o.n, "", "s")}`;
+    if (o.skipped) t += ` · ${o.skipped} ${plural(o.skipped, "stays", "stay")} ${from}${plural(o.skipped, "", "s")}: ${o.reasons.map((r) => r.text).join("; ")}`;
+    return t + ` · Undo restores ${plural(o.n, "it", "them")}.`;
+  }
+  // "1 stays Decor Drawer: <reason>" / "3 stay Decor Drawers: 2 × <reason>; <reason>"
+  const skipText = (plan) => {
+    const n = plan.skipped.length;
+    return `${n} ${plural(n, "stays", "stay")} ${fillDef(otherDrawerFill(plan.to)).label}${plural(n, "", "s")}: ` +
+      plan.reasons.map((r) => (r.n > 1 ? `${r.n} × ${r.text}` : r.text)).join("; ");
+  };
+  function renderConvertOutcome(el) {
+    if (!el) return;
+    const o = convertOutcomeCurrent();
+    el.hidden = !o;
+    el.textContent = o ? convertOutcomeText(o) : "";
+  }
+
+  /* The Customize master for drawer family - the hardware masters' pattern:
+     sets every drawer at once, lights only when EVERY drawer already matches
+     (a mixed build lights nothing), and the toolbar seg is the fine-tune. A
+     button that can convert nothing (every other-family drawer is blocked) is
+     inert with the reason; a partial plan warns in its tip and converts what
+     it can. Decor first reveals the faceplate cards right below it. */
+  function renderDrawerTypeMaster() {
+    const seg = $("#drawer-type-seg");
+    if (!seg) return;
+    seg.innerHTML = "";
+    const drawers = state.placed.filter(isDrawerUnit);
+    DRAWER_FILLS.forEach((id) => {
+      const f = fillDef(id);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = f.label;
+      btn.title = f.blurb;
+      const uniform = drawers.length > 0 && drawers.every((p) => p.fill === id);
+      const plan = planConversion(id);
+      if (uniform) {
+        btn.className = "active";
+      } else if (!plan.eligible.length) {
+        btn.classList.add("disabled");
+        btn.setAttribute("aria-disabled", "true");
+        if (plan.skipped.length) btn.dataset.tip = skipText(plan);
+      } else if (plan.skipped.length) {
+        // a partial switch: enabled, but says up front who stays and why
+        btn.classList.add("tipped");
+        btn.dataset.tip = skipText(plan);
+      }
+      btn.addEventListener("click", () => {
+        if (uniform || !plan.eligible.length) return;
+        applyConversion(plan, "customize");
+      });
+      seg.appendChild(btn);
+    });
+    // the computed preview of a partial switch, readable without hovering:
+    // "Switching to Classic Drawers: 1 stays Decor Drawer: <reason>"
+    const note = $("#drawer-type-note");
+    if (note) {
+      const lines = DRAWER_FILLS.map((id) => planConversion(id)).filter((pl) => pl.eligible.length && pl.skipped.length)
+        .map((pl) => `Switching to ${fillDef(pl.to).label}s: ${skipText(pl)}.`);
+      note.hidden = !lines.length;
+      note.textContent = lines.join(" ");
+    }
+    renderConvertOutcome($("#drawer-type-status"));
+  }
+
+  /* The bridge under the fill tiles - the moment of intent. The tiles set the
+     family for NEW cases only; when the family just picked differs from
+     drawers already on the grid, say so and offer the conversion right here
+     (the friend clicked the Decor tile and nothing happened to his build).
+     Hidden when nothing differs, except to show the outcome of a conversion
+     just made. */
+  function renderFillBridge() {
+    const box = $("#fill-convert");
+    if (!box) return;
+    box.innerHTML = "";
+    const to = state.fill;
+    const outcome = convertOutcomeCurrent();
+    const plan = DRAWER_FILLS.includes(to) ? planConversion(to) : null;
+    const others = plan ? plan.eligible.length + plan.skipped.length : 0;
+    if (!others && !outcome) { box.hidden = true; return; }
+    box.hidden = false;
+    if (others) {
+      const toLabel = fillDef(to).label, from = fillDef(otherDrawerFill(to)).label;
+      const p = document.createElement("p");
+      p.className = "fill-convert-text";
+      p.textContent = `New cases will be ${toLabel}s. The ${others} ${from}${plural(others, "", "s")} already on the grid ${plural(others, "stays as it is", "stay as they are")}.`;
+      box.appendChild(p);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn ghost small";
+      if (plan.eligible.length) {
+        btn.textContent = plan.eligible.length === others
+          ? `↻ Convert ${plural(others, "it", "all " + others)} to ${toLabel}${plural(others, "", "s")}`
+          : `↻ Convert the ${plan.eligible.length} that can change`;
+        btn.addEventListener("click", () => applyConversion(plan, "palette"));
+      } else {
+        btn.textContent = `Can't convert ${plural(others, "it", "them")}`;
+        btn.classList.add("disabled");
+        btn.setAttribute("aria-disabled", "true");
+      }
+      if (plan.skipped.length) btn.dataset.tip = skipText(plan);
+      box.appendChild(btn);
+      const keep = document.createElement("p");
+      keep.className = "fill-convert-hint";
+      keep.textContent = "Converting keeps every drawer's position, size, label and closure · the parts list follows"
+        + (to === "decor" ? " (Decor adds the faceplates and whatever the faceplate style needs)." : " (Classic drops the faceplates and their hardware).");
+      box.appendChild(keep);
+    }
+    if (outcome) {
+      const st = document.createElement("p");
+      st.className = "fill-convert-status";
+      st.setAttribute("role", "status");
+      st.textContent = convertOutcomeText(outcome);
+      box.appendChild(st);
     }
   }
 
@@ -1814,7 +2009,7 @@
     d.backCover = !!d.backCover;
     d.feet = d.feet === "adhesive" ? "adhesive" : "tpu";
     // removedStoppers: dedupe + keep only well-formed "<unitId>:<localCol>" keys
-    // (stale keys for since-deleted columns are harmless — the BOM/generator ignore them)
+    // (pruned below to keys that name a kept drawer, once the units are known)
     d.removedStoppers = Array.isArray(d.removedStoppers)
       ? [...new Set(d.removedStoppers.filter((k) => typeof k === "string" && /^\d+:\d+$/.test(k)))]
       : [];
@@ -1829,7 +2024,7 @@
       y: bed.y == null ? null : int(bed.y, 50, 1000, null),
     };
 
-    const gridRows = d.gridH * 2, kept = [];
+    const gridRows = d.gridH * 2, kept = [], usedIds = new Set();
     for (const u of d.placed) {
       if (!u || typeof u !== "object" || Array.isArray(u)) continue;
       if (!GEN2.fills.some((f) => f.id === u.fill)) continue;
@@ -1842,9 +2037,17 @@
       if (x < 0 || y < 0 || x + w > d.gridW || y + hh > gridRows) continue;
       // no overlaps: first valid unit wins the cells
       if (kept.some((k) => x < k.x + k.w && k.x < x + w && y < k.y + k.hh && k.y < y + hh)) continue;
-      // ids are reassigned wholesale — duplicate/stale ids in the source can't
-      // survive into selection or nextId
-      const unit = { id: kept.length + 1, x, y, w, hh, fill: u.fill,
+      // A unit's id is its IDENTITY: undo history, share links and the viewer's
+      // removedStoppers keys ("<id>:<col>") all name units by it. Ids are KEPT
+      // when valid and unique (2026-08-23) - this used to renumber 1..n on
+      // every restore, which re-pointed a stopper key at whichever unit
+      // inherited the number the moment a deletion had left the ids sparse
+      // (found by the drawer-conversion review's undo test). Anything unusable
+      // (missing, junk, a duplicate) is minted fresh below, never recycled.
+      const rawId = Math.round(Number(u.id));
+      const id = Number.isInteger(rawId) && rawId > 0 && !usedIds.has(rawId) ? rawId : null;
+      if (id) usedIds.add(id);
+      const unit = { id, x, y, w, hh, fill: u.fill,
                      shelves: int(u.shelves, 0, Math.max(0, h - 1), 0) };
       if (typeof u.label === "string" && u.label.trim()) unit.label = u.label.slice(0, LABEL_MAX);
       // closures: drawers only, whitelisted to released options ("none" is
@@ -1866,8 +2069,22 @@
       kept.push(unit);
     }
     const dropped = d.placed.length - kept.length;
+    // Fresh ids mint above BOTH the highest kept id and the file's own nextId,
+    // so a number freed by a deletion is never handed to a later placement
+    // (a stale stopper key could otherwise find a new owner).
+    let next = Math.max(int(d.nextId, 1, 1e9, 1), Math.max(0, ...kept.map((k) => k.id || 0)) + 1);
+    kept.forEach((k) => { if (!k.id) k.id = next++; });
     d.placed = kept;
-    d.nextId = kept.length + 1;
+    d.nextId = next;
+    // A stopper key must name a kept DRAWER and a column inside its width;
+    // anything else belongs to a unit that is gone (or never existed) and
+    // would only wait for an id to be reused.
+    const byId = new Map(kept.map((k) => [k.id, k]));
+    d.removedStoppers = d.removedStoppers.filter((k) => {
+      const [id, col] = k.split(":").map(Number);
+      const u = byId.get(id);
+      return !!u && (u.fill === "classic" || u.fill === "decor") && col < u.w;
+    });
     return dropped;
   }
 
@@ -3077,6 +3294,50 @@
     });
   }
 
+  /* Per-drawer family picker (Classic Drawer / Decor Drawer), beside the
+     closure picker. The other family's button is inert with the reason when
+     this unit can't become it (same aria-disabled + data-tip treatment as a
+     "soon" closure, so the reason tap-reveals on touch). The full family
+     names are deliberate - see the conversion block above. */
+  function renderFillTypeSeg(p) {
+    const seg = $("#ut-fill-seg");
+    seg.innerHTML = "";
+    DRAWER_FILLS.forEach((id) => {
+      const f = fillDef(id);
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = f.label;
+      b.title = f.blurb;
+      const problem = id === p.fill ? null : convertProblem(p, id);
+      if (problem) {
+        b.classList.add("disabled");
+        b.setAttribute("aria-disabled", "true");
+        b.dataset.tip = problem;
+      } else {
+        b.classList.toggle("active", id === p.fill);
+      }
+      b.addEventListener("click", () => {
+        if (problem || id === p.fill) return;
+        applyConversion(planConversion(id, [p]), "unit");
+      });
+      seg.appendChild(b);
+    });
+    // The faceplate is a BUILD-WIDE choice. Say so here, in the Customize
+    // heading's own words, so a Decor drawer's inspector never implies a
+    // per-drawer style it doesn't have.
+    const note = $("#ut-fp-note");
+    if (p.fill === "decor") {
+      const face = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+      // "series" is the catalog's own word for a faceplate family (the
+      // Printables pages, the BOM links) and the disambiguator that keeps
+      // "Classic series" from reading as "Classic Drawer"
+      note.textContent = `Faceplate: ${face ? face.label : "-"} series · one style for every Decor drawer · change it under Customize.`;
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
+  }
+
   function renderToolbar() {
     const bar = $("#unit-toolbar");
     const p = selectedUnit();
@@ -3111,6 +3372,8 @@
       remove.disabled = true;
       shelves.hidden = true;
       $("#ut-closure").hidden = true;
+      $("#ut-fill").hidden = true;
+      $("#ut-fp-note").hidden = true;
       $("#ut-mode").hidden = true;
       $("#ut-edit").hidden = true;
       $("#ut-label-wrap").hidden = true;
@@ -3142,6 +3405,9 @@
     const isDrawer = p.fill === "classic" || p.fill === "decor";
     $("#ut-closure").hidden = !isDrawer;
     if (isDrawer) renderClosureSeg(p);
+    // drawer family (Classic Drawer / Decor Drawer): drawers only, same rule
+    $("#ut-fill").hidden = !isDrawer;
+    if (isDrawer) renderFillTypeSeg(p); else $("#ut-fp-note").hidden = true;
 
     // Cabinet interior controls: Simple shelf count vs Advanced compartment editor
     const W = p.w, H = p.hh / 2;
@@ -4416,6 +4682,19 @@
       renderBoard();
       updateLabelGenLink();   // keep the handoff link's labels current as you type
     });
+    // Committing the label (Enter, or leaving the field) is a real change:
+    // its own undo entry, auto-saved, posted to the viewer. Until 2026-08-23
+    // nothing did this - the label rode silently into whatever the NEXT
+    // action snapshotted, so undoing that action deleted the label too (the
+    // drawer-conversion review's undo test caught it). Deliberately NOT a
+    // refresh(): `change` fires on the blur that a click elsewhere causes,
+    // and a re-render there would replace the very button being pressed
+    // before its click lands.
+    $("#ut-label").addEventListener("change", () => {
+      if (!selectedUnit()) return;
+      pushHistoryNow();
+      syncLayoutToViewer();
+    });
     $("#ut-shelves").querySelectorAll("[data-shelf]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const p = selectedUnit();
@@ -4604,6 +4883,7 @@
       fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks, sagRisks,
       mountBlocksLength, enforceMountLength, wallTopHalfHeight, fixWallTops,
       setMount, rebaseToMountEdge, unsupportedUnits, tabletopCompletion,
+      planConversion, applyConversion, convertProblem, GEN2,
       encodeBuildHash, applyBuildHash,
       undoRedo, pushHistoryNow, history, buildMeta,
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,

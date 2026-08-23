@@ -192,6 +192,9 @@
         <h3>Fill each case with<button type="button" class="info-tip" data-tip="Classic = print-in-place drawer, no assembly. Decor = drawer with a swappable faceplate. Shelf = open shelf insert. Cabinet = enclosed case with a door. Every case can be swapped anytime."></button></h3>
         <div class="fill-grid" id="fill-seg"></div>
         <p class="fill-blurb" id="fill-blurb"></p>
+        <!-- the bridge: the tiles set the family for NEW cases; when drawers of
+             the other family are already on the grid, offer to convert them here -->
+        <div class="fill-convert" id="fill-convert" hidden></div>
 
         <h3>Size</h3>
         <p class="palette-units" id="palette-units"></p>
@@ -284,9 +287,20 @@
               <span>Drawer close</span>
               <div class="seg" id="ut-closure-seg" role="group" aria-label="Drawer closure"></div>
             </div>
+            <!-- Classic Drawer / Decor Drawer: both seat in the same case, so a
+                 placed drawer changes family in place (position, size, label,
+                 closure all kept). Full names on purpose - a bare "Classic"
+                 here would read as the Classic FACEPLATE family. -->
+            <div class="ut-closure ut-fill" id="ut-fill" hidden>
+              <span>Drawer type</span>
+              <div class="seg" id="ut-fill-seg" role="group" aria-label="Drawer type"></div>
+            </div>
             <button type="button" class="btn ghost ut-edit-btn" id="ut-edit" hidden>Edit interior</button>
             <button type="button" class="btn ghost" id="ut-remove" disabled>Remove unit</button>
           </div>
+          <!-- the faceplate is a build-wide choice - the inspector says so in the
+               Customize heading's own words rather than offering a per-drawer style -->
+          <p class="ut-fp-note" id="ut-fp-note" hidden></p>
           <label class="ut-label" id="ut-label-wrap" hidden>
             <span>Label</span>
             <input type="text" id="ut-label" maxlength="40" autocomplete="off"
@@ -364,6 +378,16 @@
   <section class="step" id="step-customize" hidden>
     <h2><span class="step-num">5</span> Customize your build</h2>
     <div class="bom-style-row">
+      <!-- Drawer family, build-wide (the hardware masters' pattern): sets every
+           drawer at once; the toolbar seg fine-tunes one. Decor first, so the
+           faceplate cards it reveals sit right below it. -->
+      <div class="style-pick" id="drawer-type-pick" hidden>
+        <label>Drawer type</label>
+        <p class="style-help">Both drawer types fit the same cases, so a build can switch without rebuilding the layout &middot; sets every drawer at once, fine-tune a single drawer by selecting it on the grid.</p>
+        <div class="seg" id="drawer-type-seg" role="group" aria-label="Drawer type"></div>
+        <p class="style-help" id="drawer-type-note" hidden></p>
+        <p class="convert-status" id="drawer-type-status" role="status" hidden></p>
+      </div>
       <div class="style-pick faceplate-pick" id="faceplate-style-pick" hidden>
         <label>Decor faceplate style</label>
         <p class="style-help">Changes the faceplate, label &amp; hardware parts in the list below.</p>

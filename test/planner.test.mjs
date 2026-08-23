@@ -999,10 +999,13 @@ test("removedStoppers drops the stopper BOM count and round-trips through the ha
   assert.deepEqual([...app.state.removedStoppers], ["1:0"]);
 });
 
-test("sanitizer keeps only well-formed, de-duped removedStoppers keys", () => {
+test("sanitizer keeps only well-formed, de-duped removedStoppers keys that name a kept drawer", () => {
   const { app } = boot();
-  app.applyBuild({ mount: "tabletop", length: 185, gridW: 6, gridH: 4, placed: [],
-    removedStoppers: ["1:0", "1:0", "2:3", "bogus", 42, "x:y", null] });
+  // since 2026-08-23 a key must also name a kept drawer and a column inside its
+  // width - "3:0" (no unit 3) and "1:1" (off a 1W) go with the junk
+  app.applyBuild({ mount: "tabletop", length: 185, gridW: 6, gridH: 4,
+    placed: [{ id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor" }, { id: 2, x: 1, y: 0, w: 4, hh: 2, fill: "classic" }],
+    removedStoppers: ["1:0", "1:0", "2:3", "bogus", 42, "x:y", null, "3:0", "1:1"] });
   assert.deepEqual([...app.state.removedStoppers].sort(), ["1:0", "2:3"]);
 });
 
@@ -1113,12 +1116,12 @@ test("sanitizer clamps numbers to the UI's own limits", () => {
   assert.equal(app.state.spaceW, 10000);   // input max
 });
 
-test("sanitizer drops invalid units, keeps valid ones, renumbers ids", () => {
+test("sanitizer drops invalid units, keeps valid ones, keeps their ids and mints fresh ones only for duplicates", () => {
   const { app } = boot();
   const p = baseBuild();
   p.placed = [
     { id: 7, x: 0, y: 0, w: 1, hh: 2, fill: "decor", label: "KEEP" },
-    { id: 7, x: 1, y: 0, w: 1, hh: 2, fill: "decor" },        // duplicate id, still valid
+    { id: 7, x: 1, y: 0, w: 1, hh: 2, fill: "decor" },        // duplicate id, still valid -> a fresh id
     { id: 9, x: 0, y: 0, w: 2, hh: 2, fill: "classic" },      // overlaps first -> dropped
     { id: 10, x: 3, y: 0, w: 1, hh: 7, fill: "decor" },       // 3.5H doesn't exist
     { id: 11, x: 50, y: 0, w: 1, hh: 2, fill: "decor" },      // outside the grid
@@ -1127,8 +1130,10 @@ test("sanitizer drops invalid units, keeps valid ones, renumbers ids", () => {
   p.nextId = 1;
   app.applyBuildHash(encodeHash(p));
   assert.equal(app.state.placed.length, 2);
-  assert.deepEqual(Array.from(app.state.placed, (u) => u.id), [1, 2]);  // renumbered
-  assert.equal(app.state.nextId, 3);
+  // ids are identity (undo, share links, the viewer's stopper keys) - kept
+  // since 2026-08-23; the duplicate mints above the highest kept id
+  assert.deepEqual(Array.from(app.state.placed, (u) => u.id), [7, 8]);
+  assert.equal(app.state.nextId, 9);
   assert.equal(app.state.placed[0].label, "KEEP");
 });
 

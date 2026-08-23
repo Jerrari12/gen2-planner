@@ -1185,6 +1185,24 @@ body.docked .fab-3d { display: none; }
   border-color: rgba(232, 176, 75, 0.55);
 }
 .warn-fix { display: block; margin-top: 10px; }
+/* completion guidance - a third kind, beside .warn (red) and .warn-soft
+   (amber): brand orange, a heading, never a triangle. "You're almost there",
+   not "something is wrong". */
+.guide {
+  margin-top: 8px;
+  background: rgba(255, 138, 64, 0.1);
+  border: 1px solid rgba(255, 138, 64, 0.55);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+.guide b { display: block; color: var(--accent); margin-bottom: 2px; }
+/* the board's completion overlay: hatch + dashed line + tag, never colour alone */
+.g-fill-cell { stroke: var(--accent); stroke-width: 1.25; stroke-dasharray: 4 3; pointer-events: none; }
+.g-fill-hatch-bg { fill: rgba(255, 138, 64, 0.08); }
+.g-fill-hatch { stroke: rgba(255, 138, 64, 0.55); stroke-width: 1.5; }
+.g-fill-line { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 7 4; pointer-events: none; }
+.g-fill-label { fill: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: 0.02em; pointer-events: none; }
 .fix-note {
   margin-top: 8px;
   background: rgba(76, 195, 138, 0.12);

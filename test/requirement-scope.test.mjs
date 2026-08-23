@@ -30,7 +30,7 @@ function boot(mount = 'tabletop') {
      visible to a second, separate window.eval() call - both tried first, both
      gave "GEN2 is not defined". */
   const GEN2 = window.eval(
-    read('js/requirement-scope.js') + '\n' + read('js/data.js') + '\n' + read('js/app.js') + '\n;GEN2');
+    read('js/requirement-scope.js') + '\n' + read('js/tabletop-completion.js') + '\n' + read('js/data.js') + '\n' + read('js/app.js') + '\n;GEN2');
   const app = window.__GEN2_PLANNER_TEST__;
   app.state.mount = mount;
   app.state.length = 185;

@@ -25,7 +25,7 @@ function boot() {
   const dom = new JSDOM(read("index.html"), { runScripts: "outside-only" });
   const { window } = dom;
   window.__GEN2_PLANNER_TEST__ = true;            // opt in to the test hook
-  window.eval(read("js/requirement-scope.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
+  window.eval(read("js/requirement-scope.js") + "\n" + read("js/tabletop-completion.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
   const app = window.__GEN2_PLANNER_TEST__;       // hook replaces the flag
 
   app.state.mount = "under-table";
@@ -709,7 +709,7 @@ test("3D instructions button targets the local viewer from localhost, the deploy
     window.__GEN2_PLANNER_TEST__ = true;
     let opened = null;
     window.open = (u) => { opened = u; return null; };
-    window.eval(read("js/requirement-scope.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
+    window.eval(read("js/requirement-scope.js") + "\n" + read("js/tabletop-completion.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
     const app = window.__GEN2_PLANNER_TEST__;
     app.state.mount = "wall";
     app.state.length = 185;
@@ -730,7 +730,7 @@ test("official-kit exporter: hidden in prod, exports a versioned wrapper with a 
     const dom = new JSDOM(read("index.html"), { runScripts: "outside-only", url });
     const { window } = dom;
     window.__GEN2_PLANNER_TEST__ = true;
-    window.eval(read("js/requirement-scope.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
+    window.eval(read("js/requirement-scope.js") + "\n" + read("js/tabletop-completion.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
     return { window, app: window.__GEN2_PLANNER_TEST__, doc: window.document };
   };
   // prod: the authoring button never shows (ids are mintable by repo commit only)
@@ -1673,7 +1673,7 @@ function bootWith({ lastBuild, url } = {}) {
   const { window } = dom;
   if (lastBuild) window.localStorage.setItem("gen2-last-build", JSON.stringify(lastBuild));
   window.__GEN2_PLANNER_TEST__ = true;
-  window.eval(read("js/requirement-scope.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
+  window.eval(read("js/requirement-scope.js") + "\n" + read("js/tabletop-completion.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
   return { window, app: window.__GEN2_PLANNER_TEST__, doc: window.document };
 }
 
@@ -1999,4 +1999,151 @@ test("undo auto-saves too: the stored build is the state you SEE, not the one yo
   const stored = JSON.parse(window.localStorage.getItem("gen2-last-build"));
   assert.equal(stored.mount, "tabletop", "closing the tab after an undo resumes what is on screen");
   assert.equal(stored.placed.map((p) => p.y).join(), app.state.placed.map((p) => p.y).join()); // strings: jsdom arrays are another realm
+});
+
+/* ---------------------------------------------------------------------------
+   Guided COMPLETION of a tabletop top (Joey, 2026-08-23). Every kit is built
+   column by column, so "one column shorter than the tallest" is the normal
+   state between two clicks. It used to be a red warning that blocked the 3D
+   preview; now it is orange guidance with the missing volume hatched on the
+   board, the 3D preview stays live, and real faults still block. */
+const guideText = (doc) => [...doc.querySelectorAll("#board-warnings .guide")].map((d) => d.textContent).join(" ");
+const overlay = (doc) => ({
+  cells: doc.querySelectorAll("#board .g-fill-cell").length,
+  lines: doc.querySelectorAll("#board .g-fill-line").length,
+  labels: [...doc.querySelectorAll("#board .g-fill-label")].map((t) => t.textContent),
+});
+function tabletopBoot() {
+  const { app, doc, window } = boot();
+  app.state.mount = "tabletop";
+  return { app, doc, window };
+}
+
+test("completion: an unfinished tabletop column is guidance, not a warning, and never blocks the 3D preview", () => {
+  const { app, doc } = tabletopBoot();
+  place(app, { id: 1, x: 0, y: 4, w: 1, hh: 2 });   // col 0 is two rows tall
+  place(app, { id: 2, x: 0, y: 6, w: 1, hh: 2 });
+  place(app, { id: 3, x: 1, y: 6, w: 1, hh: 2 });   // col 1 is one row tall: in progress
+  app.refresh();
+  assert.equal(doc.querySelector("#instructions-3d").disabled, false, "the 3D button stays enabled");
+  assert.doesNotMatch(warnsText(doc), /flat top/i, "no red warning about a flat top");
+  const g = doc.querySelector("#board-warnings .guide");
+  assert.ok(g, "completion guidance renders");
+  assert.equal(g.getAttribute("role"), "status", "status semantics, not an alert");
+  assert.match(guideText(doc), /Almost there - one area left to fill/);
+  assert.match(guideText(doc), /any drawer combination that fits/i);
+});
+
+test("completion: the board hatches exactly the missing cells and draws one target line per unlevel run", () => {
+  const { app, doc } = tabletopBoot();
+  place(app, { id: 1, x: 0, y: 2, w: 1, hh: 4 });   // col 0: a 2H unit, top at y=2
+  place(app, { id: 2, x: 1, y: 6, w: 1, hh: 2 });   // col 1: one 1H unit, top at y=6 -> 4 half-rows missing
+  place(app, { id: 3, x: 0, y: 6, w: 1, hh: 2 });
+  app.refresh();
+  const o = overlay(doc);
+  assert.equal(o.cells, 4, "one hatched cell per missing half-row");
+  assert.equal(o.lines, 1, "one target line for the one run");
+  assert.deepEqual(o.labels, ["Fill to this line"]);
+  const done = app.tabletopCompletion();
+  assert.equal(done.cells.length, 4);
+  assert.equal(done.areas.length, 1);
+  assert.deepEqual(done.columns.map((c) => [c.x, c.y0, c.y1]).join("|"), "1,2,6");
+});
+
+test("completion: several valid fills of one deficit all clear it - and clear the board + guidance automatically", () => {
+  const { app, doc } = tabletopBoot();
+  place(app, { id: 1, x: 0, y: 4, w: 1, hh: 2 });
+  place(app, { id: 2, x: 0, y: 6, w: 1, hh: 2 });
+  place(app, { id: 3, x: 1, y: 6, w: 1, hh: 2 });
+  app.refresh();
+  assert.ok(doc.querySelector("#board-warnings .guide"));
+  // the tabletop grid re-sizes itself around the stack on refresh, so read the
+  // deficit's CURRENT rows rather than assuming the fixture's
+  const gap = app.tabletopCompletion().columns[0];
+  assert.equal(gap.y1 - gap.y0, 2, "one 1H of space is missing");
+  // fill A: one 1H drawer
+  const a = place(app, { id: 4, x: gap.x, y: gap.y0, w: 1, hh: 2 });
+  app.refresh();
+  assert.equal(doc.querySelector("#board-warnings .guide"), null, "1H fill: guidance gone");
+  assert.equal(overlay(doc).cells, 0, "1H fill: nothing hatched");
+  assert.equal(overlay(doc).lines, 0);
+  app.state.placed = app.state.placed.filter((p) => p !== a);
+  app.refresh();
+  const gap2 = app.tabletopCompletion().columns[0];
+  // fill B: two 0.5H drawers
+  place(app, { id: 5, x: gap2.x, y: gap2.y0, w: 1, hh: 1 });
+  place(app, { id: 6, x: gap2.x, y: gap2.y0 + 1, w: 1, hh: 1 });
+  app.refresh();
+  assert.equal(doc.querySelector("#board-warnings .guide"), null, "two 0.5H fill: guidance gone");
+  assert.equal(overlay(doc).cells, 0);
+});
+
+test("completion: a staircase is ONE area; two deficits split by a level column are two", () => {
+  const { app, doc } = tabletopBoot();
+  // staircase: cols 0/1/2 reach y=2 / 4 / 6
+  place(app, { id: 1, x: 0, y: 2, w: 1, hh: 2 }); place(app, { id: 2, x: 0, y: 4, w: 1, hh: 2 }); place(app, { id: 3, x: 0, y: 6, w: 1, hh: 2 });
+  place(app, { id: 4, x: 1, y: 4, w: 1, hh: 2 }); place(app, { id: 5, x: 1, y: 6, w: 1, hh: 2 });
+  place(app, { id: 6, x: 2, y: 6, w: 1, hh: 2 });
+  app.refresh();
+  let d = app.tabletopCompletion();
+  assert.equal(d.cells.length, 6); assert.equal(d.areas.length, 1, "a staircase is one connected area");
+  // two deficits separated by a complete column
+  app.state.placed.length = 0;
+  place(app, { id: 1, x: 0, y: 6, w: 1, hh: 2 });
+  place(app, { id: 2, x: 1, y: 4, w: 1, hh: 2 }); place(app, { id: 3, x: 1, y: 6, w: 1, hh: 2 });
+  place(app, { id: 4, x: 2, y: 6, w: 1, hh: 2 });
+  app.refresh();
+  d = app.tabletopCompletion();
+  assert.equal(d.areas.length, 2, "two areas");
+  assert.match(guideText(doc), /Finish the top to complete your tabletop kit/);
+});
+
+test("completion: the rule is PER RUN - two separate stacks of different heights are each complete", () => {
+  const { app, doc } = tabletopBoot();
+  place(app, { id: 1, x: 0, y: 4, w: 1, hh: 2 }); place(app, { id: 2, x: 0, y: 6, w: 1, hh: 2 });   // a 2-tall stack
+  place(app, { id: 3, x: 3, y: 6, w: 1, hh: 2 });                                                    // a 1-tall stack, an empty column between
+  app.refresh();
+  assert.equal(app.tabletopCompletion().complete, true);
+  assert.equal(doc.querySelector("#board-warnings .guide"), null, "nothing to finish");
+  assert.equal(overlay(doc).cells, 0);
+  assert.equal(doc.querySelector("#instructions-3d").disabled, false);
+});
+
+test("completion: a real fault still BLOCKS and stays red - unfinished columns never launder a floating unit", () => {
+  const { app, doc } = tabletopBoot();
+  place(app, { id: 1, x: 0, y: 6, w: 1, hh: 2 });
+  place(app, { id: 2, x: 1, y: 6, w: 1, hh: 2 });
+  place(app, { id: 3, x: 1, y: 2, w: 1, hh: 2 });   // floating above col 1 with a gap: unsupported
+  app.refresh();
+  assert.match(warnsText(doc), /supported on both ends/i, "the red structural warning");
+  assert.equal(doc.querySelector("#instructions-3d").disabled, true, "and the 3D button is blocked");
+  assert.equal(app.unsupportedUnits().length, 1);
+});
+
+test("completion: the same unfinished shape on a hanging mount is a structural fault (blocked), not guidance", () => {
+  const { app, doc } = boot();                         // under-table
+  place(app, { id: 1, x: 0, y: 0, w: 1, hh: 2 }); place(app, { id: 2, x: 0, y: 2, w: 1, hh: 2 });
+  place(app, { id: 3, x: 1, y: 2, w: 1, hh: 2 });      // hangs from nothing: the hanging twin of a short column
+  app.refresh();
+  assert.equal(doc.querySelector("#board-warnings .guide"), null, "guidance is tabletop-only");
+  assert.match(warnsText(doc), /supported on both ends/i);
+  assert.equal(doc.querySelector("#instructions-3d").disabled, true);
+});
+
+test("completion: the docked viewer receives the LAYOUT for an unfinished top, never a block", async () => {
+  const { app, doc, window: win } = tabletopBoot();
+  app.state.length = 185;
+  const msgs = [];
+  const fakeViewer = { closed: false, postMessage: (m) => msgs.push(m), focus() {} };
+  win.open = () => fakeViewer;
+  place(app, { id: 1, x: 0, y: 4, w: 1, hh: 2 }); place(app, { id: 2, x: 0, y: 6, w: 1, hh: 2 }); place(app, { id: 3, x: 1, y: 6, w: 1, hh: 2 });
+  app.refresh();
+  doc.querySelector("#instructions-3d").click();                 // live button: captures viewerWin
+  place(app, { id: 4, x: 2, y: app.state.gridH * 2 - 2, w: 1, hh: 2 }); // a change AFTER the handle exists, on the (auto-sized) bottom row
+  app.refresh();
+  await new Promise((r) => setTimeout(r, 450));                  // debounce window
+  const kinds = msgs.map((m) => m.gen2);
+  assert.ok(kinds.includes("layout"), "a layout post went out: " + kinds.join(","));
+  assert.ok(!kinds.includes("layoutBlocked"), "never a block for an unfinished top: " + kinds.join(","));
+  assert.equal(msgs.filter((m) => m.gen2 === "layout").at(-1).build.placed.length, 4);
 });

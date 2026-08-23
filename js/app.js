@@ -1125,6 +1125,7 @@
     const sags = sagRisks();
     const lowTops = wallTopHalfHeight();
     state.placed.forEach((p) => drawUnit(svg, p, bows, sags, lowTops));
+    if (state.mount === "tabletop") drawCompletion(svg, gx, gy);
 
     // Edge "+" affordances (Joey 2026-07-19): grow the grid straight from the
     // board — a column strip on the RIGHT for every mount, a row strip at the
@@ -2581,6 +2582,33 @@
     return { moved, added };
   }
 
+  /* COMPLETION OVERLAY (tabletop). For every run whose top is not level yet:
+     a dashed target line across the run at its tallest column's top, a
+     hatched cell over every missing half-row in the short columns, and a
+     "Fill to this line" tag. Hatch + dash + text, never colour alone. The
+     cells are the SHARED deficit (tabletop-completion.js), so what the board
+     hatches is exactly what the viewer ghosts. */
+  function drawCompletion(svg, gx, gy) {
+    const done = tabletopCompletion();
+    if (done.complete) return;
+    const half = CH / 2;
+    // one hatch pattern per render (the board is rebuilt from scratch each time)
+    const defs = el("defs", {}, svg);
+    const pat = el("pattern", { id: "fill-hatch", width: 8, height: 8, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+    el("rect", { x: 0, y: 0, width: 8, height: 8, class: "g-fill-hatch-bg" }, pat);
+    el("line", { x1: 0, y1: 0, x2: 0, y2: 8, class: "g-fill-hatch" }, pat);
+    done.cells.forEach((c) => {
+      el("rect", { x: gx + c.x * CW + 2, y: gy + c.y * half + 2, width: CW - 4, height: half - 4, rx: 3,
+        class: "g-fill-cell", fill: "url(#fill-hatch)" }, svg);
+    });
+    done.runs.forEach((r) => {
+      if (!done.columns.some((c) => c.x >= r.c0 && c.x <= r.c1)) return; // this run is level
+      const y = gy + r.top * half, x0 = gx + r.c0 * CW, x1 = gx + (r.c1 + 1) * CW;
+      el("line", { x1: x0, y1: y, x2: x1, y2: y, class: "g-fill-line" }, svg);
+      el("text", { x: x1 - 4, y: y - 4, class: "g-fill-label", "text-anchor": "end" }, svg).textContent = "Fill to this line";
+    });
+  }
+
   /* Fill the empty run in column c from row `s` toward the surface (direction
      `step`) with stacked 1W cases — 1H where it fits, a 0.5H for the remainder. */
   function fillColumn(c, s, step) {
@@ -2744,8 +2772,11 @@
       return { code: "unsupported", text: "Fix the build first · some units aren't supported on both ends (see the board warning · Fix structure can do it for you)." };
     if (sagRisks().size)
       return { code: "sag", text: "Fix the build first · some units would sag mid-span (see the board warning)." };
-    if (state.mount === "tabletop" && new Set(Object.values(columnTops())).size > 1)
-      return { code: "flat-top", text: "Fix the build first · Table Top covers need a flat top, every column must stack to the same height." };
+    // An UNEVEN TABLETOP TOP is no longer a block (2026-08-23, Joey): every
+    // kit passes through that state while a column is being built, and the
+    // viewer now renders it as an in-progress preview (ghost boxes over the
+    // missing volume, covers translucent until the run is level). The board
+    // shows completion guidance instead of a warning - renderWarnings().
     if (state.mount === "wall" && wallTopHalfHeight().size)
       return { code: "wall-05h", text: "Fix the build first · Wall Mount top-row cases can't be 0.5H · they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top." };
     if (state.mount === "under-table" && !VIEWER_UT_LENGTHS.includes(+state.length))
@@ -2921,11 +2952,20 @@
       div.appendChild(btn);
     }
 
-    // tabletop covers need every column to stack to the same height
+    // tabletop: an unfinished top is GUIDANCE, not a warning. Every kit is
+    // built column by column, so "one column shorter than the tallest" is the
+    // normal state between two clicks - a red triangle there taught people
+    // that progress was a mistake (Joey, 2026-08-23). The deficit comes from
+    // the shared tabletop-completion module (the viewer renders the same
+    // cells as ghost boxes), and it is per contiguous run: two separate
+    // stacks of different heights are each complete.
     if (state.mount === "tabletop") {
-      const tops = Object.values(columnTops());
-      if (new Set(tops).size > 1) {
-        warn(box, "Table Top covers need a flat top · every column must stack to the same height before the cover can attach.");
+      const done = tabletopCompletion();
+      if (!done.complete) {
+        const n = done.areas.length;
+        guide(box,
+          n === 1 ? "Almost there - one area left to fill" : "Finish the top to complete your tabletop kit",
+          `This layout is still in progress. Fill the ${n === 1 ? "highlighted space" : n + " highlighted areas"} so every column supports the top cover - any drawer combination that fits. The 3D Build Studio previews it as you go.`);
       }
     }
 
@@ -2944,6 +2984,27 @@
     div.textContent = "⚠ " + text;
     box.appendChild(div);
     return div;
+  }
+  /* Completion guidance: a distinct kind from warnings and errors. Brand
+     orange, a progress glyph instead of a triangle, role="status" so a screen
+     reader hears it as a status update rather than an alert - and the heading
+     carries the meaning, so colour is never the only difference. */
+  function guide(box, heading, text) {
+    const div = document.createElement("div");
+    div.className = "guide";
+    div.setAttribute("role", "status");
+    const h = document.createElement("b");
+    h.textContent = "◔ " + heading;
+    const p = document.createElement("span");
+    p.textContent = text;
+    div.append(h, p);
+    box.appendChild(div);
+    return div;
+  }
+  /* The shared deficit, in grid coordinates (js/tabletop-completion.js - the
+     viewer vendors the same bytes). Empty-safe: no units = complete. */
+  function tabletopCompletion() {
+    return GEN2_TABLETOP.completion(state.placed);
   }
 
   /* ------------------- Selected-unit toolbar (below grid) ------------------- */
@@ -4542,7 +4603,7 @@
       computeBom, selectedUnit, interiorFill, interiorComplete, interiorCellsLeft, placeCompartment,
       fixStructure, surpriseMe, serializeBuild, applyBuild, bowRisks, sagRisks,
       mountBlocksLength, enforceMountLength, wallTopHalfHeight, fixWallTops,
-      setMount, rebaseToMountEdge, unsupportedUnits,
+      setMount, rebaseToMountEdge, unsupportedUnits, tabletopCompletion,
       encodeBuildHash, applyBuildHash,
       undoRedo, pushHistoryNow, history, buildMeta,
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,

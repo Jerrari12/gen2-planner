@@ -9,3 +9,8 @@
 # clone - a false "someone edited it" that the obvious fix (bump the hash)
 # would launder into a real split.
 requirement-scope.js text eol=lf
+
+# Same trap, same fix for the tabletop-completion module: its sha256 is
+# pinned here and in the viewer (which vendors it byte-for-byte), so it must
+# check out LF everywhere (caught by the fresh-clone deploy gate 2026-08-23).
+tabletop-completion.js text eol=lf

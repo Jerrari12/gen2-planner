@@ -371,10 +371,18 @@ const GEN2 = {
       if (frUsed) {
         // foot rails got their own per-length product pages 2026-07-11
         const fr = `GEN2 ${ctx.len} Foot Rails`;
+        /* CORE for this resolved architecture, exactly like the under-table
+           rails. They appear only when a run's bottom row has two or more
+           cases - but WHERE THEY APPEAR THEY ARE NOT OPTIONAL: nothing else
+           ties separate bottom cases together. */
+        const frReq = () => ({
+          requirement: GEN2.req.core("base.rails"),
+          basis: GEN2.req.basis("mount", "tabletop", "build"),
+        });
         mixLines(fru, P.footRailUpper, ctx.len, { linkAs: fr, note: "Locks into the dovetail slots under the bottom cases." })
-          .forEach((i) => items.push(i));
+          .forEach((i) => items.push(Object.assign(i, frReq())));
         mixLines(frl, P.footRailLower, ctx.len, { linkAs: fr, note: "Slides into the upper rail. Needed when the bottom row is more than one case." })
-          .forEach((i) => items.push(i));
+          .forEach((i) => items.push(Object.assign(i, frReq())));
       }
 
       // Feet: printed TPU feet OR adhesive rubber feet - a one-for-one
@@ -387,22 +395,33 @@ const GEN2 = {
         items.push({
           name: "Adhesive rubber feet", qty: feet, hardware: true,
           note: "Stick to the flat pads around the underside slots · same count and spots as printed TPU feet (into the lower foot rail when the bottom row has two or more cases).",
+          /* ⚠ CORE although it is BOUGHT. `feet` has no off state - a tabletop
+             build stands on something - so the two options are implementations
+             of one obligation and purchased-ness is a separate axis entirely. */
+          requirement: GEN2.req.core("base.standoff"),
+          basis: GEN2.req.basis("feet", "adhesive", "build"),
         });
       } else {
         items.push({
           name: P.foot(), qty: feet, linkAs: kit,
           note: "Snap into the underside slots · into the lower foot rail when the bottom row has two or more cases. Or pick adhesive rubber feet instead (same count, same spots).",
+          requirement: GEN2.req.core("base.standoff"),
+          basis: GEN2.req.basis("feet", "tpu", "build"),
         });
       }
 
       // Optional M3 hardware, 1 per W. Nuts are shared by covers + foot rails.
       const nuts = cov.screws + frScrews;
-      items.push({ name: "M3×6mm socket head screw", qty: cov.screws, hardware: true, optional: true,
-        note: "Optional · secures the covers, 1 per 1W (threads into an M3 nut in the Cover Lower). Socket head · any M3 head style that clears the pocket works." });
-      if (frUsed) items.push({ name: "M3×12mm socket head screw", qty: frScrews, hardware: true, optional: true,
-        note: "Optional · screws the foot rails into the case's M3 nut slots, 1 per 1W. Socket head · any M3 head style that clears the slot works." });
-      items.push({ name: "M3 hex nut", qty: nuts, hardware: true, optional: true,
-        note: "Optional · pairs with the M3 cover / foot-rail screws above." });
+      /* ENHANCEMENTS: the covers and rails hold by their own dovetails, so the
+         build stands and works without any of this. Nothing selected promises
+         a bolted top - it is extra rigidity for anyone who wants it. */
+      const fastening = { requirement: GEN2.req.enhancement("top.fastening") };
+      items.push(Object.assign({ name: "M3×6mm socket head screw", qty: cov.screws, hardware: true, optional: true,
+        note: "Optional · secures the covers, 1 per 1W (threads into an M3 nut in the Cover Lower). Socket head · any M3 head style that clears the pocket works." }, fastening));
+      if (frUsed) items.push(Object.assign({ name: "M3×12mm socket head screw", qty: frScrews, hardware: true, optional: true,
+        note: "Optional · screws the foot rails into the case's M3 nut slots, 1 per 1W. Socket head · any M3 head style that clears the slot works." }, fastening));
+      items.push(Object.assign({ name: "M3 hex nut", qty: nuts, hardware: true, optional: true,
+        note: "Optional · pairs with the M3 cover / foot-rail screws above." }, fastening));
       return items;
     },
     "wall": (ctx) => {
@@ -413,6 +432,10 @@ const GEN2 = {
           variant: `${w}W section`,
           qty: count,
           note: "All widths are in the same download · sections install side by side to expand the area.",
+          // core for this architecture - a wall build has nothing to hang from
+          // without it. Mirrors the under-table rail row exactly.
+          requirement: GEN2.req.core("mount.install"),
+          basis: GEN2.req.basis("mount", "wall", "build"),
         });
       });
       items.push({
@@ -422,6 +445,9 @@ const GEN2 = {
         // (Joey, 2026-08-23): the right screw length or anchor depends on the wall
         note: "Hardware store item · 2 screws per 1W. Length and anchors depend on the wall material.",
         hardware: true,
+        // bought, and the bracket does not mount without them - core, like the bracket
+        requirement: GEN2.req.core("mount.install"),
+        basis: GEN2.req.basis("mount", "wall", "build"),
       });
       // Wall builds cap the top with the same covers (they close the exposed
       // top and carry the top-row drawer-stopper slots). No foot rails or
@@ -432,10 +458,11 @@ const GEN2 = {
       const coverUnits = ctx.wallStagger ? ctx.runs : ctx.topCases.map((w) => ({ width: w }));
       const cov = buildCoverItems(ctx.len, coverUnits, { hasStoppers: ctx.hasStoppers });
       cov.items.forEach((i) => items.push(i));
-      items.push({ name: "M3×6mm socket head screw", qty: cov.screws, hardware: true, optional: true,
-        note: "Optional · secures the covers, 1 per 1W. Socket head · any M3 head style that clears the pocket works." });
-      items.push({ name: "M3 hex nut", qty: cov.screws, hardware: true, optional: true,
-        note: "Optional · pairs with the M3 cover screws above." });
+      const wallFastening = { requirement: GEN2.req.enhancement("top.fastening") };
+      items.push(Object.assign({ name: "M3×6mm socket head screw", qty: cov.screws, hardware: true, optional: true,
+        note: "Optional · secures the covers, 1 per 1W. Socket head · any M3 head style that clears the pocket works." }, wallFastening));
+      items.push(Object.assign({ name: "M3 hex nut", qty: cov.screws, hardware: true, optional: true,
+        note: "Optional · pairs with the M3 cover screws above." }, wallFastening));
       return items;
     },
   },
@@ -457,6 +484,14 @@ const GEN2 = {
       qtyPerDrawer: 1,
       boltOnOnly: true,
       note: "Pick any style · handles and knobs are swappable.",
+      /* CORE, not enhancement. The obligation is "the drawer has a grip"; the
+         integrated-grip families satisfy it INSIDE the faceplate, and a
+         bolt-on family satisfies it with this. Within the selected family it
+         is not omittable - a bolt-on plate with no handle has no grip at all.
+         ⚠ LAZY on purpose, like `name` beside it: this table is inside the
+         GEN2 literal, so GEN2.req does not exist yet while it evaluates.
+         A plain value here throws at load. computeBom resolves it. */
+      requirement: () => GEN2.req.core("drawer.grip"),
     },
     // The one REQUIRED hardware item on a bolt-on-handle build: the handle
     // screws onto the faceplate from behind. Gated on the same
@@ -468,6 +503,10 @@ const GEN2 = {
       qtyPerDrawer: 2,
       hardware: true,
       boltOnOnly: true,
+      // the one bought item a print-only build cannot avoid; same obligation
+      // as the handle it fastens, and purchased-ness does not change scope.
+      // Lazy for the same TDZ reason as the handle row above.
+      requirement: () => GEN2.req.core("drawer.grip"),
       note: "Fastens the handle to the faceplate · 2 per handle, driven in from behind the plate.",
     },
   ],

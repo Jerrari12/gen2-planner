@@ -43,6 +43,50 @@
      4. Can it be omitted with architecture and capabilities intact?
                                 -> enhancement
 
+   VARIANT AXIS vs CAPABILITY - the only hard call, so state it once
+   ---------------------------------------------------------------------------
+   Step 3 turns on a distinction that is easy to get backwards, because both
+   look like "the user picked something". Decide it mechanically:
+
+     a. Pick the subject: build or unit.
+     b. Must every valid instance of that subject select exactly one value on
+        the axis?
+     c. If there is NO valid "off" state, the axis selects a VARIANT of an
+        obligation that is always present -> CORE, and `basis` records which
+        variant answered it.
+     d. If an explicit off state leaves the subject valid AND removes the
+        obligation, the axis is a CAPABILITY -> OPTION, carrying optionId.
+     e. If the row can go while every mandatory obligation and every selected
+        capability stays satisfied -> ENHANCEMENT.
+
+   Worked, from the rows this repo actually bills:
+     `fill`           classic|decor|shelf|cabinet, no off state  -> core
+     `feet`           tpu|adhesive, a tabletop build stands on something -> core
+     `faceplate.family`  a Decor drawer is open-fronted and must have a front,
+                      families swap the implementation           -> core
+     `mount`          tabletop|wall|under-table, no off state    -> core
+     `drawer.closure` has a REAL `none`                          -> option
+     side covers      emitted automatically, no capability promises finished
+                      sides, nothing is unmet without them       -> enhancement
+
+   ⚠ So `core` absorbs most per-unit choices, and that is CORRECT, not scope
+   creep: `option` does not mean "one of several", it means "an obligation
+   that does not exist when a capability is switched off". If option meant the
+   former, the minimum build would claim a wall setup needs no bracket.
+
+   OBLIGATION IDS are `<smallest stable functional domain>.<independently
+   testable obligation>` - `unit.fill`, `drawer.grip`, `base.standoff`,
+   `mount.install`. The domain names the subsystem that owns the invariant; it
+   is NOT copied from basis.subjectType, and it never names the implementation
+   (`quicklock.required` and `rubber_feet` are both wrong - they change when
+   the part changes). The planner's test pins the vocabulary closed, so adding
+   one is a deliberate act.
+
+   ⚠ `kind: purchased` is STRICTLY ORTHOGONAL to scope. The adhesive foot is
+   bought and the TPU foot is printed; they answer the same obligation on the
+   same axis, so both are core. "You must leave the printer ecosystem to get
+   it" belongs to procurement and disclosure, never to obligation semantics.
+
    ⚠ "core" means core for THIS RESOLVED build, not common to every possible
    configuration. An under-table build's rails are core; changing mount
    legitimately swaps one set of core rows for another.

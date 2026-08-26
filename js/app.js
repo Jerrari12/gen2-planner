@@ -3572,6 +3572,9 @@
   /* ------------------------------- BOM ------------------------------- */
 
   function computeBom() {
+    /* requirement-scope: which fill produced an aggregate row, and how many
+       units chose each fill (basis.selectedCount counts SUBJECTS, not parts) */
+    const drawerFill = new Map(), fillUnits = new Map();
     if (!state.length || !state.mount || !state.placed.length) return null;
     const len = state.length;
     const P = GEN2.partNames;
@@ -3593,9 +3596,15 @@
       const size = sizeToken(p.w, h);
       if (p.fill === "classic" || p.fill === "decor") {
         count(drawers, size + "|" + fillDef(p.fill).label);
+        /* the aggregate row is keyed by LABEL, but `basis.choice` must be the
+           stable fill id - keep a parallel map rather than parsing the label back */
+        drawerFill.set(size + "|" + fillDef(p.fill).label, p.fill);
+        count(fillUnits, p.fill);
         count(cases, size);
         if (p.fill === "decor") decorCount++;
+        void 0;
       } else if (p.fill === "shelf") {
+        count(fillUnits, "shelf");
         // Build from a 1H case + extenders, not one tall case: tall cases warp/
         // fail more in print, and splitting the parts lets them batch across
         // machines (and share SKUs with cabinet cases/extenders).
@@ -3604,6 +3613,7 @@
         if (shelfExt > 0) count(extenders, p.w, shelfExt);
         count(inserts, p.w);
       } else if (p.fill === "cabinet") {
+        count(fillUnits, "cabinet");
         if (Array.isArray(p.interior)) {
           // ADVANCED: bill each compartment as 1 case + (h-1) extenders + 1 insert.
           // Keys match the shelf/cabinet SKUs so they batch: cases by sizeToken(w,1)
@@ -3635,33 +3645,59 @@
         items: [...drawers.entries()].sort().map(([key, qty]) => {
           const [size, fillLabel] = key.split("|");
           const name = P.drawer(len, size, fillLabel);
-          return { name, qty, unreleased: GEN2.unreleasedParts.includes(name) };
+          const fill = drawerFill.get(key);
+          /* CORE. There is no "empty" fill - every placed unit selects one of
+             classic|decor|shelf|cabinet - so the drawer is not an addition to a
+             bare case, it IS how that unit is filled. The basis says which
+             variant answered the obligation. */
+          return { name, qty, unreleased: GEN2.unreleasedParts.includes(name),
+            requirement: GEN2.req.core("unit.fill"),
+            basis: GEN2.req.basis("fill", fill, "unit", fillUnits.get(fill)) };
         }),
       });
     }
 
     if (inserts.size || doors.size) {
       const items = [];
-      [...inserts.entries()].sort().forEach(([w, qty]) => items.push({
+      /* A shelf insert is billed by BOTH the shelf and cabinet fills, so on a
+         mixed board the row genuinely has two causes and carries both. Same
+         scope either way, so the resolved requirement never moves; `reasons`
+         only makes the explanation true. */
+      const fillReasons = (...fills) => {
+        const live = fills.filter((f) => fillUnits.get(f));
+        if (!live.length) return {};
+        const bas = (f) => GEN2.req.basis("fill", f, "unit", fillUnits.get(f));
+        /* ⚠ ONE cause: the basis goes on the ROW. resolveReasons collapses a
+           single reason to `{requirement}` alone - correctly, since a `reasons`
+           array of one is rejected by validate() - so a basis left inside that
+           lone reason simply disappears, and the row loses the ability to say
+           which fill put it there. */
+        if (live.length === 1) {
+          return { requirement: GEN2.req.core("unit.fill"), basis: bas(live[0]) };
+        }
+        return GEN2.req.resolveReasons(live.map((f) =>
+          Object.assign(GEN2.req.core("unit.fill"), { basis: bas(f) })));
+      };
+      [...inserts.entries()].sort().forEach(([w, qty]) => items.push(Object.assign({
         name: P.shelfInsert(len, w), qty,
         note: "Shelf inserts are sized by width only.",
         unreleased: GEN2.unreleased.includes("shelfInsert"),
-      }));
-      [...doors.entries()].sort().forEach(([size, qty]) => items.push({
+      }, fillReasons("shelf", "cabinet"))));
+      [...doors.entries()].sort().forEach(([size, qty]) => items.push(Object.assign({
         name: P.door(len, size, doorStyle), qty,
         note: "Door matches the total width and height of the case + extenders.",
         unreleased: GEN2.unreleased.includes("door"),
-      }));
-      if (hinges) items.push({
+      }, fillReasons("cabinet"))));
+      if (hinges) items.push(Object.assign({
         name: P.hinge(), qty: hinges,
         note: "Hinges are 1H · 1H cabinets take 1 hinge, taller cabinets take 2.",
         unreleased: GEN2.unreleased.includes("hinge"),
-      });
-      if (latches) items.push({
+      }, fillReasons("cabinet")));
+      if (latches) items.push(Object.assign({
         name: P.latch(), qty: latches,
         note: "Latches are 1H · 1H cabinets take 1 latch, taller cabinets take 2.",
         unreleased: GEN2.unreleased.includes("latch"),
-      });
+      }, fillReasons("cabinet")));
       sections.push({ title: "Shelves & Cabinets", items });
     }
 
@@ -3669,10 +3705,14 @@
       const items = [...cases.entries()].sort().map(([size, qty]) => ({
         name: P.case(len, size), qty,
         note: "Cases QuickLock together.",
+        requirement: GEN2.req.core("unit.enclosure"),
       }));
+      /* An extender is enclosure too - it is the interchangeable way a shelf or
+         cabinet reaches its height, not an addition to a finished one. */
       [...extenders.entries()].sort().forEach(([w, qty]) => items.push({
         name: P.extender(len, w), qty,
         note: "Stacks above a case to add cabinet height · interchangeable with full cases.",
+        requirement: GEN2.req.core("unit.enclosure"),
       }));
       // optional side covers for units on the outer edges of the layout.
       // Covers pair to a case via the side dovetails, so cabinets (stacked
@@ -3691,6 +3731,15 @@
         note: "Optional · covers the exposed sides of the outermost cases (pairs to each case's height via the side dovetails). Most popular with Table Top Kits.",
         optional: true,
         unreleased: GEN2.unreleased.includes("sideCover"),
+        /* ENHANCEMENT, and deliberately not `option`. The test is not "is it
+           cosmetic" - it is whether a declared capability promises the outcome.
+           Side covers are emitted automatically for exposed outer cases and can
+           be dropped with every obligation and every selected capability still
+           satisfied; there is no "finished sides" capability to switch on.
+           ⚠ Typing them `option` would MOVE them from the enhancements tier into
+           the selected plan on the published site, changing a number a homepage
+           claim is built on. That is a product decision, not a metadata one. */
+        requirement: GEN2.req.enhancement("unit.side_finish"),
       }));
       sections.push({ title: "Cases & Extenders", items });
     }
@@ -3701,7 +3750,12 @@
         count(map, sizeToken(p.w, p.hh / 2));
         return map;
       }, new Map()).forEach((qty, size) => {
-        items.push({ name: P.faceplate(len, size, faceStyle), qty, club: faceDef.club });
+        /* CORE: a Decor drawer is open-fronted, so it must have a front. The
+           family choice swaps the implementation, it does not make the
+           obligation optional. */
+        items.push({ name: P.faceplate(len, size, faceStyle), qty, club: faceDef.club,
+          requirement: GEN2.req.core("drawer.front"),
+          basis: GEN2.req.basis("faceplate.family", faceStyle, "build") });
         // optional back cover: one per faceplate, same size — every style seats
         // it, and the files ship INSIDE each faceplate series download (v2602+),
         // so the row links the chosen style's page
@@ -3711,10 +3765,16 @@
           optional: true,
           linkAs: `GEN2 Decor - Faceplates - ${faceDef.label} Series`,
           unreleased: GEN2.unreleased.includes("backCover"),
+          /* the drawer is complete without it - it closes an opening that is not
+             a fault, and nothing selected promises a closed back */
+          requirement: GEN2.req.enhancement("drawer.front.backing"),
         });
       });
       items.sort((a, b) => a.name.localeCompare(b.name));
       GEN2.decorExtras.forEach((x) => {
+        /* the stamp is a thunk - decorExtras is declared inside the GEN2 literal,
+           where GEN2.req is still in its TDZ. Resolve it here, once. */
+        const xReq = typeof x.requirement === "function" ? x.requirement() : x.requirement;
         // EdgeLabel / Classic Pro faceplates print their grip in — skip the
         // bolt-on rows (the handle AND the screws that fasten it).
         if (x.boltOnOnly && faceDef && faceDef.integratedHandle) return;
@@ -3726,6 +3786,8 @@
             name: `GEN2 Decor Handles - ${hs.label} Series`,
             qty: x.qtyPerDrawer * decorCount,
             note: x.note,
+            requirement: xReq,
+            basis: GEN2.req.basis("faceplate.family", faceStyle, "build"),
           });
           return;
         }
@@ -3735,6 +3797,12 @@
           note: x.note,
           hardware: x.hardware,
           optional: x.optional,
+          /* ⚠ carried across explicitly - this consumer builds a fresh object per
+             row rather than spreading `x`, so a stamp added to decorExtras does
+             NOT arrive on its own. Both bolt-on rows sat unmigrated after the
+             first pass for exactly this reason. */
+          requirement: xReq,
+          basis: xReq ? GEN2.req.basis("faceplate.family", faceStyle, "build") : undefined,
         });
       });
       sections.push({ title: "Faceplates & Handles", items });
@@ -3759,8 +3827,18 @@
       const items = [];
       const totalCases = [...cases.values()].reduce((a, b) => a + b, 0);
       if (totalCases) items.push(
-        { name: P.quickLockL(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
-        { name: P.quickLockR(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName },
+        /* CORE on every mount, including a build of ONE case with nothing above
+           it - which looked like an over-bill until it was checked. MEASURED
+           2026-08-26 against the viewer, whose generator places real geometry
+           from the same build: both tools agree on one pair per case across 15
+           layouts x 3 mounts, and the viewer's dip timeline shows what engages a
+           lone case's tabs - the Lower cover on tabletop, the bench cover on
+           wall, the rails under-table. So `unit.join` is real with no neighbour;
+           the obligation is "lock this case to whatever receives it". */
+        { name: P.quickLockL(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName,
+          requirement: GEN2.req.core("unit.join") },
+        { name: P.quickLockR(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName,
+          requirement: GEN2.req.core("unit.join") },
       );
       // Closure hardware: billed per drawer that opted in via the toolbar's
       // "Drawer close" picker (default none → nothing billed). Not tagged

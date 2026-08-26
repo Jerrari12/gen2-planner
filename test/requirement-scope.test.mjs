@@ -184,27 +184,168 @@ test('a tabletop build bills no under-table mount parts', () => {
   assert.deepEqual(names(wrongBasis), [], 'no row may claim another mount');
 });
 
-/* ---------- the migration ratchet ---------- */
+/* ---------- the migration is COMPLETE, and stays complete ---------- */
 
-test('⚠ RATCHET: unmigrated rows may only ever DECREASE', () => {
-  /* Bulk migration comes after this slice, so rows without a requirement are
-     tolerated - but the count is pinned so the number cannot grow while the
-     migration is half-done. Lower it as rows are stamped; never raise it. */
-  /* MEASURED 2026-08-22, at the end of the closure + mount slice. The rows
-     still unstamped are structural and enhancement ones - case, drawer,
-     faceplate, handles, QuickLock, covers, foot rails, feet, stoppers, M3.
-     ⚠ Every `option`-scoped row is already migrated, which is the class that
-     actually caused the shipped defect; what remains is the mechanical part. */
-  const BASELINE = { tabletop: 13, 'under-table': 8 };
-  for (const mount of Object.keys(BASELINE)) {
-    const { app } = boot(mount);
-    app.state.placed.push({ id: 1, x: 0, y: 0, w: 2, hh: 2, fill: 'decor', shelves: 0, closure: 'magnet' });
-    app.refresh();
-    const un = rows(app).filter((r) => !r.requirement);
-    assert.ok(un.length <= BASELINE[mount],
-      `${mount}: ${un.length} unmigrated rows, baseline ${BASELINE[mount]} - lower the baseline, never raise it:\n  `
-      + un.map((r) => r.name).join('\n  '));
+/** Every scenario that can produce a distinct BOM row identity. */
+function sweepScenarios() {
+  const out = [];
+  for (const mount of ['tabletop', 'wall', 'under-table']) {
+    for (const fill of ['decor', 'classic', 'shelf', 'cabinet']) {
+      out.push({ mount, fill, feet: 'tpu', face: 'essential', closure: 'magnet' });
+    }
   }
+  /* the axes that swap ONE row each - swept once rather than crossed with
+     everything above, which would cost 72 boots for no new identities */
+  out.push({ mount: 'tabletop', fill: 'decor', feet: 'adhesive', face: 'essential', closure: 'none' });
+  for (const face of ['classic', 'edgelabel', 'classicpro', 'chevron']) {
+    out.push({ mount: 'tabletop', fill: 'decor', feet: 'tpu', face, closure: 'none' });
+  }
+  return out;
+}
+
+test('⚠ FAIL-CLOSED: every BOM row carries a requirement, in every scenario', () => {
+  const unstamped = [], names = new Set();
+  for (const sc of sweepScenarios()) {
+    const { app } = boot(sc.mount);
+    app.state.feet = sc.feet;
+    app.state.faceStyle = sc.face;
+    app.state.backCover = true;
+    app.state.placed.push(
+      { id: 1, x: 0, y: 6, w: 2, hh: 2, fill: sc.fill, shelves: 1, closure: sc.closure },
+      { id: 2, x: 2, y: 6, w: 1, hh: 2, fill: sc.fill, shelves: 1, closure: sc.closure });
+    app.refresh();
+    for (const r of rows(app)) {
+      names.add(r.name);
+      if (!r.requirement) unstamped.push(`${sc.mount}/${sc.fill}/${sc.face}: ${r.name}`);
+    }
+  }
+  /* ⚠ NOT a count of unstamped rows - that is what the old ratchet did, and a
+     count passes unchanged when one row loses its stamp while another gains
+     one. Name them. */
+  assert.deepEqual(unstamped, [],
+    'these rows reach a reader with no requirement, so they fall out of every tier total');
+  /* and the sweep must keep being wide: if a future change stops emitting whole
+     families, the assertion above would pass by covering less */
+  assert.ok(names.size >= 30, `the sweep saw only ${names.size} distinct rows - it stopped covering the catalog`);
+});
+
+test('every stamped row is well-formed by the contract\'s own validator', () => {
+  const problems = [];
+  for (const sc of sweepScenarios()) {
+    const { app, GEN2 } = boot(sc.mount);
+    app.state.feet = sc.feet;
+    app.state.faceStyle = sc.face;
+    app.state.backCover = true;
+    app.state.placed.push({ id: 1, x: 0, y: 6, w: 2, hh: 2, fill: sc.fill, shelves: 1, closure: sc.closure });
+    app.refresh();
+    for (const r of rows(app)) {
+      const p = GEN2.req.validate(r);
+      if (p.length) problems.push(`${r.name}: ${p.join('; ')}`);
+    }
+  }
+  assert.deepEqual(problems, []);
+});
+
+test('the obligation vocabulary is closed - a typo cannot invent one', () => {
+  /* Obligation ids are `<smallest stable functional domain>.<independently
+     testable obligation>`. The domain names the subsystem that owns the
+     invariant; it is NOT copied from basis.subjectType. Adding one is a
+     deliberate act, so it belongs here. */
+  const KNOWN = new Set([
+    'unit.fill', 'unit.enclosure', 'unit.join', 'unit.side_finish',
+    'drawer.front', 'drawer.front.backing', 'drawer.grip', 'drawer.closure',
+    'drawer.retention', 'drawer.stopper.seat',
+    'top.enclosure', 'top.rigidity', 'top.fastening', 'top.layout',
+    'base.rails', 'base.standoff', 'mount.install',
+  ]);
+  const unknown = new Set();
+  for (const sc of sweepScenarios()) {
+    const { app } = boot(sc.mount);
+    app.state.feet = sc.feet;
+    app.state.faceStyle = sc.face;
+    app.state.backCover = true;
+    app.state.placed.push(
+      { id: 1, x: 0, y: 6, w: 2, hh: 2, fill: sc.fill, shelves: 1, closure: sc.closure },
+      { id: 2, x: 2, y: 6, w: 1, hh: 2, fill: sc.fill, shelves: 1, closure: sc.closure });
+    app.refresh();
+    for (const r of rows(app)) {
+      for (const c of r.reasons || [r.requirement]) {
+        if (c && !KNOWN.has(c.obligationId)) unknown.add(`${r.name}: ${c.obligationId}`);
+      }
+    }
+  }
+  assert.deepEqual([...unknown], []);
+});
+
+test('⚠ the fill axis is CORE with a basis, never option', () => {
+  /* The boundary rule, asserted rather than described: an axis with no valid
+     "off" state selects a VARIANT of an obligation that always exists, so its
+     rows are core and the basis records the choice. `drawer.closure` has a
+     real `none`, which is why magnets are option - that contrast is the whole
+     distinction and it is what keeps `option` from meaning "one of several". */
+  for (const fill of ['decor', 'classic', 'shelf', 'cabinet']) {
+    const { app } = boot('tabletop');
+    app.state.placed.push({ id: 1, x: 0, y: 6, w: 2, hh: 2, fill, shelves: 1, closure: 'none' });
+    app.refresh();
+    const filled = rows(app).filter((r) => r.requirement && r.requirement.obligationId === 'unit.fill');
+    assert.ok(filled.length, `no unit.fill row for fill=${fill}`);
+    for (const r of filled) {
+      assert.equal(r.requirement.scope, 'core', `${r.name} should be core`);
+      const b = r.basis || (r.reasons || []).map((x) => x.basis).find(Boolean);
+      assert.ok(b && b.axis === 'fill', `${r.name} must say which fill put it here`);
+      assert.equal(b.subjectType, 'unit');
+    }
+  }
+});
+
+test('⚠ purchased is orthogonal to scope: a bought foot is still core', () => {
+  /* "You must leave the printer ecosystem to get it" is procurement, not
+     obligation. The adhesive foot and the TPU foot answer the same obligation
+     on the same axis; only one of them is bought. */
+  for (const [feet, choice] of [['tpu', 'tpu'], ['adhesive', 'adhesive']]) {
+    const { app } = boot('tabletop');
+    app.state.feet = feet;
+    app.state.placed.push(
+      { id: 1, x: 0, y: 6, w: 1, hh: 2, fill: 'decor', shelves: 0, closure: 'none' },
+      { id: 2, x: 1, y: 6, w: 1, hh: 2, fill: 'decor', shelves: 0, closure: 'none' });
+    app.refresh();
+    const foot = rows(app).find((r) => r.requirement && r.requirement.obligationId === 'base.standoff');
+    assert.ok(foot, `no base.standoff row for feet=${feet}`);
+    assert.equal(foot.requirement.scope, 'core');
+    assert.equal(foot.basis.choice, choice);
+  }
+});
+
+test('⚠ QuickLock is core even on a build of ONE case', () => {
+  /* It looks over-billed and is not. Verified 2026-08-26 against the viewer,
+     whose generator places real geometry from the same build: both tools bill
+     one pair per case across 15 layouts x 3 mounts, and the viewer's dip
+     timeline shows what engages a lone case's tabs - the Lower cover on
+     tabletop, the bench cover on wall, the rails under-table. */
+  for (const mount of ['tabletop', 'wall', 'under-table']) {
+    const { app } = boot(mount);
+    app.state.placed.push({ id: 1, x: 0, y: 6, w: 1, hh: 2, fill: 'decor', shelves: 0, closure: 'none' });
+    app.refresh();
+    const ql = rows(app).filter((r) => /QuickLock/.test(r.name));
+    assert.equal(ql.length, 2, `${mount}: expected a Left and a Right`);
+    for (const r of ql) assert.equal(r.requirement.obligationId, 'unit.join');
+    for (const r of ql) assert.equal(r.requirement.scope, 'core');
+  }
+});
+
+test('⚠ the Side Cover stays an ENHANCEMENT', () => {
+  /* Typing it `option` would move it out of the enhancements tier and into the
+     selected plan on the published site, changing a number a homepage claim is
+     built on. There is no "finished sides" capability to switch on - it is
+     emitted automatically for exposed outer cases and drops without leaving
+     any obligation unmet. Moving it is a product decision, not metadata work. */
+  const { app } = boot('tabletop');
+  app.state.placed.push({ id: 1, x: 0, y: 6, w: 2, hh: 2, fill: 'decor', shelves: 0, closure: 'none' });
+  app.refresh();
+  const side = rows(app).find((r) => /Side Cover/.test(r.name));
+  assert.ok(side, 'no side cover row');
+  assert.equal(side.requirement.scope, 'enhancement');
+  assert.equal(side.requirement.obligationId, 'unit.side_finish');
 });
 
 /* ---------- the Cover Lower: one row, several causes ---------- */

@@ -99,7 +99,18 @@ if (RESTORE) {
 }
 
 if (!existsSync(SOURCE)) die(`source of truth is missing: ${SOURCE}`);
-const src = readFileSync(SOURCE);
+/* ⚠⚠ NORMALISE TO LF BEFORE WRITING **OR** PINNING.
+   This repo stores and checks out LF, but a Windows working copy holds CRLF -
+   so a pin taken over the raw working-copy bytes describes a file that exists
+   on exactly one machine. Every fresh clone and every CI runner then hashes
+   something else and the drift gate fires on a copy that is actually correct.
+   That shipped once and blocked the viewer's deploy (pin fcec589b, real
+   checkout 9d50b076); the same failure had already happened to
+   tabletop-completion.js. The pin must name the CANONICAL content.
+   ⚠ And it is deliberately BOTH: normalising the write without the hash, or
+   the hash without the write, just moves the mismatch. */
+const srcRaw = readFileSync(SOURCE);
+const src = Buffer.from(srcRaw.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
 const srcHash = sha(src);
 const version = Number((src.toString('utf8').match(/CONTRACT VERSION:\s*(\d+)/) || [])[1]);
 if (!version) die('the source carries no "CONTRACT VERSION:" marker - refusing to sync an unversioned contract');
@@ -131,7 +142,10 @@ for (const c of CONSUMERS) {
   if (!existsSync(pinAbs)) die(`consumer "${c.name}" has no pin file at ${c.pin}`);
   const pinSrc = readFileSync(pinAbs, 'utf8');
   if (!c.pinPattern.test(pinSrc)) die(`consumer "${c.name}": no pinned hash in ${c.pin}`);
-  const copy = existsSync(destAbs) ? readFileSync(destAbs) : null;
+  /* normalised, for the same reason the pin is: --check must judge the
+     canonical content, or it reports drift on a machine-local line ending */
+  const copy = existsSync(destAbs)
+    ? Buffer.from(readFileSync(destAbs).toString('utf8').replace(/\r\n/g, '\n'), 'utf8') : null;
   const pin = (pinSrc.match(c.pinPattern) || [])[2];
   planned.push({ c, destAbs, pinAbs, pinSrc, copyHash: copy ? sha(copy) : null, pin });
 }
@@ -201,7 +215,10 @@ try {
     backup(p.destAbs); writeFileSync(p.destAbs, src);
     backup(p.pinAbs); writeFileSync(p.pinAbs, p.pinSrc.replace(p.c.pinPattern, `$1${srcHash}$3`), 'utf8');
     say(`  wrote ${p.c.name}: ${p.c.dest} + pin`);
-    if (sha(readFileSync(p.destAbs)) !== srcHash) throw new Error(`${p.c.name}: written copy does not read back identical`);
+    /* read back through the same normalisation - on Windows an editor or a
+       filter could reintroduce CRLF, and that must fail here, not in CI */
+    const back = Buffer.from(readFileSync(p.destAbs).toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+    if (sha(back) !== srcHash) throw new Error(`${p.c.name}: written copy does not read back identical`);
   }
 
   /* ---------- phase 3: PROVE IT, or put everything back ---------- */

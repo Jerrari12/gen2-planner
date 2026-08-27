@@ -3579,6 +3579,9 @@
     const len = state.length;
     const P = GEN2.partNames;
     const faceDef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    /* ⚠ this is the LABEL ("Classic"), not the id - it feeds part NAMES.
+       Never hand it to a basis: a basis choice is a stable id, and this
+       one is display text that may be reworded. Use state.faceStyle. */
     const faceStyle = faceDef.label;
     const doorStyle = GEN2.doorStyles.find((s) => s.id === state.doorStyle).label;
     const sections = [];
@@ -3755,7 +3758,7 @@
            obligation optional. */
         items.push({ name: P.faceplate(len, size, faceStyle), qty, club: faceDef.club,
           requirement: GEN2.req.core("drawer.front"),
-          basis: GEN2.req.basis("faceplate.family", faceStyle, "build") });
+          basis: GEN2.req.basis("faceplate.family", state.faceStyle, "build") });
         // optional back cover: one per faceplate, same size — every style seats
         // it, and the files ship INSIDE each faceplate series download (v2602+),
         // so the row links the chosen style's page
@@ -3787,7 +3790,7 @@
             qty: x.qtyPerDrawer * decorCount,
             note: x.note,
             requirement: xReq,
-            basis: GEN2.req.basis("faceplate.family", faceStyle, "build"),
+            basis: GEN2.req.basis("faceplate.family", state.faceStyle, "build"),
           });
           return;
         }
@@ -3802,7 +3805,7 @@
              NOT arrive on its own. Both bolt-on rows sat unmigrated after the
              first pass for exactly this reason. */
           requirement: xReq,
-          basis: xReq ? GEN2.req.basis("faceplate.family", faceStyle, "build") : undefined,
+          basis: xReq ? GEN2.req.basis("faceplate.family", state.faceStyle, "build") : undefined,
         });
       });
       sections.push({ title: "Faceplates & Handles", items });

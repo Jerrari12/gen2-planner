@@ -312,6 +312,11 @@ test('⚠ purchased is orthogonal to scope: a bought foot is still core', () => 
     const foot = rows(app).find((r) => r.requirement && r.requirement.obligationId === 'base.standoff');
     assert.ok(foot, `no base.standoff row for feet=${feet}`);
     assert.equal(foot.requirement.scope, 'core');
+    /* ⚠ the AXIS too. Asserting only the choice let the axis be stamped `feet`
+       while every consumer's label map said `tabletop.feet`, which renders as
+       "Required for tpu builds" instead of "Required for printed-feet builds"
+       - invisible to these tests, obvious the moment a BOM is rendered. */
+    assert.equal(foot.basis.axis, 'tabletop.feet');
     assert.equal(foot.basis.choice, choice);
   }
 });

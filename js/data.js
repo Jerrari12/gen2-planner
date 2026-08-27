@@ -399,14 +399,14 @@ const GEN2 = {
              build stands on something - so the two options are implementations
              of one obligation and purchased-ness is a separate axis entirely. */
           requirement: GEN2.req.core("base.standoff"),
-          basis: GEN2.req.basis("feet", "adhesive", "build"),
+          basis: GEN2.req.basis("tabletop.feet", "adhesive", "build"),
         });
       } else {
         items.push({
           name: P.foot(), qty: feet, linkAs: kit,
           note: "Snap into the underside slots · into the lower foot rail when the bottom row has two or more cases. Or pick adhesive rubber feet instead (same count, same spots).",
           requirement: GEN2.req.core("base.standoff"),
-          basis: GEN2.req.basis("feet", "tpu", "build"),
+          basis: GEN2.req.basis("tabletop.feet", "tpu", "build"),
         });
       }
 

@@ -25,7 +25,14 @@ const SOURCE = join(root, 'js', 'requirement-scope.js');
 const RECEIPT = join(root, 'data', 'requirement-scope.sync.json');
 const CONSUMERS = ['viewer', 'site'];   // logical names - the receipt must know every one
 
-const sha = (p) => createHash('sha256').update(readFileSync(p)).digest('hex');
+/* ⚠⚠ CANONICAL CONTENT, not working-copy bytes. This repo stores LF and a
+   Windows checkout holds CRLF, so hashing raw bytes makes every such
+   machine look like it has "edited the source since the last sync". Third
+   place with this same flaw (the pin gate and the drift gate were the
+   others), so state the rule once: a hash answering a question about
+   CONTENT is taken over content with CRLF normalised away. */
+const sha = (p) => createHash('sha256')
+  .update(Buffer.from(readFileSync(p, 'utf8').replace(/\r\n/g, '\n'), 'utf8')).digest('hex');
 
 test('a completed-sync receipt exists', () => {
   assert.ok(existsSync(RECEIPT), 'no data/requirement-scope.sync.json - run `npm run sync:contract` once');

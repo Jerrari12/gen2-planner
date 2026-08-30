@@ -255,6 +255,7 @@ test('the obligation vocabulary is closed - a typo cannot invent one', () => {
     'unit.fill', 'unit.enclosure', 'unit.join', 'unit.side_finish',
     'drawer.front', 'drawer.front.backing', 'drawer.grip', 'drawer.closure',
     'drawer.retention', 'drawer.stopper.seat',
+    'shelf.retention',
     'top.enclosure', 'top.rigidity', 'top.fastening', 'top.layout',
     'base.rails', 'base.standoff', 'mount.install',
   ]);

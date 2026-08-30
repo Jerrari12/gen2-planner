@@ -2082,6 +2082,14 @@
       if ((u.fill === "classic" || u.fill === "decor") &&
           GEN2.closures.some((c) => c.id === u.closure && c.parts && !c.soon))
         unit.closure = u.closure;
+      /* shelf lip: shelves only. "front" | "both"; the field's ABSENCE is
+         "no lip", so nothing is written for the default and old share links
+         decode unchanged. ⚠ Never write lip:false. A rear-only shelf is not
+         expressible on purpose - front first, always (Joey 2026-08-28).
+         "both" is KEPT even where the deck has no mid slot: the BOM and the
+         viewer both clamp it to one lip, and the choice then survives a later
+         switch to a 240/270. */
+      if (u.fill === "shelf" && (u.lip === "front" || u.lip === "both")) unit.lip = u.lip;
       if (u.fill === "cabinet" && Array.isArray(u.interior) && u.interior.length) {
         // compartment coords are FULL 1H rows within the shell; any invalid
         // compartment discards the whole interior (falls back to simple mode)
@@ -2437,7 +2445,16 @@
     if (applyingRemoteOpts || !viewerWin || viewerWin.closed) return;
     const closures = {};
     state.placed.forEach((u) => { if (u.fill === "decor" || u.fill === "classic") closures[u.id] = u.closure === "magnet" ? "magnet" : "none"; });
-    const opts = { closures, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu" };
+    /* shelf lips: every SHELF gets an entry so the viewer can tell "lip turned
+       off" from "not a shelf" - the missing key means the latter.
+       ⚠ The VALUE is the mode STRING ("none" | "front" | "both"), never a
+       boolean: the viewer whitelists it against LIP_MODES and drops anything
+       else. This sent `u.lip === true`, which is always false for a string
+       field, so every shelf relayed "off" and the planner's toggle could never
+       reach the viewer. */
+    const lips = {};
+    state.placed.forEach((u) => { if (u.fill === "shelf") lips[u.id] = u.lip || "none"; });
+    const opts = { closures, lips, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu" };
     const json = JSON.stringify(opts);
     if (json === lastSentOpts) return;
     lastSentOpts = json;
@@ -2456,7 +2473,7 @@
   let lastSentLayout = null, layoutTimer = 0;
   const layoutSig = () => JSON.stringify({
     m: state.mount, l: state.length, r: instructionsBlockReason()?.code || "",
-    p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", u.closure || "", JSON.stringify(u.interior || null)]),
+    p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", u.closure || "", u.lip || "", JSON.stringify(u.interior || null)]),
   });
   function postLayoutNow() {
     if (!viewerWin || viewerWin.closed) return;
@@ -3025,17 +3042,20 @@
       return { code: "wall-05h", text: "Fix the build first · Wall Mount top-row cases can't be 0.5H · they're too low-profile for wall-mount holes. Put a 1H (or taller) case on top." };
     if (state.mount === "under-table" && !VIEWER_UT_LENGTHS.includes(+state.length))
       return { code: "no-ut-rails", text: "3D instructions can't show under-table " + state.length + " builds yet · the rail models aren't in the 3D part library. Table Top and Wall Mount work for every collection." };
-    // ⚠ These two MIRROR the viewer generator's own refusals (generate.js:
-    // "Cabinet units need case-extender models…" / "Shelves taller than 1H…").
-    // Without them the button stayed lit on a cabinet or tall-shelf layout and
-    // the hand-off opened a new tab straight onto an error overlay — the exact
-    // failure the reason-gate exists to prevent, and a well-travelled path:
-    // shelf + cabinet are ~31% of fill picks. Keep the pair in step; if case
-    // extenders ever reach the 3D library, both sides drop together.
+    /* ⚠ MIRRORS the viewer generator's own refusals (generate.js per-unit
+       validation). Without it the button stays lit and the hand-off opens a new
+       tab straight onto an error overlay — the exact failure the reason-gate
+       exists to prevent, and a well-travelled path: shelf + cabinet are ~31% of
+       fill picks.
+       ⚠⚠ THE TALL-SHELF BLOCK IS GONE (2026-08-29). All 24 case-extender GLBs
+       landed, so a shelf of ANY height 1H-6H now renders: the viewer builds it
+       the way this file bills it — a 1H case plus (h − 1) extenders. Do not
+       reinstate it. What remains blocked is the CABINET, and no longer for the
+       extenders: it needs the door, hinge and latch, which have no models (they
+       are still in GEN2.unreleased). Keep this in step with the viewer's own
+       message, which now names the same three parts. */
     if (state.placed.some((p) => p.fill === "cabinet"))
-      return { code: "cabinet", text: "3D instructions can't show Cabinet units yet · they need case-extender models that aren't in the 3D part library. You can still plan and print them." };
-    if (state.placed.some((p) => p.fill === "shelf" && p.hh !== 2))
-      return { code: "shelf-tall", text: "3D instructions can only show 1H shelves · taller ones use case extenders that aren't in the 3D part library yet. You can still plan and print them." };
+      return { code: "cabinet", text: "3D instructions can't show Cabinet units yet · the door, hinge and latch models aren't in the 3D part library. The case extenders they stack are — so Shelves show in 3D at any height. You can still plan and print cabinets." };
     return null;
   }
   /* Each distinct limitation is counted ONCE per session — and only after the
@@ -3286,6 +3306,31 @@
      GEN2.closures. "soon" options render disabled with their tip as a
      hover/tap-revealed reason (same pattern as greyed sizes); `noWall` options
      also disable on wall builds once released. */
+  /* Per-shelf lip picker. The stops come from the COLLECTION: only a 240/270
+     deck carries the second slot pair, so "Front + mid" is simply absent
+     elsewhere rather than shown disabled - there is nothing coming, the part
+     just has nowhere to go on a shallower shelf.
+     ⚠ Rebuilt on every refresh, so its clicks are DELEGATED on #ut-lip-seg. */
+  function renderLipSeg(p) {
+    const seg = $("#ut-lip-seg");
+    const stops = [{ id: "none", label: "None" }, { id: "front", label: "Front" }];
+    if (GEN2.shelfMidLipLengths.includes(state.length))
+      stops.push({ id: "both", label: "Front + mid" });
+    seg.innerHTML = "";
+    stops.forEach((st) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.lip = st.id;
+      b.textContent = st.label;
+      // a "both" carried over from a deeper collection still reads as its
+      // clamped result here, so the control never shows a stop that is not there
+      const cur = p.lip || "none";
+      const shown = stops.some((x) => x.id === cur) ? cur : "front";
+      b.className = st.id === shown ? "active" : "";
+      seg.appendChild(b);
+    });
+  }
+
   function renderClosureSeg(p) {
     const seg = $("#ut-closure-seg");
     seg.innerHTML = "";
@@ -3435,6 +3480,10 @@
     // drawer family (Classic Drawer / Decor Drawer): drawers only, same rule
     $("#ut-fill").hidden = !isDrawer;
     if (isDrawer) renderFillTypeSeg(p); else $("#ut-fp-note").hidden = true;
+    // shelf lip: the `shelf` fill only - a cabinet's inserts are behind a door
+    const isShelf = p.fill === "shelf";
+    $("#ut-lip").hidden = !isShelf;
+    if (isShelf) renderLipSeg(p);
 
     // Cabinet interior controls: Simple shelf count vs Advanced compartment editor
     const W = p.w, H = p.hh / 2;
@@ -3591,6 +3640,7 @@
     const cases = new Map();     // size -> qty
     const extenders = new Map(); // w -> qty
     const inserts = new Map();   // w -> qty
+    const lips = new Map();      // w -> qty (shelf fills only, opt-in)
     const doors = new Map();     // size -> qty
     let decorCount = 0, hinges = 0, latches = 0;
 
@@ -3615,6 +3665,14 @@
         const shelfExt = h - 1;
         if (shelfExt > 0) count(extenders, p.w, shelfExt);
         count(inserts, p.w);
+        /* ONLY for the `shelf` fill: a cabinet's inserts sit behind a door,
+           so nothing can roll off them. "both" bills TWO of the same part -
+           front + mid - but only on a collection whose deck has the second slot
+           pair, which is the same clamp the viewer applies. */
+        if (p.lip === "front" || p.lip === "both") {
+          const mid = p.lip === "both" && GEN2.shelfMidLipLengths.includes(len);
+          count(lips, p.w, mid ? 2 : 1);
+        }
       } else if (p.fill === "cabinet") {
         count(fillUnits, "cabinet");
         if (Array.isArray(p.interior)) {
@@ -3660,8 +3718,21 @@
       });
     }
 
-    if (inserts.size || doors.size) {
+    if (inserts.size || lips.size || doors.size) {
       const items = [];
+      /* ONE page per length carries that length's inserts AND the universal
+         1W-4W lips, so both row families linkAs the same key - exactly how
+         every CL/CU width row linkAs-es one `GEN2 <L> Covers` page. The lip is
+         optional hardware for the insert and is inert without one, so it does
+         not get a page of its own (Joey 2026-08-29).
+         ⚠ Renaming the page is THIS ONE STRING plus the matching
+         LINK_OVERRIDES key - a BOM row's name is its link key, so keep them in
+         step or the row falls through to a platform SEARCH url. */
+      const shelfPage = `GEN2 ${len} Shelf Inserts`;
+      /* Once published, say WHY the lip's download opens a page named for the
+         inserts. Flips on its own when `shelfLip` leaves GEN2.unreleased. */
+      const lipHome = GEN2.unreleased.includes("shelfLip")
+        ? "" : ` Included in the ${len} shelf insert download.`;
       /* A shelf insert is billed by BOTH the shelf and cabinet fills, so on a
          mixed board the row genuinely has two causes and carries both. Same
          scope either way, so the resolved requirement never moves; `reasons`
@@ -3684,8 +3755,22 @@
       [...inserts.entries()].sort().forEach(([w, qty]) => items.push(Object.assign({
         name: P.shelfInsert(len, w), qty,
         note: "Shelf inserts are sized by width only.",
+        linkAs: shelfPage,
         unreleased: GEN2.unreleased.includes("shelfInsert"),
       }, fillReasons("shelf", "cabinet"))));
+      /* The lip is a real OPTION, not core: a shelf without one is still a
+         shelf, so nothing the build promises goes unmet when it is off. That
+         is the same test `drawer.closure` passes and `unit.fill` fails. */
+      [...lips.entries()].sort().forEach(([w, qty]) => items.push({
+        name: P.shelfLip(w), qty,
+        note: (GEN2.shelfMidLipLengths.includes(len)
+          ? "Stops items rolling off · sized by width only. This collection's deck also takes a second lip part-way back, which stiffens a wide span and keeps a filament spool from rolling forward."
+          : "Stops items rolling off · one per shelf, sized by width only.") + lipHome,
+        linkAs: shelfPage,
+        unreleased: GEN2.unreleased.includes("shelfLip"),
+        requirement: GEN2.req.option("shelf.retention", "shelf.lip"),
+        basis: GEN2.req.basis("shelf.lip", "on", "unit", qty),
+      }));
       [...doors.entries()].sort().forEach(([size, qty]) => items.push(Object.assign({
         name: P.door(len, size, doorStyle), qty,
         note: "Door matches the total width and height of the case + extenders.",
@@ -3822,25 +3907,49 @@
       for (let cx = p.x; cx < p.x + p.w; cx++) if (unitAt(cx, p.y - 1)) return true;
       return false;
     };
+    /* ⚠ A drawer's stoppers seat in the CEILING of its bay - the floor of the
+       unit above. When that unit is a SHELF, the shelf insert's own INTEGRATED
+       stoppers already occupy those slots: they are what snaps it in, and they
+       poke through into the bay below (Joey 2026-08-28). So that column bills
+       no pair - two parts cannot share one slot.
+       ⚠ PER COLUMN, not per unit: a 2W drawer can have a shelf over one column
+       and an ordinary case over the other. MIRRORED in the viewer's
+       generate.js `shelfAbove()`; the cross-tool parity suite pins them
+       together, and it only caught this because a mixed shelf-over-drawer
+       fixture was added - a shelf-only board never exercises it. */
+    const shelfAbove = (p, cx) => {
+      const u = unitAt(cx, p.y - 1);
+      return !!u && u.fill === "shelf";
+    };
 
     // Hardware that attaches to a drawer or case: QuickLocks (per case) plus the
     // optional soft-close magnet clips + magnets (per Decor drawer). Grouped here
     // so all drawer/case hardware sits together instead of split across sections.
     {
       const items = [];
-      const totalCases = [...cases.values()].reduce((a, b) => a + b, 0);
-      if (totalCases) items.push(
+      /* ⚠⚠ RINGS, NOT CASES (Joey 2026-08-29). Every stacked ring locks to the
+         one above it, so a case extender takes its own handed pair exactly as a
+         case does — a 3H shelf is 1 case + 2 extenders and carries THREE pairs.
+         This counted `cases` alone and under-billed every shelf above 1H.
+         Keep it in step with the viewer's generator, which places one pair per
+         ring at that ring's own bottom + 35.68. */
+      const totalRings = [...cases.values()].reduce((a, b) => a + b, 0)
+        + [...extenders.values()].reduce((a, b) => a + b, 0);
+      if (totalRings) items.push(
         /* CORE on every mount, including a build of ONE case with nothing above
            it - which looked like an over-bill until it was checked. MEASURED
            2026-08-26 against the viewer, whose generator places real geometry
-           from the same build: both tools agree on one pair per case across 15
-           layouts x 3 mounts, and the viewer's dip timeline shows what engages a
+           from the same build: both tools agreed on one pair per case across 15
+           layouts x 3 mounts. ⚠ That sweep PREDATES tall shelves, so every unit
+           in it was a single ring and it never distinguished per-case from
+           per-ring; the rule is per RING (2026-08-29). The viewer's dip
+           timeline shows what engages a
            lone case's tabs - the Lower cover on tabletop, the bench cover on
            wall, the rails under-table. So `unit.join` is real with no neighbour;
            the obligation is "lock this case to whatever receives it". */
-        { name: P.quickLockL(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName,
+        { name: P.quickLockL(), qty: totalRings, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName,
           requirement: GEN2.req.core("unit.join") },
-        { name: P.quickLockR(), qty: totalCases, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName,
+        { name: P.quickLockR(), qty: totalRings, note: GEN2.quickLock.note, linkAs: GEN2.quickLock.linkName,
           requirement: GEN2.req.core("unit.join") },
       );
       // Closure hardware: billed per drawer that opted in via the toolbar's
@@ -3878,7 +3987,7 @@
       //  requirement needs the same answer, and two copies would drift)
       // per-1W stopper pairs the user removed in the 3D viewer drop out of the count
       const removedStop = new Set(state.removedStoppers || []);
-      const keptCols = (p) => { let n = 0; for (let k = 0; k < p.w; k++) if (!removedStop.has(`${p.id}:${k}`)) n++; return n; };
+      const keptCols = (p) => { let n = 0; for (let k = 0; k < p.w; k++) if (!removedStop.has(`${p.id}:${k}`) && !shelfAbove(p, p.x + k)) n++; return n; };
       const stopperW = state.placed
         .filter((p) => (p.fill === "classic" || p.fill === "decor") &&
                        (state.mount !== "under-table" || hasUnitAbove(p)))
@@ -3924,7 +4033,8 @@
     const hasStoppers = state.placed.some((p) =>
       (p.fill === "classic" || p.fill === "decor") &&
       (state.mount !== "under-table" || hasUnitAbove(p)) &&
-      Array.from({ length: p.w }, (_, k) => k).some((k) => !removedStopCtx.has(`${p.id}:${k}`)));
+      Array.from({ length: p.w }, (_, k) => k)
+        .some((k) => !removedStopCtx.has(`${p.id}:${k}`) && !shelfAbove(p, p.x + k)));
     const ctx = {
       len,
       cols: occupiedColumns().length,
@@ -4755,6 +4865,18 @@
         if (o.handleStyle && GEN2.handleStyles.some((h) => h.id === o.handleStyle)) state.handleStyle = o.handleStyle;
         if (o.faceStyle && GEN2.faceplateStyles.some((s) => s.id === o.faceStyle)) state.faceStyle = o.faceStyle;
         if (typeof o.backCover === "boolean") state.backCover = o.backCover;
+        /* ⚠ Mirrors the viewer's LIP_MODES whitelist. Checked inline rather
+           than against a shared const so no new module-level binding can be
+           read in its TDZ during boot. This used to demand a boolean, so the
+           viewer's mode strings were all dropped - and had one arrived it would
+           have written `u.lip = true`, a THIRD value type that neither
+           sanitize nor the BOM recognises (both accept only "front"/"both"),
+           silently un-billing the lip while the toggle showed nothing. */
+        if (o.lips) state.placed.forEach((u) => {
+          const v = o.lips[u.id];
+          if (u.fill !== "shelf" || (v !== "none" && v !== "front" && v !== "both")) return;
+          if (v === "none") delete u.lip; else u.lip = v;   // absence IS "no lip"
+        });
         lastSentOpts = JSON.stringify(o); // we're now in sync with the viewer — don't echo
         refresh();
       } finally { applyingRemoteOpts = false; }
@@ -4810,6 +4932,20 @@
       if (!selectedUnit()) return;
       pushHistoryNow();
       syncLayoutToViewer();
+    });
+    /* Delegated: renderLipSeg REPLACES these buttons on every refresh, so a
+       listener bound to a button would die with it (the same reason the BOM's
+       store menu delegates on #bom). */
+    $("#ut-lip-seg").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-lip]");
+      if (!btn) return;
+      const p = selectedUnit();
+      if (!p || p.fill !== "shelf") return;
+      // absence IS "no lip" - never write `lip: false`, or every old share
+      // link starts round-tripping a field it never carried
+      if (btn.dataset.lip === "none") delete p.lip; else p.lip = btn.dataset.lip;
+      track("shelf-lip:" + btn.dataset.lip);   // fixed vocabulary, like closure:*
+      refresh();
     });
     $("#ut-shelves").querySelectorAll("[data-shelf]").forEach((btn) => {
       btn.addEventListener("click", () => {

@@ -97,7 +97,6 @@ const GEN2 = {
       id: "shelf",
       label: "Shelf",
       blurb: "Open shelf · case + shelf insert.",
-      soon: true,
       integerHeightsOnly: true,
       minHeight: 1,
     },
@@ -550,6 +549,10 @@ const GEN2 = {
     case:        (len, size)            => `GEN2 ${len} Case - ${size}`,
     extender:    (len, w)               => `GEN2 ${len} Case Extender - ${w}W-1H`,
     shelfInsert: (len, w)               => `GEN2 ${len} Shelf Insert - ${w}W`,
+    /* The lip carries NO length: it is width-sized hardware that fits every
+       collection, the same as the faceplates and back covers - where a length
+       prefix "read as length-specific and confused people". */
+    shelfLip: (w)                       => `GEN2 Shelf Lip - ${w}W`,
     // Faceplates + back covers are UNIVERSAL across lengths (width × height
     // only — shared hardware), so their names carry no length. `len` stays in
     // the signature for caller symmetry. (2026-07-12, Joey: a "240" prefix on
@@ -574,7 +577,17 @@ const GEN2 = {
   // (backCover left this list 2026-07-12 — the covers ship inside every
   // faceplate series download since v2602, so its rows link the chosen
   // style's series page via linkAs.)
-  unreleased: ["shelfInsert", "door", "hinge", "latch", "sideCover"],
+  unreleased: ["door", "hinge", "latch", "sideCover"],
+
+  /* Which collections' shelf decks carry a SECOND lip slot pair, so a shelf
+     there can take a mid lip as well as the front one. MEASURED off the shipped
+     inserts by rasterising the deck and locating the openings the lip's tabs
+     drop through: every length puts the front pair 7.39 mm back, and only these
+     two carry another (240 at +84 mm, 270 at +144 mm behind it).
+     ⚠ Mirrored as `LIP.mid` in the viewer's generate.js, which also needs the
+     offsets to place them - keep the two in step. Joey's rule is front first,
+     always, so a lip value is "front" or "both", never a rear-only shelf. */
+  shelfMidLipLengths: [240, 270],
 
   // Exact part names not modeled yet, same "coming soon" treatment as
   // `unreleased` above but for SPECIFIC size/length combos rather than a whole
@@ -729,6 +742,18 @@ const LINK_OVERRIDES = {
   "GEN2 185 Case Extenders": { p: "https://www.printables.com/model/1706520-gen2-185-case-extenders" },
   "GEN2 240 Case Extenders": { p: "https://www.printables.com/model/1702093-gen2-240-case-extenders" },
   "GEN2 270 Case Extenders": { p: "https://www.printables.com/model/1706499-gen2-270-case-extenders" },
+
+  /* ---- Shelf inserts ----
+     ONE page per length carries that length's inserts AND the universal
+     1W-4W shelf lips, so BOTH row families linkAs this key (see the shelf
+     branch of computeBom). Printables-only for now, like the extenders
+     above; adding Thangs later is a `t:` on each row. */
+  "GEN2 59 Shelf Inserts":  { p: "https://www.printables.com/model/1828405-gen2-59-shelf-inserts" },
+  "GEN2 115 Shelf Inserts": { p: "https://www.printables.com/model/1828408-gen2-115-shelf-inserts" },
+  "GEN2 165 Shelf Inserts": { p: "https://www.printables.com/model/1828409-gen2-165-shelf-inserts" },
+  "GEN2 185 Shelf Inserts": { p: "https://www.printables.com/model/1828395-gen2-185-shelf-inserts" },
+  "GEN2 240 Shelf Inserts": { p: "https://www.printables.com/model/1828410-gen2-240-shelf-inserts" },
+  "GEN2 270 Shelf Inserts": { p: "https://www.printables.com/model/1828411-gen2-270-shelf-inserts" },
 
   // ---- Classic drawers — per-length "…Classic Drawers - All" collection ----
   "GEN2 59 Classic Drawers - All":  { p: "https://www.printables.com/model/234780-gen2-59-classic-drawers-all", m: "https://makerworld.com/en/models/2364890-gen2-59-classic-drawers-all" },
@@ -1055,6 +1080,18 @@ const IMAGE_OVERRIDES = {
   "GEN2 165-4W-1H Decor Drawer":   "img/parts/165/Decor Drawer 165-4W-1H.png",
   "GEN2 165-4W-1.5H Decor Drawer": "img/parts/165/Decor Drawer 165-4W-15H.png",
   "GEN2 165-4W-2H Decor Drawer":   "img/parts/165/Decor Drawer 165-4W-2H.png",
+  /* 165 Case Extender renders — width-only, all 4 sizes, matching the other
+     five lengths. ⚠ THESE FOUR FILES DO NOT EXIST YET: the 165 extenders were
+     the one length never rendered (there is no "165 Case Extenders" folder in
+     D:\Render Projects, unlike 59/115/185/240/270). The rows are wired anyway
+     because renderBom's <img> onerror falls back to placeholder.svg, so a
+     missing file looks exactly like the auto-pattern miss it replaces — and the
+     day the PNGs land in img/parts/165/ they light up with no code change.
+     Joey is producing them (2026-08-29). */
+  "GEN2 165 Case Extender - 1W-1H": "img/parts/165/Case Extender 165-1W.png",
+  "GEN2 165 Case Extender - 2W-1H": "img/parts/165/Case Extender 165-2W.png",
+  "GEN2 165 Case Extender - 3W-1H": "img/parts/165/Case Extender 165-3W.png",
+  "GEN2 165 Case Extender - 4W-1H": "img/parts/165/Case Extender 165-4W.png",
   // 165 Case renders (2026-07) — all 18 valid sizes (no 3W-3H/4W-3H).
   "GEN2 165 Case - 1W-0.5H": "img/parts/165/Case 165-1W-05H.png",
   "GEN2 165 Case - 1W-1H":   "img/parts/165/Case 165-1W-1H.png",

@@ -748,12 +748,12 @@ const LINK_OVERRIDES = {
      1W-4W shelf lips, so BOTH row families linkAs this key (see the shelf
      branch of computeBom). Printables-only for now, like the extenders
      above; adding Thangs later is a `t:` on each row. */
-  "GEN2 59 Shelf Inserts":  { p: "https://www.printables.com/model/1828405-gen2-59-shelf-inserts" },
-  "GEN2 115 Shelf Inserts": { p: "https://www.printables.com/model/1828408-gen2-115-shelf-inserts" },
-  "GEN2 165 Shelf Inserts": { p: "https://www.printables.com/model/1828409-gen2-165-shelf-inserts" },
-  "GEN2 185 Shelf Inserts": { p: "https://www.printables.com/model/1828395-gen2-185-shelf-inserts" },
-  "GEN2 240 Shelf Inserts": { p: "https://www.printables.com/model/1828410-gen2-240-shelf-inserts" },
-  "GEN2 270 Shelf Inserts": { p: "https://www.printables.com/model/1828411-gen2-270-shelf-inserts" },
+  "GEN2 59 Shelf Inserts":  { p: "https://www.printables.com/model/1828405-gen2-59-shelf-inserts", t: "https://than.gs/m/1595944" },
+  "GEN2 115 Shelf Inserts": { p: "https://www.printables.com/model/1828408-gen2-115-shelf-inserts", t: "https://than.gs/m/1595952" },
+  "GEN2 165 Shelf Inserts": { p: "https://www.printables.com/model/1828409-gen2-165-shelf-inserts", t: "https://than.gs/m/1595957" },
+  "GEN2 185 Shelf Inserts": { p: "https://www.printables.com/model/1828395-gen2-185-shelf-inserts", t: "https://than.gs/m/1595956" },
+  "GEN2 240 Shelf Inserts": { p: "https://www.printables.com/model/1828410-gen2-240-shelf-inserts", t: "https://than.gs/m/1595955" },
+  "GEN2 270 Shelf Inserts": { p: "https://www.printables.com/model/1828411-gen2-270-shelf-inserts", t: "https://than.gs/m/1595953" },
 
   // ---- Classic drawers — per-length "…Classic Drawers - All" collection ----
   "GEN2 59 Classic Drawers - All":  { p: "https://www.printables.com/model/234780-gen2-59-classic-drawers-all", m: "https://makerworld.com/en/models/2364890-gen2-59-classic-drawers-all" },

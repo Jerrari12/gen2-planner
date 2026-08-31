@@ -528,7 +528,7 @@ const GEN2 = {
         // and the 3D viewer places + bills 2 per drawer; billing 1 here
         // under-supplied every magnet build by half.
         { name: () => "GEN2 Magnet Clip", qtyPerDrawer: 2, linkAs: "GEN2 Hardware",
-          note: "One clips to the case back, one to the drawer back · the pair meets for a magnetic soft-close catch. Wider drawers have extra slots if you'd like to add more." },
+          note: "One clips to the case back, one to the drawer back · the pair meets for a magnetic catch that pulls the drawer shut and holds it. Wider drawers have extra slots if you'd like to add more." },
         { name: () => "Magnets 10×2mm or 6×2mm", qtyPerDrawer: 2, hardware: true,
           note: "Seat in the magnet clips. Standard strength suits most builds · the N52s hold noticeably harder (can be too strong for smaller drawers)." },
       ],

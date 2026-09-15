@@ -163,3 +163,44 @@ test("incoming: a relayed lip actually reaches the BOM", () => {
   assert.equal(rows[0].qty, 1);
   p.close();
 });
+
+/* ---- the build plate (2026-09-14): build-wide, rides both channels ---- */
+
+test("outgoing: the build plate relays RESOLVED, as the last key, and the layout carries it", () => {
+  // a fixture with no stored plate restores as, and relays, the default - "powder"
+  const p = planner(shelfBuild(null));
+  assert.equal(lastLayout(p.sent).build.buildPlate, "powder", "the layout channel did not carry the plate");
+  p.sent.length = 0;
+  p.app.refresh();
+  const o = lastOpts(p.sent);
+  assert.ok(o, "no buildOptions posted");
+  assert.equal(o.opts.buildPlate, "powder");
+  /* the viewer's echo guard compares JSON strings, so the key must sit where the viewer puts it */
+  assert.equal(Object.keys(o.opts).at(-1), "buildPlate", "buildPlate is not the last key - the echo guard would re-post");
+  // each step changes the value, so a relay stuck on the default cannot pass
+  for (const f of ["smooth", "holographic", "powder"]) {
+    p.app.state.buildPlate = f;
+    p.sent.length = 0;
+    p.app.refresh();
+    assert.equal(lastOpts(p.sent).opts.buildPlate, f, `a ${f} plate relayed as something else`);
+  }
+  p.close();
+});
+
+test("incoming: a plate the viewer sends is APPLIED; anything else leaves the choice alone", () => {
+  const p = planner(shelfBuild(null));
+  for (const f of ["smooth", "holographic", "powder"]) {
+    p.deliver({ gen2: "buildOptions", opts: { buildPlate: f } });
+    assert.equal(p.app.state.buildPlate, f, `relaying ${f} left the plate at ${p.app.state.buildPlate}`);
+  }
+  p.app.state.buildPlate = "holographic";
+  for (const bad of ["carbon", "HOLOGRAPHIC", "", null, true, 1, {}, ["powder"]]) {
+    p.deliver({ gen2: "buildOptions", opts: { buildPlate: bad } });
+    assert.equal(p.app.state.buildPlate, "holographic",
+      `relaying ${JSON.stringify(bad)} overwrote the plate with ${JSON.stringify(p.app.state.buildPlate)}`);
+  }
+  // and a relay that does not mention the plate does not touch it
+  p.deliver({ gen2: "buildOptions", opts: { lips: { 1: "front" } } });
+  assert.equal(p.app.state.buildPlate, "holographic");
+  p.close();
+});

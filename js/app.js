@@ -6,6 +6,13 @@
 
   /* ----------------------------- State ----------------------------- */
 
+  /* Build-plate finishes, in selector order - the viewer's PLATE_FINISHES (viewer/js/bed-finish.js),
+     mirrored. The plate is BUILD state: it rides share links, saved files, the saved session, undo
+     and the viewer relay. Every build without a stored plate - new, or restored from before the
+     field existed - is "powder" (sanitizeBuild says why). Keep the ids in step with the viewer, whose relay drops
+     anything else. Declared above `state` so nothing at boot can read it in its TDZ. */
+  const BUILD_PLATES = ["powder", "smooth", "holographic"];
+
   const state = {
     mount: null,            // mount id
     length: null,           // length id (number)
@@ -27,6 +34,7 @@
     removedStoppers: [],    // "<unitId>:<localCol>" keys — stopper pairs removed in the 3D viewer
     backCover: false,       // optional decor-faceplate back cover (every faceplate style seats the same part)
     feet: "tpu",            // tabletop feet: "tpu" (printed, default) | "adhesive" (purchased rubber feet) - one-for-one alternatives, the BOM bills the pick
+    buildPlate: "powder",   // the sheet the build prints on (BUILD_PLATES): its finish shows on every bed-contact face in the 3D viewer; bills nothing
   };
 
   const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 10 };
@@ -469,6 +477,14 @@
     } else {
       $("#printer-readout").textContent = `Bed ${bed.x}×${bed.y}mm`;
     }
+    const plate = BUILD_PLATES.includes(state.buildPlate) ? state.buildPlate : "powder";
+    $("#plate-seg").querySelectorAll("[data-plate]").forEach((b) =>
+      b.classList.toggle("active", b.dataset.plate === plate));
+    $("#plate-hint").textContent = {
+      powder: "Its grain shows on every face that printed against the plate, in the 3D viewer.",
+      smooth: "Plain, untextured faces where parts touched the plate.",
+      holographic: "Simulated in the 3D viewer · the real effect shifts with lighting and angle.",
+    }[plate];
   }
 
   /* Little to-scale sketch of the workable area: outer rect = the measured
@@ -550,6 +566,16 @@
       $("#" + id).addEventListener("input", (e) => {
         state.customBed[i === 0 ? "x" : "y"] = parseInt(e.target.value, 10) || null;
         onBedChange();
+      });
+    });
+    // the build plate lives with the printer: it is the sheet on that bed. It changes nothing about
+    // fit or the parts list - only how every face that printed against it looks in the 3D viewer.
+    $("#plate-seg").querySelectorAll("[data-plate]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!BUILD_PLATES.includes(btn.dataset.plate)) return;
+        state.buildPlate = btn.dataset.plate;
+        track("buildplate:" + state.buildPlate);
+        refresh();
       });
     });
     $("#space-w").addEventListener("input", (e) => {
@@ -1992,7 +2018,7 @@
 
   // The fields that make a build reproducible (setup + layout).
   const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
-    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "feet", "removedStoppers", "gridW", "gridH", "placed", "nextId"];
+    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "feet", "buildPlate", "removedStoppers", "gridW", "gridH", "placed", "nextId"];
 
   const serializeBuild = () => {
     const o = {};
@@ -2029,6 +2055,12 @@
     d.wallStagger = !!d.wallStagger;
     d.backCover = !!d.backCover;
     d.feet = d.feet === "adhesive" ? "adhesive" : "tpu";
+    /* ⚠ "powder" for a build with no stored plate, the same default a new build gets - including every
+       share link, saved file and session from before the field existed. Joey's call, 2026-09-14:
+       "yes, powder-coat as default"; the viewer's DEFAULT_PLATE reads them the same way, so the two
+       tools agree on what an old link shows. A stored plate is kept (a saved "smooth" stays smooth);
+       anything unrecognised is "powder" too, never a guess. */
+    d.buildPlate = BUILD_PLATES.includes(d.buildPlate) ? d.buildPlate : "powder";
     // removedStoppers: dedupe + keep only well-formed "<unitId>:<localCol>" keys
     // (pruned below to keys that name a kept drawer, once the units are known)
     d.removedStoppers = Array.isArray(d.removedStoppers)
@@ -2454,7 +2486,9 @@
        reach the viewer. */
     const lips = {};
     state.placed.forEach((u) => { if (u.fill === "shelf") lips[u.id] = u.lip || "none"; });
-    const opts = { closures, lips, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu" };
+    /* buildPlate LAST and resolved, in the viewer's own key order: the echo guard on each side
+       compares the other's JSON with its own */
+    const opts = { closures, lips, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu", buildPlate: BUILD_PLATES.includes(state.buildPlate) ? state.buildPlate : "powder" };
     const json = JSON.stringify(opts);
     if (json === lastSentOpts) return;
     lastSentOpts = json;
@@ -4865,6 +4899,7 @@
         if (o.handleStyle && GEN2.handleStyles.some((h) => h.id === o.handleStyle)) state.handleStyle = o.handleStyle;
         if (o.faceStyle && GEN2.faceplateStyles.some((s) => s.id === o.faceStyle)) state.faceStyle = o.faceStyle;
         if (typeof o.backCover === "boolean") state.backCover = o.backCover;
+        if (BUILD_PLATES.includes(o.buildPlate)) state.buildPlate = o.buildPlate;   // anything else is dropped
         /* ⚠ Mirrors the viewer's LIP_MODES whitelist. Checked inline rather
            than against a shared const so no new module-level binding can be
            read in its TDZ during boot. This used to demand a boolean, so the

@@ -402,6 +402,68 @@ test("tabletop feet: adhesive rubber feet replace the TPU feet one-for-one (same
   assert.equal(app.state.feet, "tpu");
 });
 
+test("build plate: a NEW build starts Powder-coated, and the choice rides every save path", () => {
+  const { app, doc } = boot();
+  place(app, { id: 1, x: 0, y: 6, w: 1, hh: 2, fill: "decor" });
+  assert.equal(app.state.buildPlate, "powder", "a fresh planner does not start on Powder-coated");
+  assert.equal(app.serializeBuild().buildPlate, "powder", "the new-build plate is not serialized");
+
+  // a stored choice survives a restore and a share link, each finish as itself
+  for (const f of ["powder", "smooth", "holographic"]) {
+    app.state.buildPlate = f;
+    const hash = app.encodeBuildHash();
+    app.state.buildPlate = "powder";
+    assert.ok(app.applyBuildHash(hash), "the share link did not decode");
+    assert.equal(app.state.buildPlate, f, `a ${f} build came back from its share link as ${app.state.buildPlate}`);
+  }
+
+  // the control writes state and shows which plate is on
+  app.state.buildPlate = "powder";
+  app.refresh();
+  doc.querySelector('#plate-seg [data-plate="holographic"]').click();
+  assert.equal(app.state.buildPlate, "holographic");
+  const active = [...doc.querySelectorAll("#plate-seg [data-plate]")].filter((b) => b.classList.contains("active"));
+  assert.deepEqual(active.map((b) => b.dataset.plate), ["holographic"]);
+});
+
+test("build plate: a build that never stored one restores POWDER, the same default a new build gets", () => {
+  /* Joey 2026-09-14: "yes, powder-coat as default" - for old links, files and sessions too. */
+  const { app } = boot();
+  place(app, { id: 1, x: 0, y: 6, w: 1, hh: 2, fill: "decor" });
+  const legacy = app.serializeBuild();
+  delete legacy.buildPlate;              // every link, file and session from before the field
+  app.state.buildPlate = "holographic";
+  assert.ok(app.applyBuild(JSON.parse(JSON.stringify(legacy))));
+  /* ⚠ not "keep whatever this session had": applyBuild copies only keys that exist, so a field
+     sanitize does not write would leave the PREVIOUS build's plate on a restored one */
+  assert.equal(app.state.buildPlate, "powder",
+    "a build with no stored plate kept the session's plate instead of reading as the default");
+  /* each start value differs from the default, so an unwritten field cannot pass */
+  for (const bad of ["carbon", "Smooth", "", null, true, 3, {}]) {
+    app.state.buildPlate = "holographic";
+    app.applyBuild(Object.assign(JSON.parse(JSON.stringify(legacy)), { buildPlate: bad }));
+    assert.equal(app.state.buildPlate, "powder", `${JSON.stringify(bad)} restored as ${app.state.buildPlate}`);
+  }
+  // an EXPLICIT smooth is the one stored value that differs from the default, and it must survive
+  app.state.buildPlate = "powder";
+  app.applyBuild(Object.assign(JSON.parse(JSON.stringify(legacy)), { buildPlate: "smooth" }));
+  assert.equal(app.state.buildPlate, "smooth", "a saved Smooth was overridden by the default");
+});
+
+test("build plate: undo and redo step through a plate change like any other build edit", () => {
+  const { app } = boot();
+  place(app, { id: 1, x: 0, y: 6, w: 1, hh: 2, fill: "decor" });
+  app.refresh();
+  app.pushHistoryNow();
+  app.state.buildPlate = "smooth";
+  app.refresh();
+  app.pushHistoryNow();
+  app.undoRedo(-1);
+  assert.equal(app.state.buildPlate, "powder", "undo did not restore the previous plate");
+  app.undoRedo(1);
+  assert.equal(app.state.buildPlate, "smooth", "redo did not re-apply the plate");
+});
+
 test("tabletop: a 1W build bills 1 CU + 1 CL + 4 feet, no foot rails", () => {
   const { app } = boot();
   app.state.mount = "tabletop";

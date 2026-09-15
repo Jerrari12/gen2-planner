@@ -115,6 +115,17 @@
           </label>
         </div>
         <p class="hint" id="printer-readout"></p>
+        <!-- The sheet on that bed. Build state (saved, shared, relayed to the 3D viewer); it changes
+             nothing about fit or the parts list. -->
+        <div class="wall-opt plate-opt" id="plate-opt">
+          <span class="wall-opt-label">Build plate</span>
+          <div class="seg" id="plate-seg" role="group" aria-label="Build plate">
+            <button type="button" data-plate="powder">Powder-coated</button>
+            <button type="button" data-plate="smooth">Smooth</button>
+            <button type="button" data-plate="holographic">Holographic</button>
+          </div>
+          <span class="wall-opt-hint" id="plate-hint"></span>
+        </div>
       </div>
     </div>
   </section>

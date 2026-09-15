@@ -1286,6 +1286,9 @@ body.docked .fab-3d { display: none; }
 .wall-opt .seg { margin-bottom: 0; }
 .wall-opt .seg button { padding: 5px 12px; font-size: 0.78rem; }
 .wall-opt-hint { font-size: 0.78rem; color: var(--accent); }
+/* the Build plate row reuses the wall-opt layout inside the printer step, where it is the last row */
+.plate-opt { margin: 10px 0 0; padding-bottom: 0; border-bottom: 0; }
+.plate-opt .seg button { white-space: nowrap; }   /* "Powder-coated" broke at its hyphen */
 
 /* Covers panel (tabletop/wall): wall layout toggle + "how covers stack" guide. */
 .cover-panel {

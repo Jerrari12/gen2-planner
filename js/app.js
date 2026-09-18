@@ -47,6 +47,12 @@
   const $ = (sel) => document.querySelector(sel);
   const mountDef = () => GEN2.mounts.find((m) => m.id === state.mount);
   const fillDef = (id) => GEN2.fills.find((f) => f.id === (id || state.fill));
+  /* Gridfinity Decor drawers (GEN2.gridfinity): does this unit's size HAVE a
+     Gridfinity version, and is it wearing it. A variant on a size without one is
+     kept and billed as the standard drawer - the viewer's generator does the same. */
+  const gridfinityOk = (p, len = state.length) => !!p && p.fill === "decor" &&
+    GEN2.gridfinity.lengths.includes(+len) && GEN2.gridfinity.heights.includes(p.hh / 2);
+  const isGridfinity = (p, len = state.length) => gridfinityOk(p, len) && p.variant === "gridfinity";
 
   // localStorage can throw (sandboxed origins) — degrade to session-only
   const store = {
@@ -2122,6 +2128,11 @@
          viewer both clamp it to one lip, and the choice then survives a later
          switch to a 240/270. */
       if (u.fill === "shelf" && (u.lip === "front" || u.lip === "both")) unit.lip = u.lip;
+      /* drawer body: decor only, "gridfinity" the one value; ABSENCE is the
+         standard drawer, so nothing is written for it and old links decode
+         unchanged. KEPT on a size with no Gridfinity version (billed standard
+         there), the way "both" is kept on a lip, so the choice survives. */
+      if (u.fill === "decor" && u.variant === "gridfinity") unit.variant = "gridfinity";
       if (u.fill === "cabinet" && Array.isArray(u.interior) && u.interior.length) {
         // compartment coords are FULL 1H rows within the shell; any invalid
         // compartment discards the whole interior (falls back to simple mode)
@@ -2486,9 +2497,13 @@
        reach the viewer. */
     const lips = {};
     state.placed.forEach((u) => { if (u.fill === "shelf") lips[u.id] = u.lip || "none"; });
+    /* drawer bodies: every DECOR unit gets "standard" | "gridfinity" (the viewer's
+       VARIANT_MODES), right after lips as the viewer orders it */
+    const variants = {};
+    state.placed.forEach((u) => { if (u.fill === "decor") variants[u.id] = u.variant === "gridfinity" ? "gridfinity" : "standard"; });
     /* buildPlate LAST and resolved, in the viewer's own key order: the echo guard on each side
        compares the other's JSON with its own */
-    const opts = { closures, lips, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu", buildPlate: BUILD_PLATES.includes(state.buildPlate) ? state.buildPlate : "powder" };
+    const opts = { closures, lips, variants, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu", buildPlate: BUILD_PLATES.includes(state.buildPlate) ? state.buildPlate : "powder" };
     const json = JSON.stringify(opts);
     if (json === lastSentOpts) return;
     lastSentOpts = json;
@@ -2507,7 +2522,7 @@
   let lastSentLayout = null, layoutTimer = 0;
   const layoutSig = () => JSON.stringify({
     m: state.mount, l: state.length, r: instructionsBlockReason()?.code || "",
-    p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", u.closure || "", u.lip || "", JSON.stringify(u.interior || null)]),
+    p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", u.closure || "", u.lip || "", u.variant || "", JSON.stringify(u.interior || null)]),
   });
   function postLayoutNow() {
     if (!viewerWin || viewerWin.closed) return;
@@ -3365,6 +3380,24 @@
     });
   }
 
+  /* Per-drawer body (Standard / Gridfinity), only where the drawer's size has a
+     Gridfinity version. The same envelope, so it swaps in place.
+     ⚠ Rebuilt on every refresh, so its clicks are DELEGATED on #ut-grid-seg. */
+  function renderGridSeg(p) {
+    const seg = $("#ut-grid-seg");
+    seg.innerHTML = "";
+    const cur = p.variant === "gridfinity" ? "gridfinity" : "standard";
+    [{ id: "standard", label: "Standard" }, { id: "gridfinity", label: "Gridfinity" }].forEach((st) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.variant = st.id;
+      b.textContent = st.label;
+      if (st.id === "gridfinity") b.title = "A 42 mm Gridfinity grid, a half-grid channel, optional 6x2 mm magnet slots and a tear-away front";
+      b.className = st.id === cur ? "active" : "";
+      seg.appendChild(b);
+    });
+  }
+
   function renderClosureSeg(p) {
     const seg = $("#ut-closure-seg");
     seg.innerHTML = "";
@@ -3479,6 +3512,7 @@
       shelves.hidden = true;
       $("#ut-closure").hidden = true;
       $("#ut-fill").hidden = true;
+      $("#ut-grid").hidden = true;
       $("#ut-fp-note").hidden = true;
       $("#ut-mode").hidden = true;
       $("#ut-edit").hidden = true;
@@ -3514,6 +3548,10 @@
     // drawer family (Classic Drawer / Decor Drawer): drawers only, same rule
     $("#ut-fill").hidden = !isDrawer;
     if (isDrawer) renderFillTypeSeg(p); else $("#ut-fp-note").hidden = true;
+    // Decor drawer body (Standard / Gridfinity): only where the size has a Gridfinity version
+    const gridable = gridfinityOk(p);
+    $("#ut-grid").hidden = !gridable;
+    if (gridable) renderGridSeg(p);
     // shelf lip: the `shelf` fill only - a cabinet's inserts are behind a door
     const isShelf = p.fill === "shelf";
     $("#ut-lip").hidden = !isShelf;
@@ -3641,6 +3679,10 @@
     const size = sizeToken(p.w, p.hh / 2);
     const f = fillDef(p.fill);
     let name;
+    if (isGridfinity(p, len)) {
+      name = GEN2.partNames.drawer(len, size, GEN2.gridfinity.label);
+      return { size, label: GEN2.gridfinity.label, blurb: f.blurb, img: partImage(name) };
+    }
     if (p.fill === "classic" || p.fill === "decor") {
       name = GEN2.partNames.drawer(len, size, f.label);
     } else if (p.fill === "shelf") {
@@ -3682,10 +3724,12 @@
       const h = p.hh / 2;
       const size = sizeToken(p.w, h);
       if (p.fill === "classic" || p.fill === "decor") {
-        count(drawers, size + "|" + fillDef(p.fill).label);
+        // a Gridfinity body is its own row (its own part), still the decor fill
+        const drawerLabel = isGridfinity(p, len) ? GEN2.gridfinity.label : fillDef(p.fill).label;
+        count(drawers, size + "|" + drawerLabel);
         /* the aggregate row is keyed by LABEL, but `basis.choice` must be the
            stable fill id - keep a parallel map rather than parsing the label back */
-        drawerFill.set(size + "|" + fillDef(p.fill).label, p.fill);
+        drawerFill.set(size + "|" + drawerLabel, p.fill);
         count(fillUnits, p.fill);
         count(cases, size);
         if (p.fill === "decor") decorCount++;
@@ -3745,9 +3789,17 @@
              classic|decor|shelf|cabinet - so the drawer is not an addition to a
              bare case, it IS how that unit is filled. The basis says which
              variant answered the obligation. */
-          return { name, qty, unreleased: GEN2.unreleasedParts.includes(name),
+          const row = { name, qty, unreleased: GEN2.unreleasedParts.includes(name),
             requirement: GEN2.req.core("unit.fill"),
             basis: GEN2.req.basis("fill", fill, "unit", fillUnits.get(fill)) };
+          if (fillLabel === GEN2.gridfinity.label) {
+            // the same note as the viewer's row; the magnets are a note, never a row (Joey)
+            const across = 2 * parseInt(size, 10) - 1, deep = GEN2.gridfinity.cellsDeep[len];
+            row.note = `${across} x ${deep} Gridfinity grid plus a half-grid channel · up to ${4 * across * deep} ` +
+              "optional 6x2 mm magnets (4 per cell) · tear-away front: leave it in and no back cover is needed.";
+            row.unreleased = row.unreleased || GEN2.unreleased.includes("gridfinityDrawer");
+          }
+          return row;
         }),
       });
     }
@@ -3868,6 +3920,12 @@
 
     if (decorCount) {
       const items = [];
+      /* a Gridfinity drawer takes a faceplate like any Decor drawer, but no back
+         cover: its tear-away front does that job and physically blocks one */
+      const coverable = state.placed.filter((p) => p.fill === "decor" && !isGridfinity(p, len)).reduce((map, p) => {
+        count(map, sizeToken(p.w, p.hh / 2));
+        return map;
+      }, new Map());
       state.placed.filter((p) => p.fill === "decor").reduce((map, p) => {
         count(map, sizeToken(p.w, p.hh / 2));
         return map;
@@ -3881,8 +3939,8 @@
         // optional back cover: one per faceplate, same size — every style seats
         // it, and the files ship INSIDE each faceplate series download (v2602+),
         // so the row links the chosen style's page
-        if (state.backCover) items.push({
-          name: P.backCover(len, size), qty,
+        if (state.backCover && coverable.get(size)) items.push({
+          name: P.backCover(len, size), qty: coverable.get(size),
           note: "Optional · clips in behind the faceplate to close the open-front Decor drawer. Included in the faceplate download.",
           optional: true,
           linkAs: `GEN2 Decor - Faceplates - ${faceDef.label} Series`,
@@ -4912,6 +4970,12 @@
           if (u.fill !== "shelf" || (v !== "none" && v !== "front" && v !== "both")) return;
           if (v === "none") delete u.lip; else u.lip = v;   // absence IS "no lip"
         });
+        // drawer bodies, whitelisted inline for the same TDZ reason; absence IS standard
+        if (o.variants) state.placed.forEach((u) => {
+          const v = o.variants[u.id];
+          if (u.fill !== "decor" || (v !== "standard" && v !== "gridfinity")) return;
+          if (v === "standard") delete u.variant; else u.variant = v;
+        });
         lastSentOpts = JSON.stringify(o); // we're now in sync with the viewer — don't echo
         refresh();
       } finally { applyingRemoteOpts = false; }
@@ -4980,6 +5044,17 @@
       // link starts round-tripping a field it never carried
       if (btn.dataset.lip === "none") delete p.lip; else p.lip = btn.dataset.lip;
       track("shelf-lip:" + btn.dataset.lip);   // fixed vocabulary, like closure:*
+      refresh();
+    });
+    // Delegated for the same reason: renderGridSeg replaces its buttons on every refresh
+    $("#ut-grid-seg").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-variant]");
+      if (!btn) return;
+      const p = selectedUnit();
+      if (!p || !gridfinityOk(p)) return;
+      // absence IS the standard drawer - never write variant: "standard"
+      if (btn.dataset.variant === "standard") delete p.variant; else p.variant = "gridfinity";
+      track("drawer-body:" + btn.dataset.variant);   // fixed vocabulary
       refresh();
     });
     $("#ut-shelves").querySelectorAll("[data-shelf]").forEach((btn) => {

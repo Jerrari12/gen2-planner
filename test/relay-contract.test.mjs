@@ -204,3 +204,66 @@ test("incoming: a plate the viewer sends is APPLIED; anything else leaves the ch
   assert.equal(p.app.state.buildPlate, "holographic");
   p.close();
 });
+
+/* ---- the Gridfinity drawer body (`variant`, 2026-09-18): per-unit, both channels ----
+   Absence is the standard drawer; the only value ever written is "gridfinity".
+   The same four places as the lip, and the same fail-closed traps. */
+const drawerBuild = (variant) => ({
+  mount: "tabletop", length: 185, faceStyle: "classic", handleStyle: "deco",
+  wallStagger: false, backCover: false, feet: "tpu", removedStoppers: [],
+  gridW: 4, gridH: 1,
+  placed: [
+    { id: 1, x: 0, y: 0, w: 2, hh: 2, fill: "decor", shelves: 0, ...(variant ? { variant } : {}) },
+    { id: 2, x: 2, y: 0, w: 1, hh: 2, fill: "classic", shelves: 0 },
+  ],
+  nextId: 3,
+});
+
+test("outgoing: a drawer body relays per DECOR unit, right after lips, and the layout carries it", () => {
+  const p = planner(drawerBuild("gridfinity"));
+  const lay = lastLayout(p.sent);
+  assert.equal(lay.build.placed[0].variant, "gridfinity", "the layout channel dropped the body");
+  assert.ok(!("variant" in lay.build.placed[1]), "a classic drawer serialized a body");
+
+  p.sent.length = 0;
+  p.app.refresh();
+  const o = lastOpts(p.sent);
+  assert.ok(o, "no buildOptions posted");
+  assert.equal(o.opts.variants[1], "gridfinity");
+  assert.ok(!(2 in o.opts.variants), "a classic drawer got a variants entry");
+  const keys = Object.keys(o.opts);
+  assert.equal(keys[keys.indexOf("lips") + 1], "variants", `variants is not right after lips: ${keys.join(", ")}`);
+  p.close();
+
+  const q = planner(drawerBuild(null));
+  q.sent.length = 0;
+  q.app.refresh();
+  assert.equal(lastOpts(q.sent).opts.variants[1], "standard", "absence must relay as standard");
+  q.close();
+});
+
+test("incoming: a drawer body the viewer sends is APPLIED, standard as absence, and billed", () => {
+  const p = planner(drawerBuild(null));
+  const gridRows = () => p.app.computeBom().flatMap((s) => s.items).filter((r) => /Gridfinity Decor Drawer$/.test(r.name));
+  assert.equal(gridRows().length, 0);
+  p.deliver({ gen2: "buildOptions", opts: { variants: { 1: "gridfinity" } } });
+  assert.equal(p.app.state.placed[0].variant, "gridfinity");
+  assert.equal(gridRows().length, 1, "a relayed body was not billed");
+  p.deliver({ gen2: "buildOptions", opts: { variants: { 1: "standard" } } });
+  assert.ok(!("variant" in p.app.state.placed[0]), 'standard must be written as ABSENCE, never variant: "standard"');
+  assert.equal(gridRows().length, 0);
+  p.close();
+});
+
+test("incoming: a hostile drawer body is IGNORED, and a classic unit never takes one", () => {
+  for (const bad of [true, false, 1, "", "Gridfinity", "classic", null, {}]) {
+    const p = planner(drawerBuild("gridfinity"));
+    p.deliver({ gen2: "buildOptions", opts: { variants: { 1: bad } } });
+    assert.equal(p.app.state.placed[0].variant, "gridfinity", `relaying ${JSON.stringify(bad)} overwrote the body`);
+    p.close();
+  }
+  const p = planner(drawerBuild(null));
+  p.deliver({ gen2: "buildOptions", opts: { variants: { 2: "gridfinity" } } });
+  assert.ok(!("variant" in p.app.state.placed[1]), "a classic drawer took a Gridfinity body");
+  p.close();
+});

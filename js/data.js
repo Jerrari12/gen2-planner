@@ -577,7 +577,25 @@ const GEN2 = {
   // (backCover left this list 2026-07-12 — the covers ship inside every
   // faceplate series download since v2602, so its rows link the chosen
   // style's series page via linkAs.)
-  unreleased: ["door", "hinge", "latch", "sideCover"],
+  // gridfinityDrawer: the MODULITH Gridfinity Decor Drawers pages are not up yet
+  unreleased: ["door", "hinge", "latch", "sideCover", "gridfinityDrawer"],
+
+  /* Gridfinity Decor drawers (v2609, 2026-09-18). A Decor drawer with a 42 mm
+     Gridfinity grid in its floor, a half-grid channel down the right side, four
+     optional 6x2 mm magnet slots per full cell and a tear-away front, on the SAME
+     envelope as the standard Decor drawer, so it swaps in for one of the same
+     size. A decor unit carries `variant: "gridfinity"`; the field's ABSENCE is
+     the standard drawer. Only these lengths and heights exist (no 59, no 0.5H or
+     3H): anywhere else the variant is kept and the standard drawer is billed.
+     The tear-away front does the back cover's job and blocks one, so a
+     Gridfinity drawer bills no back cover.
+     ⚠ Mirrored as GRIDFINITY in the viewer's generate.js - keep the two in step. */
+  gridfinity: {
+    lengths: [115, 165, 185, 240, 270],
+    heights: [1, 1.5, 2],
+    cellsDeep: { 115: 2, 165: 3, 185: 4, 240: 5, 270: 6 },   // cells across = 2W - 1
+    label: "Gridfinity Decor Drawer",
+  },
 
   /* Which collections' shelf decks carry a SECOND lip slot pair, so a shelf
      there can take a mid lip as well as the front one. MEASURED off the shipped
@@ -895,6 +913,10 @@ const COLLECTION_RULES = [
   [/^GEN2 (\d+) Case Extender - /,      (m) => `GEN2 ${m[1]} Case Extenders`],
   [/^GEN2 (\d+) Case - /,               (m) => `GEN2 ${m[1]} Cases - All`],
   [/^GEN2 (\d+)-.+ Classic Drawer$/,    (m) => `GEN2 ${m[1]} Classic Drawers - All`],
+  // ⚠ BEFORE the Decor rule: "GEN2 185-2W-1H Gridfinity Decor Drawer" also ends
+  // in " Decor Drawer", and would link the standard Decor page. The key is the
+  // MODULITH page's own title; it has no LINK_OVERRIDES entry until it is published.
+  [/^GEN2 (\d+)-.+ Gridfinity Decor Drawer$/, (m) => `MODULITH ${m[1]} Gridfinity Decor Drawers`],
   [/^GEN2 (\d+)-.+ Decor Drawer$/,      (m) => `GEN2 ${m[1]} Decor Drawers - All`],
   // NB anchored so "GEN2 Decor Faceplate Back Cover - …" (no style token)
   // can't false-match — the back cover links via linkAs instead.
@@ -1415,6 +1437,10 @@ function partImage(name, variant) {
   // shared by every faceplate family — same dots-dropped size token
   const bc = name.match(/^GEN2 Decor Faceplate Back Cover - (.+)$/);
   if (bc) return "img/parts/BackCover_" + bc[1].replace(/\./g, "") + ".png";
+  // Gridfinity Decor drawers (2026-09-18 batch): per-length renders in
+  // img/parts/<len>/, "Gridfinity Decor Drawer <len>-<size>", dots dropped
+  const gf = name.match(/^GEN2 (\d+)-(.+) Gridfinity Decor Drawer$/);
+  if (gf) return "img/parts/" + gf[1] + "/Gridfinity Decor Drawer " + gf[1] + "-" + gf[2].replace(/\./g, "") + ".png";
   const file = name.replace(/^GEN2 /, "GEN2_").replace(/\./g, "") + RENDER_SUFFIX + ".png";
   return "img/parts/" + file;
 }

@@ -1677,6 +1677,36 @@ body.docked .fab-3d { display: none; }
   .bom-table .link .btn { margin: 4px 4px 0 0; }
 }
 
+/* Phones: each parts-list row becomes a two-line grid (Joey, 2026-09-19). As
+   table cells, the store-button column kept its own width and squeezed the name
+   and its note into a strip a quarter to a half of the table wide (about 100 px
+   on a 360 px phone) - the rule above cannot move the links under the name,
+   because a table cell never wraps below its neighbour. Here the checkbox,
+   thumbnail and quantity stand at the left of both lines, the name and note take
+   the rest of the width, and the store buttons sit under them. The border moves
+   from the cells to the row, and the tracker checkbox's column simply stays
+   empty (zero wide) when the tracker is off. */
+@media (max-width: 560px) {
+  .bom-table, .bom-table tbody { display: block; }
+  .bom-table tr {
+    display: grid;
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+    align-items: start;
+    padding: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .bom-table tr:last-child { border-bottom: 0; }
+  .bom-table td { padding: 0; border-bottom: 0; }
+  .bom-table td.trk { grid-column: 1; grid-row: 1 / span 2; width: auto; padding: 1px 8px 0 0; }
+  .bom-table .thumb { grid-column: 2; grid-row: 1 / span 2; width: auto; padding: 0 10px 0 0; }
+  /* a minimum quantity width keeps every row's name on one left edge up to "99x"; a
+     rarer "160x" widens its own row rather than running into the name */
+  .bom-table .qty { grid-column: 3; grid-row: 1 / span 2; width: auto; min-width: 2.4em; padding: 0 6px 0 0; }
+  .bom-table .name { grid-column: 4; grid-row: 1; }
+  .bom-table .link { grid-column: 4; grid-row: 2; }
+  .bom-table .link .btn, .bom-table .link.buy .btn { margin: 6px 6px 0 0; }
+}
+
 /* ---------- print ---------- */
 
 @media print {

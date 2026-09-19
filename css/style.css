@@ -1464,16 +1464,24 @@ body.docked .fab-3d { display: none; }
 .unit-toolbar.active .ut-arrow:not(:disabled):hover { background: var(--accent); color: var(--on-accent); }
 .ut-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
 
-.ut-actions { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; flex-wrap: wrap; }
+/* The actions row shrinks and wraps at EVERY width, not only on phones (Joey,
+   2026-09-19). It was flex:0 0 auto, so it sized to all its controls on one line
+   and its own wrap never fired: once a Gridfinity-capable Decor drawer showed
+   three switches plus Remove, the row spilled past the panel on desktop too -
+   under the docked 3D pane, and making the page scroll sideways. A group whose
+   label and switch don't fit side by side stacks, a switch wider than the whole
+   row (a very narrow column beside a dragged-wide dock) wraps its buttons, and
+   the Label row below may shrink its input the same way. */
+.ut-actions { display: flex; align-items: center; gap: 14px; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; }
 .ut-shelves { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
 /* Per-drawer closure picker (None / Magnets / Push-Click) */
-.ut-closure { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
-.ut-closure .seg { margin-bottom: 0; }
+.ut-closure { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); flex-wrap: wrap; }
+.ut-closure .seg { margin-bottom: 0; flex-wrap: wrap; }
 .ut-closure .seg button { padding: 5px 12px; font-size: 0.78rem; text-align: center; white-space: nowrap; }
 .seg button.disabled { opacity: 0.45; cursor: not-allowed; }
 /* Build-wide faceplate note under a Decor drawer's controls */
 .ut-fp-note { flex: 1 1 100%; margin: -4px 0 0; font-size: 0.74rem; color: var(--muted); }
-.ut-label { flex: 1 1 100%; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); }
+.ut-label { flex: 1 1 100%; min-width: 0; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); }
 .ut-label input {
   flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line);
   border-radius: 8px; color: var(--text); padding: 7px 10px; font-size: 0.85rem;

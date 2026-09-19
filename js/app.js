@@ -4244,14 +4244,14 @@
       });
       html += `</tbody></table></div>`;
     });
-    // Paid-link disclosure whenever any rendered hardware row carries buy
-    // buttons. Wording per FTC guidance ("paid link" is adequate where
-    // "affiliate link" alone may not be) + Amazon's REQUIRED Associate
-    // statement, verbatim — do not paraphrase that sentence. Each buy button
-    // also wears "· paid link" itself (linkButtons), so the disclosure and the
-    // links stay visible together however far the list scrolls.
+    // Amazon's REQUIRED Associate statement, verbatim - never paraphrase it -
+    // once on the page whenever a rendered hardware row carries buy buttons.
+    // Each of those rows also carries its own commission line right under its
+    // buttons (linkButtons), so the disclosure sits beside the links however far
+    // the list scrolls. The viewer's part card works the same way (vault
+    // decisions.md "Affiliate-link disclosure").
     if (sections.some((sec) => sec.items.some((it) => it.qty > 0 && it.hardware && HARDWARE_BUY[it.name])))
-      html += `<p class="affiliate-note">Paid links - I earn a commission from purchases made through the Amazon buy buttons in this list, at no extra cost to you. As an Amazon Associate I earn from qualifying purchases. Any equivalent hardware from any retailer works.</p>`;
+      html += `<p class="affiliate-note">As an Amazon Associate I earn from qualifying purchases. Any equivalent hardware from any store works.</p>`;
     wrap.innerHTML = html;
   }
 
@@ -4262,11 +4262,16 @@
       // without one keep the plain tag.
       const buy = HARDWARE_BUY[it.name];
       if (!buy) return `<span class="tag">hardware store</span>`;
-      // "· paid link" ON each button (FTC: adequate wording, right at the link).
-      // Every HARDWARE_BUY url is an Amazon listing today — if a non-paid
-      // vendor ever lands in that table, gate this suffix on the host like the
-      // viewer's isPaidLink() rather than dropping it.
-      return buy.map((b) => `<a class="btn small" href="${b.url}" target="_blank" rel="noopener sponsored">${b.label} · paid link</a>`).join(" ");
+      // The row's buttons carry their plain labels and ONE line directly under
+      // them says who they go to and that I earn from them - the viewer part
+      // card's wording for Amazon hardware chips, word for word (plain commission
+      // wording is the FTC's own example; never "affiliate link" alone). It
+      // replaced a "· paid link" suffix on every button (Joey, 2026-09-19).
+      // Every HARDWARE_BUY url is an Amazon listing today - if a non-paid vendor
+      // ever lands in that table, name the stores per row like the viewer's
+      // cardDisclosure() rather than keeping this one fixed line.
+      return buy.map((b) => `<a class="btn small" href="${b.url}" target="_blank" rel="noopener sponsored">${b.label}</a>`).join(" ")
+        + `<div class="buy-note">Amazon links - I earn a small commission, at no extra cost to you.</div>`;
     }
     if (it.unreleased) return `<span class="tag soon-tag">coming soon</span>`;
     // ONE button — the site you prefer, or the first that actually carries this

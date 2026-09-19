@@ -1565,10 +1565,13 @@ body.docked .fab-3d { display: none; }
 .bom-table .note { font-weight: 400; font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 .bom-table .link { width: 200px; text-align: right; white-space: nowrap; }
 .bom-table .link .btn { margin-left: 4px; }
-/* hardware rows with Amazon buy buttons: up to 4 options wrap into rows */
-.bom-table .link.buy { white-space: normal; }
+/* hardware rows with Amazon buy buttons: up to 4 options wrap into rows, with
+   room for their commission line on two lines rather than three */
+.bom-table .link.buy { white-space: normal; width: 250px; }
 .bom-table .link.buy .btn { margin: 2px 0 2px 4px; }
 .affiliate-note { font-size: 0.78rem; color: var(--muted); margin: 8px 2px 0; }
+/* the one commission line under a hardware row's Amazon buttons */
+.bom-table .buy-note { font-size: 0.72rem; font-weight: 400; color: var(--muted); margin-top: 4px; white-space: normal; }
 .soon-tag { border-color: var(--accent-dim); color: var(--accent); }
 .club-tag { border-color: var(--blue); color: var(--blue); }
 .bom-table tr.optional .name, .bom-table tr.optional .qty { opacity: 0.8; }
@@ -1674,6 +1677,9 @@ body.docked .fab-3d { display: none; }
   .bom-table .thumb img { width: 34px; height: 34px; }
   .bom-table td { padding: 8px; }
   .bom-table .link { width: auto; white-space: normal; text-align: left; }
+  /* the desktop buy column's 250 px would out-rank the line above (a longer
+     selector) and push the buttons past a phone's narrow name column */
+  .bom-table .link.buy { width: auto; }
   .bom-table .link .btn { margin: 4px 4px 0 0; }
 }
 

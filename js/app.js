@@ -37,7 +37,7 @@
     buildPlate: "powder",   // the sheet the build prints on (BUILD_PLATES): its finish shows on every bed-contact face in the 3D viewer; bills nothing
   };
 
-  const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 10 };
+  const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 12 };
 
   // Pixels per unit on the board
   const CW = 64;   // 1W

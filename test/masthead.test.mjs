@@ -12,7 +12,7 @@ import { JSDOM } from "jsdom";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(root, p), "utf8");
 const html = read("index.html");
-const SITE = "https://modulith-site.pages.dev";
+const SITE = "https://modulith.systems";   // live 2026-09-24 (the first cut linked modulith-site.pages.dev)
 const PRIMARY = ["How It Works", "Starter Builds", "Catalog", "Planner", "Instructions"];
 const MORE = ["Community Builds", "Build Studio", "The story", "About", "Support", "Club & membership", "More Designs"];
 

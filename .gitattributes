@@ -2,6 +2,7 @@
 *.ico binary
 *.png binary
 *.jpg binary
+*.woff2 binary
 
 # ⚠ THE REQUIREMENT-SCOPE CONTRACT IS HASH-PINNED across three repos, and the
 # pin is computed from the WORKING FILE. Without a fixed line ending a Windows

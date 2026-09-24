@@ -116,7 +116,7 @@ const GEN2 = {
     // background + the full-image hover preview.
     { id: "essential",  label: "Essential",   sub: "Free core faceplate",
       img: "img/parts/Faceplate-Essential.jpg",
-      blurb: "The free core faceplate · a clean, complete drawer front. No labels or accents, just the standard GEN2 look." },
+      blurb: "The free core faceplate · a clean, complete drawer front. No labels or accents, just the standard look." },
     // The free Classic series. `integratedHandle` is the whole story: the grip
     // prints as part of the plate, so computeBom skips BOTH bolt-on rows (the
     // handle and the M3 screws that fasten it) and the card shows no wrench —
@@ -127,10 +127,10 @@ const GEN2 = {
       blurb: "The free Classic series · the grip prints as part of the plate, so there's no handle to bolt on and nothing to buy. No labels or accents. Optional back cover." },
     { id: "edgelabel",  label: "EdgeLabel",   integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://edgelabel.jerrari3d.com/",
       img: "img/parts/Faceplate-EdgeLabel.jpg",
-      blurb: "Swappable labels and accents with the signature edge-label look · restyle and relabel any drawer in seconds. Built-in handle. Included with the GEN2 Club." },
+      blurb: "Swappable labels and accents with the signature edge-label look · restyle and relabel any drawer in seconds. Built-in handle. Included with the Club." },
     { id: "classicpro", label: "Classic Pro", integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://classic.jerrari3d.com/",
       img: "img/parts/Faceplate-ClassicPro.jpg",
-      blurb: "Swappable labels and accents with a classic, premium finish · restyle and relabel any drawer in seconds. Built-in handle. Included with the GEN2 Club." },
+      blurb: "Swappable labels and accents with a classic, premium finish · restyle and relabel any drawer in seconds. Built-in handle. Included with the Club." },
     // The PREMIUM Chevron series (2026-08-08, Joey's call). club + NO
     // integratedHandle — the first family wearing BOTH markers: the ✦ spark
     // (club) and the wrench (bolt-on handle → computeBom keeps the handle +
@@ -225,7 +225,7 @@ const GEN2 = {
       id: "under-table",
       label: "Under-Table",
       img: "img/parts/mount-under-table.jpg",
-      blurb: "GEN2 Rails screw to the underside of any surface. Drawers slide in and QuickLock in place.",
+      blurb: "Under-table rails screw to the underside of any surface. Drawers slide in and QuickLock in place.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/instructions-hanging",
       askSpace: true,
       spaceHint: "Measure the flat area on the underside of your table.",
@@ -244,7 +244,7 @@ const GEN2 = {
       id: "wall",
       label: "Wall Mount",
       img: "img/parts/mount-wall.jpg",
-      blurb: "Wall Mount Kit – Lite attaches GEN2 units directly to the wall with wood screws.",
+      blurb: "Wall Mount Kit – Lite attaches your cases directly to the wall with wood screws.",
       instructions: "https://www.jerrari3d.com/gen2-modular-system/instructions/wall-mount",
       askSpace: true,
       spaceHint: "Measure the wall area you want to fill.",

@@ -795,9 +795,9 @@
     const def = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
     if (def && def.club) {
       note.innerHTML =
-        `<strong>${def.label} is included with the GEN2 Club</strong> · or buy it once on Printables or Thangs. ` +
+        `<strong>${def.label} is included with the Club</strong> · or buy it once on Printables or Thangs. ` +
         "Your parts list now lists the matching faceplate files. " +
-        "Join the Club to support GEN2 · " +
+        "Join the Club to support MODULITH · " +
         `<a href="${CLUB_URL_PRINTABLES}" target="_blank" rel="noopener">on Printables</a> or ` +
         `<a href="${CLUB_URL_THANGS}" target="_blank" rel="noopener">on Thangs</a>.`;
       note.hidden = false;
@@ -2433,32 +2433,10 @@
   const INSTRUCTIONS_VIEWER_URL = IS_LOCAL_DEV
     ? "http://localhost:8123/"
     : "https://gen2build.jerrari3d.com/";
-  /* The official-kits gallery is a page of that same site. Point the header +
-     footer nav links at it here so local dev walks between the two tools
-     (the kits page carries the mirror-image link back to the planner). */
-  const KITS_URL = INSTRUCTIONS_VIEWER_URL + "builds/";
-  for (const a of document.querySelectorAll(".kits-link")) a.href = KITS_URL;
-  /* Hand the light/dark choice across the origin boundary. The two sites keep
-     separate localStorage, so a nav link carries the current pick + its stamp
-     and the far side adopts it only if it's newer (its own head snippet does
-     the comparing). Rewritten in a CAPTURE-phase click, not once at load, so
-     the value is whatever the switch says at the moment you click — and
-     searchParams.set keeps it idempotent across repeat clicks. Nothing stored
-     = nothing appended, so an untouched visitor just meets the default. */
-  const withTheme = (href) => {
-    try {
-      const v = localStorage.getItem("gen2-theme");
-      if (v !== "dark" && v !== "light") return href;
-      const u = new URL(href, location.href);
-      u.searchParams.set("theme", v);
-      u.searchParams.set("tt", localStorage.getItem("gen2-theme:t") || "0");
-      return u.href;
-    } catch (e) { return href; }
-  };
-  document.addEventListener("click", (e) => {
-    const a = e.target && e.target.closest && e.target.closest("a.kits-link");
-    if (a) a.href = withTheme(a.href);
-  }, true);
+  /* ⚠ THE STARTER BUILDS LINKS ARE THE MODULITH SITE'S /builds/ (2026-09-24, Joey: "can we replace the planners build page
+     with: https://modulith-site.pages.dev/builds/"). They were the 3D Build Studio's kits gallery, which this block used to
+     point them at - and it also handed the light/dark choice across in the URL, which the site (one theme) has no use for.
+     The markup's hrefs now stand as written; the masthead's other site links share their origin (see index.html). */
   // keep the child ref (NO noopener) so build-option changes sync both ways;
   // cross-origin still limits the child to postMessage, so it's safe first-party.
   let viewerWin = null, applyingRemoteOpts = false, lastSentOpts = null;
@@ -2827,7 +2805,7 @@
       if (ok) track("load-build");
       if (!ok) {
         const box = $("#board-warnings");
-        warn(box, "That file isn't a valid GEN2 build.");
+        warn(box, "That file isn't a valid MODULITH build.");
       }
     };
     reader.readAsText(file);
@@ -4212,7 +4190,7 @@
     let html = bomSummaryHtml(sections);
     const starter = `GEN2 Under Table Starter Kit - ${state.length}`;
     if (state.mount === "under-table" && LINK_OVERRIDES[starter] && state.placed.length <= 4) {
-      html += `<p class="tip">💡 New to GEN2? The <a href="${partLinks(starter).printables}" target="_blank" rel="noopener">${starter}</a> bundles everything for a first install.</p>`;
+      html += `<p class="tip">💡 New to MODULITH? The <a href="${partLinks(starter).printables}" target="_blank" rel="noopener">${starter}</a> bundles everything for a first install.</p>`;
     }
     sections.forEach((sec) => {
       // the mount section's title carries any install videos for this mount
@@ -4455,8 +4433,8 @@
   function copyBom() {
     track("export:copy");
     const m = buildMeta();
-    let txt = `GEN2 ${state.length} · ${m.mount} setup · ${m.date}\n`;
-    txt += `Planned with the GEN2 Planner · jerrari3d.com\n`;
+    let txt = `MODULITH ${state.length} · ${m.mount} setup · ${m.date}\n`;
+    txt += `Planned with the MODULITH Planner (formerly GEN2)\n`;
     if (m.dims) txt += `Overall: ${m.dims} · Faceplate: ${m.faceplate} · Printer: ${m.printer}\n`;
     if (m.link) txt += `Reopen this build: ${m.link}\n`;
     txt += "\n";
@@ -4476,7 +4454,7 @@
     // metadata header block first — a saved CSV should identify its build and
     // carry the link that reopens the exact configuration
     const m = buildMeta();
-    let csv = "GEN2 Planner build export\n";
+    let csv = "MODULITH Planner build export\n";
     [["Date", m.date], ["Mount", m.mount], ["Length", m.length], ["Printer", m.printer],
      ["Overall W×H×D", m.dims], ["Faceplate", m.faceplate], ["Handle", m.handle],
      ["Reopen link", m.link]].forEach(([k, v]) => { if (v) csv += `${esc(k)},${esc(v)}\n`; });
@@ -4567,7 +4545,7 @@
       ctx.scale(SCALE, SCALE);
 
       const lenDef = GEN2.lengths.find((l) => l.id === state.length);
-      const accent = "#ff8a40", muted = "#9a9eaa", text = "#e8e9ec";
+      const accent = "#ff6a1a", muted = "#9a9eaa", text = "#e8e9ec";   // MODULITH orange
       ctx.fillStyle = "#1b1c20";
       ctx.fillRect(0, 0, cw, chh);
 
@@ -4575,8 +4553,8 @@
       ctx.textBaseline = "alphabetic";
       ctx.fillStyle = accent;
       ctx.font = "800 20px system-ui, sans-serif";
-      ctx.fillText("GEN2", PADC, 36);
-      const gw = ctx.measureText("GEN2").width;
+      ctx.fillText("MODULITH", PADC, 36);
+      const gw = ctx.measureText("MODULITH").width;
       ctx.fillStyle = muted;
       ctx.font = "600 13px system-ui, sans-serif";
       const spaced = "P L A N N E R";

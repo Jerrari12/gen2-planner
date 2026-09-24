@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>GEN2 Planner · JERRARI3D</title>
-<meta name="description" content="Design and plan your GEN2 QuickLock Modular System setup. Pick a mount style, lay out your drawers, and get a complete parts list with download links." />
-<!-- Site icon: the Jerrari J on a dark tile. The mark's core is WHITE, so a
-     transparent icon dissolves into a light tab bar — the tile keeps it legible
-     in both themes. Same three files in all four GEN2 repos; source SVG is
-     img/jerrari-logo.svg. -->
+<title>Planner · MODULITH</title>
+<meta name="description" content="Plan a MODULITH build (formerly GEN2): pick a mount, lay out your drawers, and get the exact parts list with download links and a 3D assembly guide for your layout." />
+<!-- Site icon: the MODULITH square, the same three files as the MODULITH site (static/favicon.ico,
+     static/apple-touch-icon.png, static/assets/modulith-square.svg), copied 2026-09-24. -->
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="icon" href="/favicon.ico" sizes="32x32" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="preload" href="fonts/space-grotesk-700.woff2" as="font" type="font/woff2" crossorigin />
+<meta name="theme-color" content="#1d1e20" />
 <link rel="stylesheet" href="css/style.css" />
 <!-- apply the saved mode before first paint. DARK IS THE DEFAULT (Joey
      2026-08-08), so BOTH choices are now stored explicitly — with dark as the
@@ -36,37 +36,84 @@
 </head>
 <body>
 
-<header class="hero" id="hero">
-  <div class="hero-bg" id="hero-bg"></div>
-  <div class="hero-shade"></div>
-  <div class="hero-bar">
-    <div class="brand">
-      <img class="brand-logo" src="img/jerrari-logo.svg" alt="Jerrari Design" width="26" height="44" />
-      <span class="brand-word"><span class="brand-mark">GEN2</span><span class="brand-sub">PLANNER</span></span>
-    </div>
-    <span class="hero-bar-actions">
-      <!-- Cross-site nav to the official kits gallery (a page of the 3D Build
-           Studio site). href is set from KITS_URL in app.js so local dev points
-           at the local viewer. -->
-      <button id="theme-toggle" type="button" role="switch" aria-checked="false" aria-label="Dark mode" title="Dark mode — the 3D studio's light stage stays the color-accurate one">
+<a class="skip" href="#main">Skip to content</a>
+<!-- THE MODULITH MASTHEAD (2026-09-24, Joey: "rebrand the planner to be modulith branding, also maybe the links and header
+     layout like the modulith site"). The site's header() in MODULITH src/components.js, rebuilt here: the same wordmark,
+     the same primary links and More menu in the same order, the same mobile menu - with Planner as the current page and
+     the planner's own light/dark switch kept at the right. Starter Builds is the SITE's /builds/ (it was the 3D Build
+     Studio's kits gallery). ⚠ Every site link uses ONE origin, https://modulith-site.pages.dev, and test/masthead.test.mjs
+     checks that - moving to modulith.systems is one replace. ⚠ Keep the lists in step with navItems() on the site. -->
+<header class="mast" id="mast">
+  <div class="shell">
+    <a class="brandlink" href="https://modulith-site.pages.dev/" aria-label="MODULITH home" data-track="nav:home"><svg class="brandlogo" role="img" aria-label="MODULITH" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1648.55 357.75">
+<polygon fill="#ff6a1a" points="908.3 0 908.3 357.75 1546.93 357.75 1648.55 256.14 1648.55 0 908.3 0"/>
+<polygon fill="#2c2d31" points="908.3 146.94 908.3 0 101.61 0 0 101.61 0 357.75 908.3 357.75 908.3 210.81 928.8 231.31 928.8 126.44 908.3 146.94"/>
+<g fill="#fff">
+<path d="M977.3,99.5h53.07v113.39h74.61v45.36h-127.67V99.5Z"/>
+<path d="M1126.99,99.5h53.07v158.74h-53.07V99.5Z"/>
+<path d="M1249.25,144.41h-46.72v-44.9h146.5v44.9h-46.72v113.84h-53.06v-113.84Z"/>
+<path d="M1371.04,99.5h53.07v56.01h48.53v-56.01h53.07v158.74h-53.07v-56.92h-48.53v56.92h-53.07V99.5Z"/>
+<path d="M316.11,179.33v-.45c0-46.04,37.87-82.77,86.85-82.77s86.4,36.28,86.4,82.32v.45c0,46.04-37.87,82.77-86.86,82.77s-86.4-36.28-86.4-82.32ZM435.84,179.33v-.45c0-18.82-12.93-35.83-33.34-35.83s-32.88,16.78-32.88,35.38v.45c0,18.82,12.93,35.83,33.34,35.83s32.88-16.78,32.88-35.38Z"/>
+<polygon points="236.26 99.5 202.25 155.29 168.23 99.5 148.15 99.5 112.9 134.76 112.9 258.25 164.83 258.25 164.83 179.56 201.34 236.02 202.25 236.02 238.76 179.56 238.76 258.25 291.6 258.25 291.6 99.5 236.26 99.5"/>
+<path d="M574.65,99.5h-25.52l-35.25,35.25v123.49h58.96c64.18,0,96.38-33.34,96.38-80.28v-.45c0-46.94-31.52-78.01-94.57-78.01ZM615.69,179.1c0,22.9-15.65,32.88-39.91,32.88h-8.84v-66.22h8.84c24.27,0,39.91,9.98,39.91,32.88v.45Z"/>
+<path d="M795.32,99.5v87.99c0,19.28-10.2,26.99-24.49,26.99s-24.49-8.39-24.49-28.12v-86.85h-18.72l-35.25,35.25v52.28c0,52.61,30.61,74.38,78.01,74.38s78.92-21.32,78.92-75.52v-86.4h-53.97Z"/>
+</g></svg></a>
+    <nav aria-label="Primary" class="mainnav">
+      <a data-track="nav:how-it-works" href="https://modulith-site.pages.dev/how-it-works/">How It Works</a>
+      <a class="kits-link" data-track="kits:hero" href="https://modulith-site.pages.dev/builds/">Starter Builds</a>
+      <a data-track="nav:catalog" href="https://modulith-site.pages.dev/catalog/">Catalog</a>
+      <a aria-current="page" href="./">Planner</a>
+      <a data-track="nav:instructions" href="https://modulith-site.pages.dev/instructions/">Instructions</a>
+      <div class="navmenu">
+        <button type="button" class="menubtn" aria-expanded="false" aria-controls="prodmenu">More<span class="caret" aria-hidden="true"> &#9662;</span></button>
+        <div class="dropdown" id="prodmenu">
+          <a data-track="nav:community" href="https://modulith-site.pages.dev/in-the-wild/">Community Builds</a>
+          <a data-track="nav:studio" target="_blank" rel="noopener" href="https://gen2build.jerrari3d.com/builds/">Build Studio</a>
+          <a data-track="nav:story" href="https://modulith-site.pages.dev/story/">The story</a>
+          <a data-track="nav:about" href="https://modulith-site.pages.dev/about/">About</a>
+          <a data-track="nav:support" href="https://modulith-site.pages.dev/support/">Support</a>
+          <a data-track="nav:club" href="https://modulith-site.pages.dev/support/#club">Club &amp; membership</a>
+          <a data-track="nav:more-designs" href="https://modulith-site.pages.dev/more-designs/">More Designs</a>
+        </div>
+      </div>
+    </nav>
+    <button id="theme-toggle" type="button" role="switch" aria-checked="false" aria-label="Dark mode" title="Dark mode — the 3D studio's light stage stays the color-accurate one">
         <svg class="tt-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.6" fill="currentColor" stroke="none"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.2 5.2l1.9 1.9M16.9 16.9l1.9 1.9M18.8 5.2l-1.9 1.9M7.1 16.9l-1.9 1.9"/></svg>
         <svg class="tt-moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.6 14.2A8.6 8.6 0 0 1 9.8 3.4a8.6 8.6 0 1 0 10.8 10.8z"/></svg>
         <span class="tt-knob"></span>
       </button>
-      <a class="nav-pill kits-link" data-track="kits:hero" href="https://gen2build.jerrari3d.com/builds/" title="Preconfigured GEN2 builds with ready-made 3D instructions">&#129513; Starter kits</a>
-      <a class="brand-link" data-track="follow:jerrari3d" href="https://www.jerrari3d.com/gen2-modular-system" target="_blank" rel="noopener">JERRARI3D.com →</a>
-    </span>
+    <button type="button" class="mobilebtn" aria-label="Open menu" aria-expanded="false">&#9776;</button>
   </div>
+</header>
+<dialog class="mobilenav" aria-label="Site menu">
+  <div class="mnhead"><span>Menu</span><button type="button" class="mnclose" aria-label="Close menu">&#10005;</button></div>
+  <a data-track="nav:how-it-works" href="https://modulith-site.pages.dev/how-it-works/">How It Works</a>
+  <a class="kits-link" data-track="kits:menu" href="https://modulith-site.pages.dev/builds/">Starter Builds</a>
+  <a data-track="nav:catalog" href="https://modulith-site.pages.dev/catalog/">Catalog</a>
+  <a aria-current="page" href="./">Planner</a>
+  <a data-track="nav:instructions" href="https://modulith-site.pages.dev/instructions/">Instructions</a>
+  <a data-track="nav:community" href="https://modulith-site.pages.dev/in-the-wild/">Community Builds</a>
+  <a data-track="nav:studio" target="_blank" rel="noopener" href="https://gen2build.jerrari3d.com/builds/">Build Studio</a>
+  <a data-track="nav:story" href="https://modulith-site.pages.dev/story/">The story</a>
+  <a data-track="nav:about" href="https://modulith-site.pages.dev/about/">About</a>
+  <a data-track="nav:support" href="https://modulith-site.pages.dev/support/">Support</a>
+  <a data-track="nav:club" href="https://modulith-site.pages.dev/support/#club">Club &amp; membership</a>
+  <a data-track="nav:more-designs" href="https://modulith-site.pages.dev/more-designs/">More Designs</a>
+</dialog>
+
+<section class="hero" id="hero">
+  <div class="hero-bg" id="hero-bg"></div>
+  <div class="hero-shade"></div>
   <!-- The promise up front: the planner's real product is the calculated build
        package (exact BOM + custom 3D guide), not the drawing board. -->
   <div class="hero-tagline">
-    <h1>Plan your GEN2 build &middot; get the exact parts list.</h1>
+    <h1>Plan your MODULITH build &middot; get the exact parts list.</h1>
     <p>Arrange your storage visually &middot; the planner works out every printable part, hardware quantity and download link, plus a 3D assembly guide built for your exact layout.</p>
     <div class="hero-chips"><span>Visual layout</span><span>Exact parts list</span><span>Custom 3D guide</span></div>
   </div>
-</header>
+</section>
 
-<main>
+<main id="main" tabindex="-1">
 
   <!-- Session auto-resume is sticky by design — this is the escape hatch:
        confirm, wipe the saved session (+ dock preference), reload fresh.
@@ -132,7 +179,7 @@
 
   <!-- STEP 3: Length -->
   <section class="step collapsible" id="step-length">
-    <h2><span class="step-num">3</span> Choose your GEN2 length<button type="button" class="info-tip" data-tip="Length is the front-to-back depth, in mm. For the simplest, sturdiest build, stick to one length per setup · pick the deepest your printer bed and space allow. Mixing lengths is possible with the right hardware, but it's best avoided."></button><span class="step-pick" id="length-pick"></span></h2>
+    <h2><span class="step-num">3</span> Choose your MODULITH length<button type="button" class="info-tip" data-tip="Length is the front-to-back depth, in mm. For the simplest, sturdiest build, stick to one length per setup · pick the deepest your printer bed and space allow. Mixing lengths is possible with the right hardware, but it's best avoided."></button><span class="step-pick" id="length-pick"></span></h2>
     <p class="hint">Length is how deep the system is, in millimeters. Every component in one setup (drawers, shelves, cabinets, and mounts) shares the same length.</p>
     <details class="length-help">
       <summary>Unsure which length to choose?</summary>
@@ -156,7 +203,7 @@
     <div class="explainer" id="explainer">
       <p class="explainer-tip" id="explainer-tip"></p>
       <details class="explainer-primer" id="explainer-primer">
-        <summary>New to GEN2? Three things to know</summary>
+        <summary>New to MODULITH? Three things to know</summary>
         <div class="explainer-body">
           <svg class="explainer-art" viewBox="0 0 150 110" aria-hidden="true">
             <rect x="10" y="8" width="130" height="10" rx="2" class="e-mount"/>
@@ -466,7 +513,7 @@
     <p class="bom-actions-sub">Step-by-step assembly built for this exact layout · plus filament colors, faceplate swaps and hardware options in full 3D.</p>
     <p class="fineprint">
       Quantities for mount hardware are estimates · always confirm against the instructions at
-      <a data-track="help:instructions" href="https://www.jerrari3d.com/gen2-modular-system/instructions" target="_blank" rel="noopener">the GEN2 Instruction Hub</a>.
+      <a data-track="help:instructions" href="https://modulith-site.pages.dev/instructions/">the MODULITH instructions</a>.
     </p>
   </section>
 
@@ -521,14 +568,15 @@
 </dialog>
 
 <footer class="footer">
-  GEN2 QuickLock Modular System by <a data-track="follow:jerrari3d" href="https://www.jerrari3d.com" target="_blank" rel="noopener">JERRARI3D</a>
+  <b>MODULITH</b> &middot; The 3D-Printable Modular Storage System, formerly GEN2 &middot; by <a data-track="follow:jerrari3d" href="https://www.jerrari3d.com" target="_blank" rel="noopener">Jerrari Design</a>
   · Models on <a data-track="follow:printables" href="https://www.printables.com/@Jerrari" target="_blank" rel="noopener">Printables</a>
   and <a data-track="follow:thangs" href="https://thangs.com/designer/Jerrari" target="_blank" rel="noopener">Thangs</a>
-  · <a class="kits-link" data-track="kits:footer" href="https://gen2build.jerrari3d.com/builds/">Starter kits</a>
+  · <a class="kits-link" data-track="kits:footer" href="https://modulith-site.pages.dev/builds/">Starter Builds</a>
+  · <a data-track="nav:gen2" href="https://modulith-site.pages.dev/gen2/">GEN2 is becoming MODULITH</a>
   <!-- release stamp: vYYMM(.DD)(.N), same date scheme as the model downloads —
        bump it in the SAME commit as its CHANGELOG.md entry. A same-day
        follow-up adds the third segment counting from 1 (v2608.08.1). -->
-  · <a class="footer-ver" href="https://github.com/Jerrari12/gen2-planner/blob/main/CHANGELOG.md" target="_blank" rel="noopener">v2608.08</a>
+  · <a class="footer-ver" href="https://github.com/Jerrari12/gen2-planner/blob/main/CHANGELOG.md" target="_blank" rel="noopener">v2609.24</a>
 </footer>
 
 <!-- The shared requirement-scope contract. MUST load before data.js, which
@@ -573,7 +621,35 @@
   sync();
 })();
 </script>
-<!-- counts the static hero/footer links via their data-track attributes -->
+<!-- the masthead's More menu and the phone menu - the site's sharedScript() (MODULITH src/components.js), same behaviour:
+     a click outside or Escape closes More; the phone menu is a <dialog>. Without it the links still work, only the
+     two menus stay shut. -->
+<script>
+(function () {
+  "use strict";
+  try {
+    var mb = document.querySelector(".mobilebtn"), mn = document.querySelector("dialog.mobilenav");
+    if (mb && mn && mn.showModal) {
+      mb.addEventListener("click", function () { mn.showModal(); mb.setAttribute("aria-expanded", "true"); });
+      mn.addEventListener("close", function () { mb.setAttribute("aria-expanded", "false"); });
+      var mc = mn.querySelector(".mnclose"); if (mc) mc.addEventListener("click", function () { mn.close(); });
+      mn.addEventListener("click", function (e) { if (e.target === mn) mn.close(); });
+    }
+    var menubtn = document.querySelector(".menubtn");
+    if (menubtn) {
+      var dd = document.getElementById("prodmenu");
+      var shut = function () { menubtn.setAttribute("aria-expanded", "false"); dd.classList.remove("open"); };
+      menubtn.addEventListener("click", function () {
+        var open = menubtn.getAttribute("aria-expanded") === "true";
+        menubtn.setAttribute("aria-expanded", String(!open)); dd.classList.toggle("open", !open);
+      });
+      document.addEventListener("click", function (e) { if (!(e.target && e.target.closest && e.target.closest(".navmenu"))) shut(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") shut(); });
+    }
+  } catch (e) { /* the links work without this; only the two menus stay shut */ }
+})();
+</script>
+<!-- counts the static masthead/footer links via their data-track attributes -->
 <script src="js/track-links.js"></script>
 <!-- GoatCounter analytics: cookieless, no consent banner. Counts a pageview on
      load; app.js's track() sends custom events (mount/length/faceplate/share…).

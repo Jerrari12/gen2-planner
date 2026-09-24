@@ -1,4 +1,7 @@
-# GEN2 Planner + 3D Build Studio — Changelog
+# MODULITH Planner + 3D Build Studio — Changelog
+
+MODULITH is the new name of the system formerly called GEN2. Entries before
+v2609.24 use the old name.
 
 Releases use the ecosystem's date scheme: **`vYYMM`** for a month's update,
 **`vYYMM.DD`** when a month gets more than one — the same pattern users
@@ -9,6 +12,24 @@ so the version always reads as a date first and a patch second. The planner
 ([gen2-visual-animator](https://github.com/Jerrari12/gen2-visual-animator))
 ship together; entries cover both. The current version shows in the planner's
 footer.
+
+## v2609.24 — 2026-09-24
+
+The planner now wears the MODULITH name and sits under the same header as
+the MODULITH site.
+
+### Changed
+
+- **MODULITH branding.** The planner is now the MODULITH Planner: the
+  MODULITH wordmark, MODULITH orange, the site's heading typeface and its
+  site icon. Part and download names are unchanged for now - they still say
+  GEN2, the same files and links as before.
+- **The site's header.** How It Works, Starter Builds, Catalog, Planner,
+  Instructions and More link straight to the MODULITH site, with the same
+  phone menu. The light/dark switch stays in the header.
+- **Starter Builds is the site's page.** The header and footer links go to
+  the MODULITH site's starter builds instead of the old kits gallery.
+- The footer says what GEN2 became and links the story.
 
 ## v2608.08 — 2026-08-08
 

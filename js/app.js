@@ -4162,7 +4162,7 @@
     const doneQty = rows.reduce((n, it) => n + (tracker.done[trackerKey(it)] ? it.qty : 0), 0);
     const totalQty = rows.reduce((n, it) => n + it.qty, 0);
     return `<div class="bom-summary">
-      <div class="bs-head"><strong>Your GEN2 build is ready</strong>
+      <div class="bs-head"><strong>Your MODULITH build is ready</strong>
         <span class="bs-sub">${m ? m.label : ""} · ${state.length} mm · ${drawers} drawer${drawers === 1 ? "" : "s"}${dims ? ` · ${dims}` : ""}</span></div>
       <div class="bs-stats">
         <span class="bs-stat"><b>${pieces}</b> printed pieces from <b>${files}</b> model files</span>

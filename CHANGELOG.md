@@ -13,6 +13,22 @@ so the version always reads as a date first and a patch second. The planner
 ship together; entries cover both. The current version shows in the planner's
 footer.
 
+## v2610 — 2026-10-01
+
+Dark mode now uses the MODULITH palette.
+
+### Changed
+
+- **Dark mode matches the MODULITH site.** The planner's dark theme drops
+  the navy, the magenta glow and the cyan grid over the top photo for the
+  site's own colours: a near-black page with charcoal panels, one shade
+  deeper than light mode, so the switch still shows a difference. Light
+  mode is unchanged - it is the site's charcoal exactly.
+- **The 3D Build Studio keeps its look.** Its stage still turns into the
+  navy room with the neon grid floor in dark mode, and stays the white,
+  colour-neutral studio in light mode.
+- The parts list now says "Your MODULITH build is ready".
+
 ## v2609.24 — 2026-09-24
 
 The planner now wears the MODULITH name and sits under the same header as

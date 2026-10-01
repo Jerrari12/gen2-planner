@@ -19,7 +19,7 @@
   --radius: 10px;
   /* dark "well" surfaces (tooltips, modals, popovers) + the image wells inside
      them — same values the rules always used, moved into tokens so the
-     retrowave block can retint them. */
+     dark-mode block can retint them. */
   --well: #1d1e20;
   --well-2: #2c2d31;
   /* the card hero-image fade stops app.js bakes into inline gradients —
@@ -184,8 +184,8 @@ dialog.mobilenav a:hover, dialog.mobilenav a[aria-current] { color: #ff6a1a; }
 }
 #theme-toggle[aria-checked="true"] .tt-knob {
   transform: translateX(22px);
-  background: #303469;
-  box-shadow: 0 0 8px rgba(56, 220, 255, 0.55);
+  background: #4a4b50;   /* --ml-line: the dark knob in the site's palette (was retrowave navy + cyan glow) */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 /* The auto-resume escape hatch. Sits under the hero (see #reset-bar in
    index.html), NOT in the nav — quiet ghost pill, and only rendered once a
@@ -1727,77 +1727,38 @@ body.docked .fab-3d { display: none; }
   a { color: #000; }
 }
 
-/* ========================= DARK MODE (retrowave) ============================
-   Opt-in look (the masthead sun/moon switch; localStorage 'gen2-theme' =
-   'dark' - the aesthetic is retrowave, the user-facing NAME is dark mode). THE DEFAULT
-   LOOK IS UNTOUCHED: every rule here is scoped under html[data-theme=
-   "retrowave"], which outranks :root, so deleting this block plus the toggle
-   removes the theme without a trace. --accent deliberately stays JERRARI
-   orange in both themes - the action color is brand, not theme. The docked
-   3D studio FOLLOWS this toggle (app.js relays {gen2:'theme'} on change +
-   viewerReady): its stage goes navy/cyan-grid in retrowave, and its light
-   stage stays the color-accurate default with a disclaimer line in the
-   filament picker (viewer STAGE_THEMES; Joey's design 2026-08-08). */
+/* ========================= DARK MODE (MODULITH ink) =========================
+   The masthead sun/moon switch; localStorage 'gen2-theme' = 'dark' | 'light',
+   dark is the default. Both themes are the MODULITH site's own palette
+   (src/css/site.css --ml-* tokens): LIGHT is the site exactly - a charcoal
+   page with ink cards - and DARK is the same palette one step deeper - an ink
+   page with charcoal panels - so the switch still visibly does something.
+   The navy/magenta/cyan retrowave look this block used to carry was retired
+   2026-10-01 (Joey: "match the site's charcoal"). Every rule is scoped under
+   html[data-theme="dark"], which outranks :root. --accent stays MODULITH
+   orange in both themes - the action colour is brand, not theme. The docked
+   3D studio FOLLOWS this switch (app.js relays {gen2:'theme'} on change +
+   viewerReady) and picks its own stage from it (viewer STAGE_THEMES) - and
+   that stage DELIBERATELY stays the navy room with the cyan grid in dark mode
+   (Joey 2026-10-01: "the white is more color neutral, but the dark blue
+   scheme is more exciting"); only the planner's chrome went MODULITH ink. */
 html[data-theme="dark"] {
-  --bg: #0d0e21;
-  --panel: #151735;
-  --panel-2: #10112a;
-  --line: #303469;
-  --text: #edeffd;
-  /* measured, not eyeballed: #9297c9 sat at 6.21:1 on the dark page - fine for
-     AA, short of AAA on the long helper copy. This clears 7:1 while staying
-     clearly secondary to --text. */
-  --muted: #a7abdb;
-  --on-accent: #180d20;
-  --blue: #38dcff;        /* neon cyan takes the 2nd part-coding slot */
-  --blue-dim: #1e93b4;
-  --good: #3cf0b0;
-  --bad: #ff4f6d;
-  --well: #0a0b1c;
-  --well-2: #131530;
-  --card-fade-45: rgba(16, 17, 42, 0.45);
-  --card-fade-40: rgba(16, 17, 42, 0.4);
-  --card-fade-0: rgba(16, 17, 42, 0);
+  --bg: #1d1e20;          /* --ml-ink */
+  --panel: #2c2d31;       /* --ml-charcoal */
+  --panel-2: #1d1e20;
+  --line: #4a4b50;        /* --ml-line */
+  --text: #ececee;        /* --ml-paper */
+  --muted: #a6a8ad;       /* --ml-muted */
+  --on-accent: #1d1e20;
+  --well: #141517;        /* one step below the page, for tooltips and modals */
+  --well-2: #1d1e20;
+  --card-fade-45: rgba(29, 30, 32, 0.45);
+  --card-fade-40: rgba(29, 30, 32, 0.4);
+  --card-fade-0: rgba(29, 30, 32, 0);
 }
-/* a faint magenta wash at the top so the page isn't one flat navy */
-html[data-theme="dark"] body {
-  background:
-    radial-gradient(1100px 480px at 50% -120px, rgba(255, 62, 165, 0.06), transparent 70%),
-    var(--bg);
-}
-/* hero: the GEN2 product photo STAYS (Joey 2026-08-08 - the hero exists to
-   show the product), parallax pan and all; the retrowave treatment is a
-   violet/magenta tint on .hero-shade (which never pans) plus a subtle cyan
-   floor grid on the ::after pseudo-element (also pan-proof). */
-html[data-theme="dark"] .hero-bg::after {
-  content: '';
-  position: absolute; left: -18%; right: -18%; bottom: -14px; height: 44%;
-  background:
-    repeating-linear-gradient(to right, rgba(56, 220, 255, 0.30) 0 1px, transparent 1px 86px),
-    repeating-linear-gradient(to top, rgba(56, 220, 255, 0.33) 0 1px, transparent 1px 36px);
-  transform: perspective(340px) rotateX(58deg);
-  transform-origin: 50% 100%;
-  opacity: 0.28;
-  pointer-events: none;
-}
+/* the hero's fade lands on the ink page instead of the charcoal one */
 html[data-theme="dark"] .hero-shade {
-  background:
-    linear-gradient(to bottom,
-      rgba(22, 8, 46, 0.5) 0%, rgba(34, 16, 70, 0.28) 42%,
-      rgba(13, 14, 33, 0.88) 86%, var(--bg) 100%),
-    radial-gradient(620px 300px at 74% 82%, rgba(255, 62, 165, 0.2), transparent 70%);
-}
-/* neon: cards glow cyan on hover, orange when chosen - glow is reserved for
-   interaction so body text stays calm and readable */
-html[data-theme="dark"] .fp-card:hover,
-html[data-theme="dark"] #mount-cards .card:hover,
-html[data-theme="dark"] .len-card:hover { box-shadow: 0 0 14px rgba(56, 220, 255, 0.22); }
-html[data-theme="dark"] .fp-card.active,
-html[data-theme="dark"] #mount-cards .card.active,
-html[data-theme="dark"] .len-card.active { box-shadow: 0 0 16px rgba(255, 106, 26, 0.30); }
-/* the docked studio's LIVE chip goes neon mint */
-html[data-theme="dark"] .dock-live {
-  color: var(--good);
-  border-color: rgba(60, 240, 176, 0.53);
-  text-shadow: 0 0 6px rgba(60, 240, 176, 0.5);
+  background: linear-gradient(to bottom,
+    rgba(20, 21, 23, 0.55) 0%, rgba(20, 21, 23, 0.10) 42%,
+    rgba(29, 30, 32, 0.85) 86%, var(--bg) 100%);
 }

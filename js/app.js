@@ -35,7 +35,37 @@
     backCover: false,       // optional decor-faceplate back cover (every faceplate style seats the same part)
     feet: "tpu",            // tabletop feet: "tpu" (printed, default) | "adhesive" (purchased rubber feet) - one-for-one alternatives, the BOM bills the pick
     buildPlate: "powder",   // the sheet the build prints on (BUILD_PLATES): its finish shows on every bed-contact face in the 3D viewer; bills nothing
+    labelStyle: null,       // the label generator's set-wide settings (GEN2.labelSpec); null = the generator's own defaults
+    buildId: newBuildId(),  // this build's own identity - see newBuildId()
   };
+
+  /* A build's own identity (2026-10-02). Unit ids are only unique INSIDE one
+     build - "Surprise me" restarts them at 1, and every fresh session starts at
+     1 - so anything that reaches a drawer from OUTSIDE the planner (the label
+     generator sending labels back) must name the build as well as the drawer,
+     or an old job could write into whichever drawer now holds the same number.
+     Random, minted when a build begins, kept through saves, share links and
+     undo (BUILD_FIELDS); sanitizeBuild mints one for a build that has none. */
+  const BUILD_ID_RE = /^[a-z0-9]{8,32}$/;
+  function newBuildId() {
+    const a = new Uint8Array(12);
+    try { crypto.getRandomValues(a); }
+    catch (e) { for (let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256); }
+    return Array.from(a, (b) => (b % 36).toString(36)).join("");
+  }
+
+  /* A drawer's label is STORED as typed and SHOWN in the build's label style:
+     ALL CAPS unless the style turns it off - the label generator's own default,
+     which is why the board has always read in capitals. Until 2026-10-02 the
+     input uppercased on entry, which threw the typed case away for good and
+     made an "All caps off" style impossible (Sol 01a0fd07). */
+  const labelCaps = () => !(state.labelStyle && state.labelStyle.allCaps === false);
+  const shownLabel = (s) => (labelCaps() ? String(s).toUpperCase() : String(s));
+  /* ONE drawer order for every list of labels: the top row first, left to
+     right - the way the build reads standing in front of it, and the order the
+     plain-text export already used. The generator handoff used to send them in
+     the order the drawers were PLACED, so its plate came out in that order. */
+  const labelOrder = (units) => units.slice().sort((a, b) => (a.y - b.y) || (a.x - b.x));
 
   const GRID_LIMITS = { wMin: 1, wMax: 12, hMin: 1, hMax: 12 };
 
@@ -1129,7 +1159,8 @@
     const fdef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
     if (!fdef || !fdef.labelGen) { link.hidden = true; return; }
     link.hidden = false;
-    const labels = state.placed.filter((p) => p.fill === "decor" && p.label).map((p) => p.label);
+    // as typed (the generator applies its own ALL CAPS), top row first (labelOrder)
+    const labels = labelOrder(state.placed.filter((p) => p.fill === "decor" && p.label)).map((p) => p.label);
     // Surface the payload: the user's typed drawer labels ride along and
     // pre-fill the generator — the live count is what makes that visible.
     // Inline SVG tag icon (not an emoji): crisp at 14px, inherits the button's
@@ -1567,7 +1598,7 @@
     }
     // Native hover tooltip: the full (uncropped) label plus size and fill type.
     const size = sizeToken(p.w, p.hh / 2);
-    el("title", {}, g).textContent = (p.label ? p.label + " · " : "") + size + " " + fillDef(p.fill).label;
+    el("title", {}, g).textContent = (p.label ? shownLabel(p.label) + " · " : "") + size + " " + fillDef(p.fill).label;
     // The size badge earns its pixels only on unlabelled units (it's what tells
     // four empty 1W-1H cells apart). Labelled units show it on hover/selection
     // instead (CSS .on-demand) — the label is the content, size is metadata,
@@ -1579,7 +1610,7 @@
         class: "d-label" + (p.label ? " on-demand" : ""),
       }, g).textContent = size;
     }
-    if (p.label) drawUserLabel(front, p.label, x, y, w, h);   // rides the drawer front
+    if (p.label) drawUserLabel(front, shownLabel(p.label), x, y, w, h);   // rides the drawer front
   }
 
   /* The user's "what's in this drawer" label, drawn to STAY INSIDE the unit.
@@ -2007,6 +2038,9 @@
     state.placed = [];
     state.selectedUnit = null;
     state.nextId = 1;
+    // ids restart at 1, so this is a NEW build: a label job made for the old
+    // one must not find "drawer 1" here (newBuildId)
+    state.buildId = newBuildId();
     state.gridW = Math.max(GRID_LIMITS.wMin, Math.min(capW(), W));
     state.gridH = Math.max(GRID_LIMITS.hMin, Math.min(capH(), Math.ceil(totalHH / 2)));
     let cursor = fromTop ? 0 : rows();        // build outward from the mount surface
@@ -2024,7 +2058,8 @@
 
   // The fields that make a build reproducible (setup + layout).
   const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
-    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "feet", "buildPlate", "removedStoppers", "gridW", "gridH", "placed", "nextId"];
+    "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "feet", "buildPlate", "removedStoppers", "gridW", "gridH", "placed", "nextId",
+    "labelStyle", "buildId"];
 
   const serializeBuild = () => {
     const o = {};
@@ -2041,6 +2076,46 @@
      tab (a poisoned state would otherwise crash every refresh()).
      Returns how many units were dropped, for the caller's warning. */
   const LABEL_MAX = 40;   // mirrors the #ut-label input's maxlength
+
+  /* Drawer labels (2026-10-02) - what the label generator needs beyond the words.
+     A unit's `labelBadge` is the left icon or letter the generator prints before
+     them; its ABSENCE means "let the generator choose" (its icon prediction from
+     the words, on by default), so nothing is written until someone picks.
+       { type: "none" }              no icon, chosen
+       { type: "icon", value: id }   one of the generator's built-in icons
+       { type: "char", value: "A" }  a letter / number badge, up to charMax
+     An icon id is checked for SHAPE only, not against a list: the planner does
+     not carry the generator's icon library, and the generator ignores an id it
+     does not know (the label prints without an icon) - so an icon added to the
+     generator later works here without a planner change. Custom uploaded SVG
+     icons are deliberately NOT build state: they are too big for a share link,
+     and stay a generator-only feature.
+     A badge is only kept on a unit that HAS words (Sol 01a0fd07: a hand-picked
+     icon left behind when the name is cleared would reappear on the next name).
+     `labelStyle` is the generator's set-wide settings; null = its defaults. An
+     out-of-range or wrongly typed value is DROPPED, never clamped - clamping
+     would quietly print something nobody chose. */
+  function cleanLabelBadge(b) {
+    if (!b || typeof b !== "object") return null;
+    if (b.type === "none") return { type: "none" };
+    if (b.type === "icon" && typeof b.value === "string" && b.value.length <= 40 &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(b.value)) return { type: "icon", value: b.value };
+    if (b.type === "char" && typeof b.value === "string") {
+      const v = b.value.trim();
+      if (v && v.length <= GEN2.labelSpec.charMax) return { type: "char", value: v };
+    }
+    return null;
+  }
+  function cleanLabelStyle(s) {
+    if (!s || typeof s !== "object" || Array.isArray(s)) return null;
+    const out = {};
+    for (const [k, [lo, hi]] of Object.entries(GEN2.labelSpec.limits)) {
+      const v = s[k];
+      if (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi) out[k] = v;
+    }
+    for (const k of GEN2.labelSpec.flags) if (typeof s[k] === "boolean") out[k] = s[k];
+    return Object.keys(out).length ? out : null;
+  }
   // One bound for unit ids AND the nextId watermark: a valid id is a safe
   // positive integer <= ID_MAX; anything else mints fresh. One rule, so the
   // "never reuse a freed id" guarantee has no range where it silently fails.
@@ -2067,6 +2142,10 @@
        tools agree on what an old link shows. A stored plate is kept (a saved "smooth" stays smooth);
        anything unrecognised is "powder" too, never a guess. */
     d.buildPlate = BUILD_PLATES.includes(d.buildPlate) ? d.buildPlate : "powder";
+    // a build without an identity (older than the field, or a mangled one) gets
+    // a new one; a valid one is KEPT, so a saved or shared build stays itself
+    d.buildId = typeof d.buildId === "string" && BUILD_ID_RE.test(d.buildId) ? d.buildId : newBuildId();
+    d.labelStyle = cleanLabelStyle(d.labelStyle);
     // removedStoppers: dedupe + keep only well-formed "<unitId>:<localCol>" keys
     // (pruned below to keys that name a kept drawer, once the units are known)
     d.removedStoppers = Array.isArray(d.removedStoppers)
@@ -2115,6 +2194,8 @@
       const unit = { id, x, y, w, hh, fill: u.fill,
                      shelves: int(u.shelves, 0, Math.max(0, h - 1), 0) };
       if (typeof u.label === "string" && u.label.trim()) unit.label = u.label.slice(0, LABEL_MAX);
+      // a label's icon or letter lives and dies with its words (cleanLabelBadge)
+      if (unit.label) { const b = cleanLabelBadge(u.labelBadge); if (b) unit.labelBadge = b; }
       // closures: drawers only, whitelisted to released options ("none" is
       // simply the field's absence)
       if ((u.fill === "classic" || u.fill === "decor") &&
@@ -2282,7 +2363,11 @@
     const tagline = (window.prompt("Tagline (one friendly sentence under the title):", "") || "").trim();
     // buildVersion marks the planner format this file was authored in — the
     // viewer migrates old versions forward, so committed kits never go stale
-    const file = { gen2OfficialBuild: 1, id, title, tagline, buildVersion: 1, build: serializeBuild() };
+    const build = serializeBuild();
+    // a kit is a TEMPLATE: everyone who opens one starts their own build, so it
+    // carries no build identity (the planner mints one when a kit is customised)
+    delete build.buildId;
+    const file = { gen2OfficialBuild: 1, id, title, tagline, buildVersion: 1, build };
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -2500,7 +2585,9 @@
   let lastSentLayout = null, layoutTimer = 0;
   const layoutSig = () => JSON.stringify({
     m: state.mount, l: state.length, r: instructionsBlockReason()?.code || "",
-    p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", u.closure || "", u.lip || "", u.variant || "", JSON.stringify(u.interior || null)]),
+    p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", JSON.stringify(u.labelBadge || null), u.closure || "", u.lip || "", u.variant || "", JSON.stringify(u.interior || null)]),
+    // the build's label style re-renders every label in the viewer (its layoutKey carries it too)
+    ls: JSON.stringify(state.labelStyle || null),
   });
   function postLayoutNow() {
     if (!viewerWin || viewerWin.closed) return;
@@ -3502,6 +3589,8 @@
 
     $("#ut-label-wrap").hidden = false;
     $("#ut-label").value = p.label || "";
+    // the field shows what will print (shownLabel) while keeping the typed case
+    $("#ut-label").classList.toggle("caps", labelCaps());
 
     const h = p.hh / 2;
     const info = unitPartInfo(p);
@@ -4477,10 +4566,8 @@
      is for everyone else printing stick-on labels. */
   function downloadLabelList() {
     track("export:labels");
-    const labels = state.placed
-      .filter((p) => p.label)
-      .sort((a, b) => (a.y - b.y) || (a.x - b.x))
-      .map((p) => p.label);
+    // shown as the board shows them (the build's ALL CAPS), in the one drawer order
+    const labels = labelOrder(state.placed.filter((p) => p.label)).map((p) => shownLabel(p.label));
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([labels.join("\n") + "\n"], { type: "text/plain" }));
     a.download = `gen2-${state.length}-${state.mount}-labels.txt`;
@@ -4989,8 +5076,11 @@
     $("#ut-label").addEventListener("input", (e) => {
       const u = selectedUnit();
       if (!u) return;
-      const v = e.target.value.trim().toUpperCase();   // labels print better in ALL CAPS
-      if (v) u.label = v; else delete u.label;
+      // stored AS TYPED - the board, the exports and the generator show it in
+      // the build's label style (shownLabel), ALL CAPS unless that is turned off
+      const v = e.target.value.trim();
+      // clearing the words clears the icon picked for them (cleanLabelBadge)
+      if (v) u.label = v; else { delete u.label; delete u.labelBadge; }
       renderBoard();
       updateLabelGenLink();   // keep the handoff link's labels current as you type
       // The label is build state like any other: give it the SAME coalesced
@@ -5232,6 +5322,7 @@
       encodeBuildHash, applyBuildHash,
       undoRedo, pushHistoryNow, history, buildMeta,
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,
+      cleanLabelBadge, cleanLabelStyle, labelOrder, shownLabel, layoutSig, newBuildId,
     };
   }
 })();

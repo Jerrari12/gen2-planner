@@ -607,6 +607,20 @@ const GEN2 = {
      always, so a lip value is "front" or "both", never a rear-only shelf. */
   shelfMidLipLengths: [240, 270],
 
+  /* Drawer labels (2026-10-02). A build may carry `labelStyle` - the label
+     generator's set-wide settings - and each labelled unit a `labelBadge`, its
+     left icon or letter. These are the generator's OWN input limits (EdgeLabel
+     generator index.html: Text size 2-6.5 mm, Text depth 0.2-1.2 mm, Badge
+     size 4-22 mm, the letter badge's maxlength 4), so the planner never stores
+     a value the generator would not let a person type. ⚠ Mirrored in the 3D
+     Build Studio's js/label-spec.js; its test compares both copies with the
+     generator's inputs when the checkouts sit side by side. */
+  labelSpec: {
+    limits: { capMm: [2, 6.5], depth: [0.2, 1.2], badgeSize: [4, 22] },
+    flags: ["bold", "allCaps", "predictIcons"],
+    charMax: 4,
+  },
+
   // Exact part names not modeled yet, same "coming soon" treatment as
   // `unreleased` above but for SPECIFIC size/length combos rather than a whole
   // part type — e.g. some drawer sizes exist for one length but not another.

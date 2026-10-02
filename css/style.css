@@ -1485,9 +1485,12 @@ body.docked .fab-3d { display: none; }
 .ut-label input {
   flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--line);
   border-radius: 8px; color: var(--text); padding: 7px 10px; font-size: 0.85rem;
-  text-transform: uppercase;   /* show caps as you type (value is stored uppercase too) */
 }
 .ut-label input:focus { outline: none; border-color: var(--accent); }
+/* The label is stored AS TYPED and printed in the build's label style, so the field shows it the way it will print:
+   capitals while the style's ALL CAPS is on (the default - `caps` is set by the toolbar), the typed case when it is off.
+   This used to be an unconditional uppercase, back when the value itself was stored uppercase. */
+.ut-label input.caps { text-transform: uppercase; }
 .ut-actions .btn { font-size: 0.78rem; padding: 7px 12px; }
 .ut-mode { width: auto; margin-bottom: 0; }            /* compact inline toggle (override .seg) */
 .ut-mode button { flex: 0 0 auto; text-align: center; padding: 6px 12px; }

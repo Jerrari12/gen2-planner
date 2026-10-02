@@ -95,7 +95,8 @@ test("bulk conversion is one clean undo step: sparse ids, stopper keys, a half-t
   const input = doc.querySelector("#ut-label");
   input.value = "m3 screws";
   input.dispatchEvent(new win.Event("input", { bubbles: true }));
-  assert.equal(app.state.placed[1].label, "M3 SCREWS");
+  // stored AS TYPED since 2026-10-02 (the board and the exports show it in ALL CAPS - test/label-foundation.test.mjs)
+  assert.equal(app.state.placed[1].label, "m3 screws");
   const before = canon(app.serializeBuild());               // exact pre-conversion state (label included)
 
   // the palette bridge: pick Decor as the new fill -> the offer names the two Classic drawers
@@ -110,7 +111,7 @@ test("bulk conversion is one clean undo step: sparse ids, stopper keys, a half-t
   const after = app.serializeBuild();
   assert.equal(after.placed.map((u) => u.fill).join(), "decor,decor");
   assert.equal(after.placed.map((u) => u.id).join(), "2,7", "ids untouched");
-  assert.equal(after.placed[1].label, "M3 SCREWS");
+  assert.equal(after.placed[1].label, "m3 screws");
   assert.equal(after.placed[1].closure, "magnet");
   assert.equal(after.removedStoppers.join(), "7:0");
   assert.equal(after.nextId, 8);
@@ -395,7 +396,7 @@ test("a typed label is its own undo step even when a BOARD edit follows without 
   app.refresh(); app.pushHistoryNow();
   app.undoRedo(-1);                                     // undo the board edit only
   assert.equal(app.state.placed.length, 1, "the placement is undone");
-  assert.equal(app.state.placed[0].label, "BITS", "the label SURVIVES - it was its own entry");
+  assert.equal(app.state.placed[0].label, "bits", "the label SURVIVES - it was its own entry");   // stored as typed
   app.undoRedo(-1);                                     // now undo the label itself
   assert.equal("label" in app.state.placed[0], false);
 });
@@ -415,8 +416,9 @@ test("a label commits on change: it reaches the undo history, the auto-save and 
   input.dispatchEvent(new win.Event("input", { bubbles: true }));
   input.dispatchEvent(new win.Event("change", { bubbles: true }));
   await sleep(450);                                          // past the coalesce + debounce windows
-  assert.equal(JSON.parse(stored.get("gen2-last-build")).placed[0].label, "BITS", "auto-saved");
-  assert.equal(msgs.filter((m) => m.gen2 === "layout").at(-1).build.placed[0].label, "BITS", "posted to the viewer");
+  // stored and posted AS TYPED; the viewer applies the build's label style
+  assert.equal(JSON.parse(stored.get("gen2-last-build")).placed[0].label, "bits", "auto-saved");
+  assert.equal(msgs.filter((m) => m.gen2 === "layout").at(-1).build.placed[0].label, "bits", "posted to the viewer");
   app.undoRedo(-1);
   assert.equal("label" in app.state.placed[0], false, "the label is its own undo step");
 });

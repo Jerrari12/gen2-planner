@@ -424,10 +424,21 @@ test("layoutSig DISTINGUISHES a buildId-only change (the asymmetric-guards rule:
 });
 
 test("a NEW build id reaches the viewer as a LAYOUT before any options post (Surprise me must not trip the viewer's gate)", () => {
+  /* Surprise me is random, and some of its boards are BLOCKED (a layoutBlocked carries no build): that case must post no
+     options naming the new id (pinned deterministically by the BLOCKED test below). This test failed 1 in 12 runs while a
+     blocked board still posted them; it now draws until it gets a legal board, checking every blocked draw on the way. */
   const p = planner(labelBuild());
-  p.sent.length = 0;
-  p.app.surpriseMe();
-  const first = p.sent[0];
+  let first = null;
+  for (let i = 0; i < 40 && !first; i++) {
+    p.sent.length = 0;
+    p.app.surpriseMe();
+    if (p.sent[0] && p.sent[0].gen2 === "layoutBlocked") {
+      const id = p.app.state.buildId;
+      assert.ok(!p.sent.some((m) => m.gen2 === "buildOptions" && m.opts.buildId === id), "a blocked Surprise me posted options naming an id the viewer was never sent");
+      continue;
+    }
+    first = p.sent[0];
+  }
   assert.ok(first && first.gen2 === "layout", `the first post after a new build was ${first && first.gen2}, not a layout`);
   const id = first.build.buildId;
   assert.ok(id && id !== "k7m2p9q4x1z8", "surpriseMe did not mint a new id");
@@ -471,5 +482,70 @@ test("the forced layout fires only when the id MOVED since the layout the viewer
   assert.equal(first && first.gen2, "layout", `the first post after loading a build with another id was ${first && first.gen2}`);
   assert.equal(first.build.buildId, "zzzzzzzzzzzz");
   assert.equal(lastOpts(p.sent).opts.buildId, "zzzzzzzzzzzz");
+  p.close();
+});
+
+/* ---- step 2 review round (2026-10-03): what the test skeptic's mutants showed the suite could not see ----
+   Y1/Y2/Y3 were behaviours the code already had and no test pinned (each test below fails on exactly its own mutant);
+   the blocked-build test pins a real defect the flaky Surprise-me test kept tripping over. */
+test("a new build whose layout is BLOCKED gets NO options post naming an id the viewer was never sent; the first legal layout carries it, then the options", () => {
+  /* postLayoutNow used to record the new id as delivered even when it sent `layoutBlocked`, which carries no build. The
+     options post right after then named an id the viewer had never received: it dropped the post as a mismatch and counted
+     relay:build-mismatch on a perfectly normal flow (Surprise me sometimes lands on a blocked board - the source of the flaky
+     test above). The options now wait for the layout that delivers the id; that layout carries every option anyway. */
+  const p = planner(labelBuild());
+  const b = p.app.serializeBuild();
+  b.buildId = "zzzzzzzzzzzz"; b.gridH = 2;
+  b.placed.forEach((u) => { u.y = u.id === 3 ? 0 : 2; });   // drawer 3 floats over an empty cell: the board is blocked
+  p.sent.length = 0;
+  p.app.applyBuild(b);
+  const kinds = p.sent.map((m) => m.gen2);
+  assert.ok(kinds.includes("layoutBlocked") && !kinds.includes("layout"), `the control: a floating drawer must block the layout (posts: ${kinds})`);
+  assert.ok(!p.sent.some((m) => m.gen2 === "buildOptions" && m.opts.buildId === "zzzzzzzzzzzz"),
+    `an options post named the new id while the viewer only had a layoutBlocked (posts: ${kinds})`);
+  // the board becomes legal: the layout delivers the id FIRST, the options follow naming the same one
+  p.sent.length = 0;
+  p.app.state.placed[2].y = p.app.state.placed[0].y; p.app.refresh();   // (applyBuild may re-seat the rows - sit it beside drawer 1)
+  const first = p.sent[0];
+  assert.equal(first && first.gen2, "layout", `the first post once the board was legal was ${first && first.gen2} (${first && first.reason || ""})`);
+  assert.equal(first.build.buildId, "zzzzzzzzzzzz");
+  const o = lastOpts(p.sent);
+  assert.ok(o && o.opts.buildId === "zzzzzzzzzzzz" && p.sent.indexOf(o) > 0, "the held options never followed the layout");
+  p.close();
+});
+
+test("a viewer post with labelStyle null (its Reset to original, a style back to the defaults) RESETS the planner's style", () => {
+  const p = planner(labelBuild({ labelStyle: { capMm: 4 } }));
+  assert.equal(j(p.app.state.labelStyle), j({ capMm: 4 }), "the control: the fixture's style was not applied");
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labelStyle: null } });
+  assert.equal(p.app.state.labelStyle, null, "the viewer's reset to defaults was ignored - the two ends now disagree");
+  p.close();
+});
+
+test("a viewer post landing mid-word does not rewrite the field being typed in (a typed trailing space survives)", () => {
+  const p = planner(labelBuild());
+  p.app.state.selectedUnit = 3; p.app.refresh();
+  const field = p.window.document.getElementById("ut-label");
+  field.focus();
+  assert.equal(p.window.document.activeElement, field, "jsdom did not focus the field - the test cannot prove anything");
+  field.value = "Nuts ";                                   // about to type "and bolts"
+  field.dispatchEvent(new p.window.Event("input", { bubbles: true }));
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", variants: { 1: "gridfinity", 2: "standard", 3: "standard" } } });
+  assert.equal(p.app.state.placed[0].variant, "gridfinity", "the control: the post applied");
+  assert.equal(field.value, "Nuts ", "the refresh replaced the field mid-typing - the next keystroke lands as 'Nutsa'");
+  p.close();
+});
+
+test("a viewer BADGE for the unit being typed is held off like its words (the viewer has not heard the new words)", () => {
+  const p = planner(labelBuild());
+  p.app.state.selectedUnit = 2; p.app.refresh();
+  const field = p.window.document.getElementById("ut-label");
+  field.focus();
+  field.value = "Nuts and bolts";
+  field.dispatchEvent(new p.window.Event("input", { bubbles: true }));
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labelBadges: { 1: { type: "char", value: "T" }, 2: { type: "char", value: "X" } } } });
+  assert.equal(j(p.app.state.placed[0].labelBadge), j({ type: "char", value: "T" }), "the control: a badge for another unit applied");
+  assert.equal(j(p.app.state.placed[1].labelBadge), j({ type: "icon", value: "nut" }),
+    "a badge from a viewer that has not heard the new words landed on the unit being typed");
   p.close();
 });

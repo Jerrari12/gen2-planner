@@ -2588,7 +2588,13 @@
        later). So the layout goes first, synchronously, whenever the id MOVED since the last layout this viewer was sent
        (postLayoutNow records it). Not on a connection's first post: the viewer already holds the id from the handshake's
        layout or its #build= hash, and a forced layout there is a second post for one change (test/drawer-conversion). */
-    if (lastOptsBuildId !== null && state.buildId !== lastOptsBuildId) postLayoutNow();
+    if (lastOptsBuildId !== null && state.buildId !== lastOptsBuildId) {
+      postLayoutNow();
+      /* still not delivered: the board is BLOCKED, and `layoutBlocked` carries no build. Hold the options (lastSentOpts is
+         untouched, so the next refresh tries again) - the viewer would drop a post naming an id it was never sent and count
+         relay:build-mismatch. The layout that finally delivers the id carries every option anyway (review round 2026-10-03). */
+      if (state.buildId !== lastOptsBuildId) return;
+    }
     lastOptsBuildId = state.buildId;
     /* buildPlate LAST and resolved, in the viewer's own key order: the echo guard on each side
        compares the other's JSON with its own */
@@ -2625,12 +2631,15 @@
     const sig = layoutSig();
     if (sig === lastSentLayout) return;
     lastSentLayout = sig;
-    lastOptsBuildId = state.buildId;   // the viewer now knows this id (see syncOptionsToViewer)
     const reason = instructionsBlockReason();
     try {
       // the viewer's blocked overlay renders this as text — send the prose, not the code
       if (reason) viewerWin.postMessage({ gen2: "layoutBlocked", reason: reason.text }, "*");
-      else viewerWin.postMessage({ gen2: "layout", build: serializeBuild() }, "*");
+      else {
+        viewerWin.postMessage({ gen2: "layout", build: serializeBuild() }, "*");
+        // the viewer now knows this id (see syncOptionsToViewer) - ONLY on a real layout: layoutBlocked carries no build
+        lastOptsBuildId = state.buildId;
+      }
     } catch (e) { /* tab closed */ }
   }
   function syncLayoutToViewer() {

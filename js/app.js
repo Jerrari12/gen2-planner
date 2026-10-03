@@ -2604,8 +2604,31 @@
     if (json === lastSentOpts) return;
     lastSentOpts = json;
     try { viewerWin.postMessage({ gen2: "buildOptions", opts }, "*"); } catch (e) { /* tab closed */ }
+    noteViewerHeld(viewerWin, labels, labelBadges);
   }
   let lastOptsBuildId = null;   // the build id the last options post carried (see syncOptionsToViewer)
+
+  /* What each viewer WINDOW holds for every decor unit's words and badge: what this planner last sent it (options or layout),
+     or what it last sent us. A viewer posts its FULL label map on every change of its own - its card's Undo, a magnet, the back
+     cover - and the planner's label field posts nothing until `change`, and then only the debounced layout 350 ms later. A
+     click in the dock IS that `change`, so the viewer acts while still holding the old words, and applying its map wrote them
+     back over the planner's (release verify 2026-10-03, U2 / U4 / U7). The incoming handler applies a unit's words or badge
+     only when the viewer CHANGED them from what it held, and only if the planner has not changed them since; otherwise the
+     planner's words win and go straight back to the viewer. Keyed by window: the dock and a pop-out hold different states.
+     A window never posted to has no entry, and its posts apply as before (a reloaded planner hearing an open pop-out). */
+  const viewerHeld = new WeakMap();
+  const heldBadge = (b) => JSON.stringify(cleanLabelBadge(b) || null);
+  function noteViewerHeld(win, labels, badges) {
+    if (!win || typeof win !== "object") return;
+    let m = viewerHeld.get(win);
+    if (!m) { m = {}; viewerHeld.set(win, m); }
+    for (const id of Object.keys(labels)) m[id] = { l: labels[id], b: labels[id] ? heldBadge(badges[id]) : "null" };
+  }
+  function noteViewerHeldState(win) {
+    const labels = {}, badges = {};
+    state.placed.forEach((u) => { if (u.fill === "decor") { labels[u.id] = cleanLabelText(u.label); badges[u.id] = u.labelBadge; } });
+    noteViewerHeld(win, labels, badges);
+  }
 
   /* ---- Live LAYOUT sync (planner → viewer, 2026-07-19) ----
      Placing / moving / removing units re-generates the open 3D viewer live —
@@ -2639,6 +2662,7 @@
         viewerWin.postMessage({ gen2: "layout", build: serializeBuild() }, "*");
         // the viewer now knows this id (see syncOptionsToViewer) - ONLY on a real layout: layoutBlocked carries no build
         lastOptsBuildId = state.buildId;
+        noteViewerHeldState(viewerWin);   // …and these words (see viewerHeld)
       }
     } catch (e) { /* tab closed */ }
   }
@@ -5065,6 +5089,7 @@
         try { if (e.source && e.source !== window) e.source.postMessage({ gen2: "buildRejected", buildId: o.buildId }, "*"); } catch (err) { /* window gone */ }
         return;
       }
+      let heldBack = false;   // set below when the planner keeps newer words than this post carries
       applyingRemoteOpts = true;
       try {
         if (o.closures) state.placed.forEach((u) => {
@@ -5107,23 +5132,53 @@
            the draft from state while the field kept showing it. The `change` handler below re-reads the field on blur, so
            the two converge on the typed words. */
         const typingUnit = document.activeElement === $("#ut-label") ? state.selectedUnit : null;
+        /* ⚠ ONLY what the viewer CHANGED, and only if the planner has not changed it since (viewerHeld, above): a unit whose
+           incoming words equal what that window held is not an edit - it is the viewer not having heard this planner's newer
+           words - and a unit both sides changed keeps the planner's. Either way the planner re-posts below. */
+        const held = (e.source && viewerHeld.get(e.source)) || null;
+        const keptUnits = new Set();
         if (o.labels && typeof o.labels === "object") state.placed.forEach((u) => {
           const v = o.labels[u.id];
           if (u.fill !== "decor" || u.id === typingUnit || typeof v !== "string") return;
-          const t = cleanLabelText(v);
+          const t = cleanLabelText(v), h = held && held[u.id];
+          if (h && t !== h.l) {
+            if (cleanLabelText(u.label) !== h.l) { keptUnits.add(u.id); heldBack = true; return; }   // both changed: the planner's win
+          } else if (h) { if (t !== cleanLabelText(u.label)) heldBack = true; return; }              // not the viewer's edit
           if (t) u.label = t; else { delete u.label; delete u.labelBadge; }
         });
         if (o.labelBadges && typeof o.labelBadges === "object") state.placed.forEach((u) => {
-          if (u.fill !== "decor" || u.id === typingUnit || !u.label || !(u.id in o.labelBadges)) return;
+          if (u.fill !== "decor" || u.id === typingUnit || !u.label || !(u.id in o.labelBadges) || keptUnits.has(u.id)) return;
           const v = o.labelBadges[u.id];
+          const h = held && held[u.id];
+          if (h && v !== null && !cleanLabelBadge(v)) return;                        // hostile: leaves the stored one alone
+          if (h && heldBadge(v) === h.b) { if (h.b !== heldBadge(u.labelBadge)) heldBack = true; return; }
+          if (h && heldBadge(u.labelBadge) !== h.b) { heldBack = true; return; }
           if (v === null) { delete u.labelBadge; return; }
           const b = cleanLabelBadge(v);
           if (b) u.labelBadge = b;
         });
+        // what this window holds now: what it just sent, key by key (a key it left out, or a hostile badge, tells us nothing new)
+        if (e.source && typeof e.source === "object" && (o.labels || o.labelBadges)) {
+          let m = viewerHeld.get(e.source);
+          if (!m) { m = {}; viewerHeld.set(e.source, m); }
+          state.placed.forEach((u) => {
+            if (u.fill !== "decor") return;
+            const lv = o.labels && typeof o.labels === "object" ? o.labels[u.id] : undefined;
+            const bv = o.labelBadges && typeof o.labelBadges === "object" && u.id in o.labelBadges ? o.labelBadges[u.id] : undefined;
+            const prev = m[u.id];
+            const l = typeof lv === "string" ? cleanLabelText(lv) : prev ? prev.l : undefined;
+            if (l === undefined) return;
+            let b = prev ? prev.b : "null";
+            if (!l) b = "null"; else if (bv === null || (bv !== undefined && cleanLabelBadge(bv))) b = heldBadge(bv);
+            m[u.id] = { l, b };
+          });
+        }
         if ("labelStyle" in o) state.labelStyle = cleanLabelStyle(o.labelStyle);
         lastSentOpts = JSON.stringify(o); // we're now in sync with the viewer — don't echo
         refresh();
       } finally { applyingRemoteOpts = false; }
+      // the planner kept newer words than the viewer posted (see viewerHeld): tell it NOW, not 350 ms later with the layout
+      if (heldBack) syncOptionsToViewer();
     });
     $("#labels-txt").addEventListener("click", downloadLabelList);
     // Conversion clicks (the money events): the label-generator handoff and the

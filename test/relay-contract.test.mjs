@@ -592,3 +592,69 @@ test("the viewer card's 6-s Undo is an ordinary post here: its own single histor
   assert.equal(p.sent.filter((m) => m.gen2 === "buildRejected").length, 1);
   p.close();
 });
+
+/* ---- release verify 2026-10-03: a viewer post that has not HEARD the planner's newest words ----
+   The planner's label field mutates state on every keystroke but posts nothing until `change` (blur / Enter), and then only
+   the debounced layout, 350 ms later. A click in the dock IS that blur - so the viewer acts (its card's Undo, or ANY option
+   toggle) while still holding the old words, and posts its full label map. Applying that map wrote the old words back over
+   the planner's (the release skeptic's U2 / U4 / U7, headed Chrome). The planner now applies a unit's words or badge only
+   when the viewer CHANGED them (they differ from what that window was last sent or last sent us) and the planner has not
+   changed them since; otherwise the planner's newer words win and go straight back to the viewer. */
+test("a viewer post that has not heard the planner's newest words never writes them back (U7: any option click; U4: another drawer; U2: the card's Undo on the same drawer)", async () => {
+  const p = planner(labelBuild());
+  const field = p.window.document.getElementById("ut-label");
+  const typeInPlanner = (unitId, words) => {
+    p.app.state.selectedUnit = unitId; p.app.refresh();
+    field.focus(); field.value = words;
+    field.dispatchEvent(new p.window.Event("input", { bubbles: true }));
+    field.blur();                                                  // the click into the dock
+    field.dispatchEvent(new p.window.Event("change", { bubbles: true }));
+    assert.notEqual(p.window.document.activeElement, field, "the field still has focus - the typing guard, not the fix, would be what holds");
+  };
+  const held = { 1: "Torx Bits", 2: "Nuts", 3: "" };            // what the viewer holds: the handshake's layout
+  const badges = { 1: null, 2: { type: "icon", value: "nut" } };
+  // U7: planner types "Spacers" into drawer 2; the viewer's back-cover click posts the words it holds ("Nuts")
+  typeInPlanner(2, "Spacers");
+  p.sent.length = 0;
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { ...held }, labelBadges: { ...badges }, backCover: true } });
+  assert.equal(p.app.state.backCover, true, "the control: the option click itself applied");
+  assert.equal(p.app.state.placed[1].label, "Spacers", "U7: a viewer option click wrote the planner's newer words back to the old ones");
+  assert.equal(j(p.app.state.placed[1].labelBadge), j({ type: "icon", value: "nut" }), "U7: the badge moved");
+  const told = lastOpts(p.sent);
+  assert.ok(told && told.opts.labels[2] === "Spacers", `the viewer was not told the planner's words at once: ${JSON.stringify(p.sent)}`);
+  held[2] = "Spacers";                                           // the viewer has now heard them
+  // U4: the viewer edits drawer 1 ("Echo"); the planner types "Washers" into drawer 2; the card's Undo posts drawer 1 back
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { ...held, 1: "Echo" }, labelBadges: { ...badges } } });
+  assert.equal(p.app.state.placed[0].label, "Echo", "the control: a viewer edit the planner had not touched applied");
+  await sleep(450);                                              // its layout goes back to the viewer
+  held[1] = "Echo";
+  typeInPlanner(2, "Washers");
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { ...held, 1: "Torx Bits" }, labelBadges: { ...badges } } });
+  assert.equal(p.app.state.placed[0].label, "Torx Bits", "U4 control: the Undo on drawer 1 applied");
+  assert.equal(p.app.state.placed[1].label, "Washers", "U4: the Undo on drawer 1 wrote drawer 2's newer planner words back");
+  await sleep(450);
+  held[1] = "Torx Bits"; held[2] = "Washers";
+  // U2: the viewer commits "Alpha" on drawer 1; the planner types "Planner" into drawer 1; the card's Undo posts "Torx Bits"
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { ...held, 1: "Alpha" }, labelBadges: { ...badges } } });
+  assert.equal(p.app.state.placed[0].label, "Alpha");
+  await sleep(450);
+  typeInPlanner(1, "Planner");
+  p.sent.length = 0;
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { ...held, 1: "Torx Bits" }, labelBadges: { ...badges, 1: { type: "char", value: "T" } } } });
+  assert.equal(p.app.state.placed[0].label, "Planner", "U2: the card's Undo wrote over the planner's newer words on the same drawer");
+  assert.ok(!("labelBadge" in p.app.state.placed[0]), "U2: a badge picked for the old words landed on the planner's new words");
+  assert.equal(lastOpts(p.sent).opts.labels[1], "Planner", "U2: the viewer was not told the planner's words");
+  // and a viewer that HAS heard them edits as before
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { ...held, 1: "Planner Two" }, labelBadges: { ...badges } } });
+  assert.equal(p.app.state.placed[0].label, "Planner Two", "a viewer edit made after hearing the planner's words was refused");
+  held[1] = "Planner Two";
+  // planner words that reached the viewer ONLY in the debounced layout (the field's change posts no options): the viewer's
+  // next edit of that drawer is its own, and applies
+  typeInPlanner(2, "Hinges");
+  await sleep(450);
+  assert.equal(lastLayout(p.sent).build.placed[1].label, "Hinges", "the control: the layout carried the planner's words");
+  held[2] = "Hinges";
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { ...held, 2: "Hinge Pins" }, labelBadges: { ...badges } } });
+  assert.equal(p.app.state.placed[1].label, "Hinge Pins", "a viewer edit made after the LAYOUT told it the planner's words was refused");
+  p.close();
+});

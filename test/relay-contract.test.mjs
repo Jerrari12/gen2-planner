@@ -549,3 +549,46 @@ test("a viewer BADGE for the unit being typed is held off like its words (the vi
     "a badge from a viewer that has not heard the new words landed on the unit being typed");
   p.close();
 });
+
+/* ---- release checks 2026-10-03 (Astra) ---- */
+test("a post naming ANOTHER build is ANSWERED: the window that sent it gets buildRejected with the refused id (a stale pop-out's edit must not look saved)", () => {
+  const p = planner(labelBuild());
+  p.sent.length = 0;
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "zzzzzzzzzzzz", labels: { 1: "Stale Edit" } } });
+  const rej = p.sent.filter((m) => m.gen2 === "buildRejected");
+  assert.equal(rej.length, 1, `the refused window was told nothing: ${JSON.stringify(p.sent)}`);
+  assert.equal(rej[0].buildId, "zzzzzzzzzzzz", "the answer must name the REFUSED id (the viewer only believes an answer about its own build)");
+  assert.equal(p.app.state.placed[0].label, "Torx Bits", "the control: the refused post changed nothing");
+  // the control: a post for THIS build, and a legacy post with no id, are applied and never answered with a refusal
+  p.sent.length = 0;
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 1: "Hex Keys" } } });
+  p.deliver({ gen2: "buildOptions", opts: { labels: { 1: "Hex Keys 2" } } });
+  assert.equal(p.sent.filter((m) => m.gen2 === "buildRejected").length, 0, "an accepted post was answered with a refusal");
+  assert.equal(p.app.state.placed[0].label, "Hex Keys 2");
+  p.close();
+});
+
+test("the viewer card's 6-s Undo is an ordinary post here: its own single history step, gated by the build id like any edit", async () => {
+  const p = planner(labelBuild());
+  p.app.pushHistoryNow();
+  const depth = p.app.history.stack.length, first = j(p.app.state.placed[0]);
+  // the viewer's commit, then its Undo putting back the words AND the badge in one post - the shape currentOpts sends
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 1: "Torx Bits", 2: "Hex Nuts", 3: "" }, labelBadges: { 1: null, 2: { type: "icon", value: "nut" } } } });
+  await sleep(450);
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 1: "Torx Bits", 2: "Nuts", 3: "" }, labelBadges: { 1: null, 2: { type: "icon", value: "nut" } } } });
+  await sleep(450);
+  assert.equal(p.app.history.stack.length, depth + 2, "the commit and the Undo are not one history step each");
+  assert.equal(p.app.state.placed[1].label, "Nuts");
+  assert.equal(j(p.app.state.placed[0]), first, "the Undo's post touched another drawer");
+  p.app.undoRedo(-1);
+  assert.equal(p.app.state.placed[1].label, "Hex Nuts", "one planner Undo does not step back over exactly the viewer's Undo");
+  p.app.undoRedo(-1);
+  assert.equal(p.app.state.placed[1].label, "Nuts");
+  // an Undo from a window on ANOTHER build is refused like any post, and answered
+  p.sent.length = 0;
+  const before = JSON.stringify(p.app.serializeBuild());
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "zzzzzzzzzzzz", labels: { 2: "Hex Nuts" }, labelBadges: { 2: null } } });
+  assert.equal(JSON.stringify(p.app.serializeBuild()), before, "a stale window's Undo changed state");
+  assert.equal(p.sent.filter((m) => m.gen2 === "buildRejected").length, 1);
+  p.close();
+});

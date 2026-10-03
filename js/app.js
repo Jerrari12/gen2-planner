@@ -5057,8 +5057,14 @@
       const o = d.opts;
       /* a post naming ANOTHER build is dropped whole, before anything is touched (lastSentOpts included): unit ids restart
          at 1 on every new build, so a stale viewer tab's "drawer 1" would otherwise write into whichever drawer now carries
-         the number. A viewer with no id (an official kit, a pre-2026-10 hash) omits the key and is accepted. */
-      if (typeof o.buildId === "string" && o.buildId !== state.buildId) return;
+         the number. A viewer with no id (an official kit, a pre-2026-10 hash) omits the key and is accepted.
+         The window that sent it is TOLD (release check 2026-10-03): a stale pop-out's edit used to vanish with nothing said,
+         looking saved. The answer names the refused id; the viewer shows "Not saved" and offers to load this build. An old
+         viewer ignores the unknown message type. */
+      if (typeof o.buildId === "string" && o.buildId !== state.buildId) {
+        try { if (e.source && e.source !== window) e.source.postMessage({ gen2: "buildRejected", buildId: o.buildId }, "*"); } catch (err) { /* window gone */ }
+        return;
+      }
       applyingRemoteOpts = true;
       try {
         if (o.closures) state.placed.forEach((u) => {

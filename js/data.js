@@ -577,8 +577,9 @@ const GEN2 = {
   // (backCover left this list 2026-07-12 — the covers ship inside every
   // faceplate series download since v2602, so its rows link the chosen
   // style's series page via linkAs.)
-  // gridfinityDrawer: the MODULITH Gridfinity Decor Drawers pages are not up yet
-  unreleased: ["door", "hinge", "latch", "sideCover", "gridfinityDrawer"],
+  // (gridfinityDrawer left this list 2026-10-03 — the five MODULITH Gridfinity
+  // Decor Drawers pages went live 2026-09-24, on Thangs and Printables.)
+  unreleased: ["door", "hinge", "latch", "sideCover"],
 
   /* Gridfinity Decor drawers (v2609, 2026-09-18). A Decor drawer with a 42 mm
      Gridfinity grid in its floor, a half-grid channel down the right side, four
@@ -805,6 +806,14 @@ const LINK_OVERRIDES = {
   "GEN2 240 Decor Drawers - All": { p: "https://www.printables.com/model/1322479-gen2-240-decor-drawers-all", t: "https://than.gs/m/1360074", m: "https://makerworld.com/en/models/1516607-gen2-240-decor-drawers-all" },
   "GEN2 270 Decor Drawers - All": { p: "https://www.printables.com/model/1062961-gen2-270-decor-drawers-all", t: "https://than.gs/m/1171387", m: "https://makerworld.com/en/models/1938424-gen2-270-decor-drawers-all" },
 
+  // ---- Gridfinity Decor drawers — one MODULITH page per length (all live 2026-09-24;
+  //      Printables ids from its API, Thangs ids from TICKET-listing-images-2026-09-23.md) ----
+  "MODULITH 115 Gridfinity Decor Drawers": { p: "https://www.printables.com/model/1852804-modulith-115-gridfinity-decor-drawers", t: "https://than.gs/m/1609256" },
+  "MODULITH 165 Gridfinity Decor Drawers": { p: "https://www.printables.com/model/1852834-modulith-165-gridfinity-decor-drawers", t: "https://than.gs/m/1609255" },
+  "MODULITH 185 Gridfinity Decor Drawers": { p: "https://www.printables.com/model/1852597-modulith-185-gridfinity-decor-drawers", t: "https://than.gs/m/1609253" },
+  "MODULITH 240 Gridfinity Decor Drawers": { p: "https://www.printables.com/model/1852867-modulith-240-gridfinity-decor-drawers", t: "https://than.gs/m/1609254" },
+  "MODULITH 270 Gridfinity Decor Drawers": { p: "https://www.printables.com/model/1852873-modulith-270-gridfinity-decor-drawers", t: "https://than.gs/m/1609252" },
+
   // ---- Covers — dedicated per-length pages (Thangs added 2026-07-12; CL/CU rows funnel here) ----
   "GEN2 59 Covers":  { p: "https://www.printables.com/model/1777881-gen2-59-cover", t: "https://than.gs/m/1574324", m: "https://makerworld.com/en/models/3094116-gen2-59-covers" },
   "GEN2 115 Covers": { p: "https://www.printables.com/model/1777837-gen2-115-cover", t: "https://than.gs/m/1574330", m: "https://makerworld.com/en/models/3093900-gen2-115-covers" },
@@ -845,7 +854,7 @@ const LINK_OVERRIDES = {
   // ---- Universal hardware (QuickLocks funnel here via linkAs) ----
   "GEN2 Hardware": { p: "https://www.printables.com/model/1012796-gen2-hardware", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Hardware-1141439" },
 
-  // ---- Decor faceplate series — one page per style (Essential is Thangs-only) ----
+  // ---- Decor faceplate series — one page per style ----
   "GEN2 Decor - Faceplates - EdgeLabel Series":   { p: "https://www.printables.com/model/1093933-gen2-decor-faceplates-edgelabel-series", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Decor%20-%20Faceplate%20-%20EdgeLabel-1215609" },
   "GEN2 Decor - Faceplates - Classic Pro Series": { p: "https://www.printables.com/model/1291210-gen2-decor-faceplates-classic-pro-series", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Decor%20-%20Faceplates%20-%20Classic%20Pro%20Series-1332444" },
   "GEN2 Decor - Faceplates - Essential Series":   { p: "https://www.printables.com/model/964559-gen2-decor-faceplates-essential-series", t: "https://thangs.com/designer/Jerrari/3d-model/GEN2%20Decor%20-%20Faceplates%20-%20Essential%20Series-1116946" },
@@ -929,7 +938,7 @@ const COLLECTION_RULES = [
   [/^GEN2 (\d+)-.+ Classic Drawer$/,    (m) => `GEN2 ${m[1]} Classic Drawers - All`],
   // ⚠ BEFORE the Decor rule: "GEN2 185-2W-1H Gridfinity Decor Drawer" also ends
   // in " Decor Drawer", and would link the standard Decor page. The key is the
-  // MODULITH page's own title; it has no LINK_OVERRIDES entry until it is published.
+  // MODULITH page's own title, which is also its LINK_OVERRIDES key.
   [/^GEN2 (\d+)-.+ Gridfinity Decor Drawer$/, (m) => `MODULITH ${m[1]} Gridfinity Decor Drawers`],
   [/^GEN2 (\d+)-.+ Decor Drawer$/,      (m) => `GEN2 ${m[1]} Decor Drawers - All`],
   // NB anchored so "GEN2 Decor Faceplate Back Cover - …" (no style token)

@@ -6,8 +6,9 @@
  * standard drawer. Only 115-270 at 1H / 1.5H / 2H have one: anywhere else the
  * variant is kept and the standard drawer is billed (the viewer's generator does
  * the same). Its tear-away front does the back cover's job and blocks one, so it
- * bills no back cover (Joey 2026-09-18). The pages are not published yet, so the
- * rows say "coming soon" and link nowhere - never the standard Decor page.
+ * bills no back cover (Joey 2026-09-18). The five MODULITH pages went live
+ * 2026-09-24, so each row links its OWN length's page - never the standard
+ * Decor page, and never a store search.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -103,11 +104,27 @@ test("a Gridfinity drawer takes a faceplate but no back cover", () => {
   assert.equal(find(b.app, /Decor Faceplate/).length, 1);
 });
 
-test("the row says coming soon and never links the standard Decor page", () => {
-  const { app, window } = boot();
-  load(app, 185, [{ w: 2, hh: 2, fill: "decor", variant: "gridfinity" }]);
-  const [r] = find(app, /Gridfinity Decor Drawer$/);
-  assert.ok(r.unreleased, "published before the MODULITH pages exist");
+/* PUBLISHED 2026-09-24. Was the reverse assertion (the row gated "coming soon").
+   Inverted rather than deleted, as shelf-lip did: the risk moved from "a link
+   appears too early" to "a length links another length's page, or the standard
+   Decor page". */
+test("each length's row links its own MODULITH page and never the standard Decor page", () => {
+  for (const len of [115, 165, 185, 240, 270]) {
+    const { app } = boot();
+    load(app, len, [{ w: 2, hh: 2, fill: "decor", variant: "gridfinity" }]);
+    const [r] = find(app, /Gridfinity Decor Drawer$/);
+    assert.ok(r && !r.unreleased, len + ': published, so no "coming soon" gate');
+    const l = app.partLinks(r.linkAs || r.name);
+    // exactP / exactT: without an override partLinks still returns a search url
+    assert.ok(l.exactP && l.exactT, r.name + ": must resolve to real pages, not search urls");
+    assert.match(l.printables, new RegExp("/model/\\d+-modulith-" + len + "-gridfinity-decor-drawers$"),
+      r.name + ": links to " + l.printables);
+    assert.match(l.thangs, /^https:\/\/than\.gs\/m\/\d+$/, r.name + ": links to " + l.thangs);
+  }
+  const { window } = boot();
+  const thangs = [115, 165, 185, 240, 270].map((len) =>
+    window.eval(`partLinks("GEN2 ${len}-2W-1H Gridfinity Decor Drawer").thangs`));
+  assert.equal(new Set(thangs).size, 5, "two lengths share a Thangs page");
   assert.equal(window.eval('collectionKeyFor("GEN2 185-2W-1H Gridfinity Decor Drawer")'), "MODULITH 185 Gridfinity Decor Drawers",
     "the Gridfinity name fell through to another collection rule");
   assert.equal(window.eval('collectionKeyFor("GEN2 185-2W-1H Decor Drawer")'), "GEN2 185 Decor Drawers - All",

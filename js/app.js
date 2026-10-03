@@ -2532,6 +2532,29 @@
   // keep the child ref (NO noopener) so build-option changes sync both ways;
   // cross-origin still limits the child to postMessage, so it's safe first-party.
   let viewerWin = null, applyingRemoteOpts = false, lastSentOpts = null;
+  /* ⚠ RELAY AUTHENTICATION (2026-10-03). Until then the message listener below took `viewerWin` from ANY window that posted
+     {gen2:...} and every post went out with target "*" - so any page holding a reference to this tab (one that opened it,
+     say) could capture the relay and receive the whole build, labels included, on the next edit, or rewrite the build's
+     options (STEP3-DESIGN R14, STEP3-CRITIQUE B14). Now:
+     - a gen2 message is acted on only from an allowed VIEWER origin (production gen2build; loopback origins, any port, only
+       while this planner is itself local dev) AND from a window that is this planner's own viewer: the dock iframe (its
+       parent is us), a tab we opened (its opener is us - which still holds after a planner reload, so a popped-out viewer
+       keeps re-introducing itself exactly as before), or the window we already hold;
+     - every post to the viewer names the origin it was opened on or last heard from (`viewerOrigin`), never "*". A window
+       that has navigated anywhere else simply does not receive it. */
+  const VIEWER_PROD_ORIGIN = "https://gen2build.jerrari3d.com";
+  const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
+  const viewerOriginAllowed = (o) => o === VIEWER_PROD_ORIGIN || (IS_LOCAL_DEV && typeof o === "string" && LOOPBACK_ORIGIN.test(o));
+  let viewerOrigin = new URL(INSTRUCTIONS_VIEWER_URL).origin;   // where viewerWin lives: set wherever viewerWin is
+  function isOwnViewer(src) {
+    if (!src || src === window) return false;
+    if (src === viewerWin) return true;
+    const f = $("#viewer-frame");
+    if (f && src === f.contentWindow) return true;
+    try { return src.opener === window || src.parent === window; } catch (e) { return false; }   // both readable cross-origin
+  }
+  // the one way the planner speaks to its viewer (callers keep their own viewerWin / closed guards)
+  const postToViewer = (msg) => viewerWin.postMessage(msg, viewerOrigin);
   function open3DInstructions() {
     if (!state.placed.length) return;
     track("3d-instructions:" + state.mount + "-" + state.length);
@@ -2551,6 +2574,7 @@
     // the dock exists but is collapsed → expanding it is the cheapest 3D
     if (dockAvailable()) { track("dock:expand"); openDock(false); return; }
     viewerWin = window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank");
+    viewerOrigin = new URL(INSTRUCTIONS_VIEWER_URL).origin;
   }
   // push the current build options to an open viewer tab, but only when they've
   // actually changed (and never while applying a change the viewer just sent).
@@ -2603,7 +2627,7 @@
     const json = JSON.stringify(opts);
     if (json === lastSentOpts) return;
     lastSentOpts = json;
-    try { viewerWin.postMessage({ gen2: "buildOptions", opts }, "*"); } catch (e) { /* tab closed */ }
+    try { postToViewer({ gen2: "buildOptions", opts }); } catch (e) { /* tab closed */ }
     noteViewerHeld(viewerWin, labels, labelBadges);
   }
   let lastOptsBuildId = null;   // the build id the last options post carried (see syncOptionsToViewer)
@@ -2657,9 +2681,9 @@
     const reason = instructionsBlockReason();
     try {
       // the viewer's blocked overlay renders this as text — send the prose, not the code
-      if (reason) viewerWin.postMessage({ gen2: "layoutBlocked", reason: reason.text }, "*");
+      if (reason) postToViewer({ gen2: "layoutBlocked", reason: reason.text });
       else {
-        viewerWin.postMessage({ gen2: "layout", build: serializeBuild() }, "*");
+        postToViewer({ gen2: "layout", build: serializeBuild() });
         // the viewer now knows this id (see syncOptionsToViewer) - ONLY on a real layout: layoutBlocked carries no build
         lastOptsBuildId = state.buildId;
         noteViewerHeldState(viewerWin);   // …and these words (see viewerHeld)
@@ -2689,7 +2713,7 @@
   }
   function postColorsToViewer() {
     if (!viewerColors || !viewerWin || viewerWin.closed) return;
-    try { viewerWin.postMessage({ gen2: "colors", ...viewerColors }, "*"); } catch (e) { /* tab closed */ }
+    try { postToViewer({ gen2: "colors", ...viewerColors }); } catch (e) { /* tab closed */ }
   }
 
   /* ---- preferred 3D model site (2026-07-25) ----
@@ -2728,7 +2752,7 @@
   }
   function postSiteToViewer() {
     if (!viewerWin || viewerWin.closed) return;
-    try { viewerWin.postMessage({ gen2: "store", t: linkSiteT, store: linkSite }, "*"); } catch (e) { /* tab closed */ }
+    try { postToViewer({ gen2: "store", t: linkSiteT, store: linkSite }); } catch (e) { /* tab closed */ }
   }
   /* The retrowave look rides to the studio so its stage matches the planner
      (light stage stays the color-accurate default there — see the viewer's
@@ -2737,7 +2761,7 @@
      decoupled, and viewerReady replays the current value like the palette. */
   function postThemeToViewer() {
     if (!viewerWin || viewerWin.closed) return;
-    try { viewerWin.postMessage({ gen2: "theme", theme: document.documentElement.dataset.theme || "light" }, "*"); } catch (e) { /* tab closed */ }
+    try { postToViewer({ gen2: "theme", theme: document.documentElement.dataset.theme || "light" }); } catch (e) { /* tab closed */ }
   }
   try {
     new MutationObserver(postThemeToViewer)
@@ -2849,7 +2873,7 @@
   function popOutStudio() {
     track("dock:popout");
     const w = window.open(INSTRUCTIONS_VIEWER_URL + "#build=" + encodeBuildHash(), "_blank");
-    if (w) viewerWin = w; // the full tab takes over the sync; the dock naps
+    if (w) { viewerWin = w; viewerOrigin = new URL(INSTRUCTIONS_VIEWER_URL).origin; } // the full tab takes over the sync; the dock naps
     closeDock();
   }
 
@@ -5050,10 +5074,14 @@
     window.addEventListener("message", (e) => {
       const d = e.data;
       if (!d || !d.gen2) return;
-      // any gen2 message identifies the viewer tab — (re)capture the handle so
+      // relay authentication (see viewerOriginAllowed above): a foreign origin, or a window that is not this planner's own
+      // viewer, changes nothing - not even viewerWin
+      if (!viewerOriginAllowed(e.origin) || !isOwnViewer(e.source)) return;
+      // a gen2 message from our viewer identifies the viewer tab — (re)capture the handle so
       // layout sync survives a planner reload (the old viewerWin ref dies with
       // the page; the viewer re-introduces itself via viewerReady / option posts)
-      if (e.source && e.source !== window) viewerWin = e.source;
+      viewerWin = e.source;
+      viewerOrigin = e.origin;
       if (d.gen2 === "viewerReady") {
         // a viewer just booted (or reloaded itself onto a new mount/length) —
         // hand it the current state immediately so it can't sit stale
@@ -5086,7 +5114,7 @@
          looking saved. The answer names the refused id; the viewer shows "Not saved" and offers to load this build. An old
          viewer ignores the unknown message type. */
       if (typeof o.buildId === "string" && o.buildId !== state.buildId) {
-        try { if (e.source && e.source !== window) e.source.postMessage({ gen2: "buildRejected", buildId: o.buildId }, "*"); } catch (err) { /* window gone */ }
+        try { e.source.postMessage({ gen2: "buildRejected", buildId: o.buildId }, e.origin); } catch (err) { /* window gone */ }
         return;
       }
       let heldBack = false;   // set below when the planner keeps newer words than this post carries

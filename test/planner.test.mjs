@@ -867,7 +867,7 @@ test("live layout sync: placements post the full build; illegal structure posts 
 
   // a viewerReady handshake (viewer booted/reloaded) gets an immediate reply
   const before = msgs.length;
-  win.dispatchEvent(new win.MessageEvent("message", { data: { gen2: "viewerReady" }, source: fakeViewer }));
+  win.dispatchEvent(new win.MessageEvent("message", { data: { gen2: "viewerReady" }, source: fakeViewer, origin: "https://gen2build.jerrari3d.com" }));
   assert.ok(msgs.length > before, "handshake answered without waiting for a refresh");
   assert.equal(msgs.at(-1).gen2, "layout");
 });
@@ -911,7 +911,7 @@ test("viewer palette relay: newest palette is cached and replayed on every viewe
   app.refresh();
   doc.querySelector("#instructions-3d").click(); // capture viewerWin
 
-  const send = (data) => win.dispatchEvent(new win.MessageEvent("message", { data, source: fakeViewer }));
+  const send = (data) => win.dispatchEvent(new win.MessageEvent("message", { data, source: fakeViewer, origin: "https://gen2build.jerrari3d.com" }));
   send({ gen2: "colors", t: 111, colors: { Handle: { name: "Test Red", hex: "#ff0000" } }, on: true });
   // an OLDER palette must not clobber the cache (newest wins)
   send({ gen2: "colors", t: 50, colors: { Handle: { name: "Old", hex: "#000000" } }, on: true });

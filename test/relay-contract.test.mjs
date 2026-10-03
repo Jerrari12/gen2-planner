@@ -41,8 +41,10 @@ const read = (p) => readFileSync(join(root, p), "utf8");
    not its own window (it explicitly excludes self-posts), so a same-origin
    iframe is a legitimate stand-in: the handshake runs exactly as it does in
    production, and everything after it is the real code path. */
-function planner(build) {
-  const dom = new JSDOM(read("index.html"), { runScripts: "outside-only" });
+const VIEWER = "https://gen2build.jerrari3d.com";   // the production viewer origin - jsdom's about:blank planner is not local dev
+
+function planner(build, { url } = {}) {
+  const dom = new JSDOM(read("index.html"), { runScripts: "outside-only", ...(url ? { url } : {}) });
   const { window } = dom;
   window.__GEN2_PLANNER_TEST__ = true;
   window.eval(read("js/requirement-scope.js") + "\n" + read("js/tabletop-completion.js") + "\n" + read("js/data.js") + "\n" + read("js/app.js"));
@@ -50,19 +52,22 @@ function planner(build) {
 
   assert.ok(app.applyBuild(JSON.parse(JSON.stringify(build))), "planner rejected the fixture build");
 
-  const sent = [];
+  const sent = [], targets = [];   // targets[i] = the targetOrigin the planner passed with sent[i]
   const frame = window.document.createElement("iframe");
   window.document.body.appendChild(frame);
   const fake = frame.contentWindow;
-  fake.postMessage = (d) => sent.push(JSON.parse(JSON.stringify(d)));
-  window.dispatchEvent(new window.MessageEvent("message", { data: { gen2: "viewerReady" }, source: fake }));
+  fake.postMessage = (d, o) => { sent.push(JSON.parse(JSON.stringify(d))); targets.push(o); };
+  const origin = url ? "http://localhost:8123" : VIEWER;   // a local planner's viewer is the dev server on :8123
+  window.dispatchEvent(new window.MessageEvent("message", { data: { gen2: "viewerReady" }, source: fake, origin }));
   assert.ok(sent.some((m) => m.gen2 === "layout"),
     "the planner never answered viewerReady with a layout - the capture is not wired, so nothing below proves anything");
 
   const deliver = (data) =>
-    window.dispatchEvent(new window.MessageEvent("message", { data, source: fake }));
+    window.dispatchEvent(new window.MessageEvent("message", { data, source: fake, origin }));
+  // the same message from any other sender: `from` = { source, origin }
+  const deliverFrom = (data, from) => window.dispatchEvent(new window.MessageEvent("message", { data, ...from }));
 
-  return { window, app, sent, deliver, close: () => window.close() };
+  return { window, app, sent, targets, deliver, deliverFrom, fake, close: () => window.close() };
 }
 
 const shelfBuild = (lip) => ({
@@ -657,4 +662,95 @@ test("a viewer post that has not heard the planner's newest words never writes t
   p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { ...held, 2: "Hinge Pins" }, labelBadges: { ...badges } } });
   assert.equal(p.app.state.placed[1].label, "Hinge Pins", "a viewer edit made after the LAYOUT told it the planner's words was refused");
   p.close();
+});
+
+/* ---- RELAY AUTHENTICATION (2026-10-03, STEP3-DESIGN R14 / STEP3-CRITIQUE B14) ----
+   The listener used to adopt viewerWin from ANY window posting {gen2:...}, and every post went out with target "*": any
+   page holding a reference to the planner tab could capture the relay and read the whole build, or rewrite its options.
+   These drive the real listener and the real posts. */
+
+// a window-like sender that is NOT this planner's viewer: an iframe of a DIFFERENT document (its parent is not the planner)
+function strangerWindow(sink) {
+  const other = new JSDOM("<!doctype html><body></body>", { runScripts: "outside-only" }).window;
+  const f = other.document.createElement("iframe");
+  other.document.body.appendChild(f);
+  f.contentWindow.postMessage = (d, o) => sink.push({ d: JSON.parse(JSON.stringify(d)), o });
+  return f.contentWindow;
+}
+
+test("relay auth: a FOREIGN-origin gen2 message changes nothing and never captures the relay", () => {
+  const p = planner({ ...shelfBuild(null), backCover: false });
+  const evilGot = [];
+  const evil = strangerWindow(evilGot);
+  for (const from of [
+    { source: evil, origin: "https://evil.example" },
+    { source: p.fake, origin: "https://evil.example" },   // even the real dock frame, once it has navigated elsewhere
+    { source: evil, origin: "null" },                     // a sandboxed / file:// document
+  ]) {
+    p.deliverFrom({ gen2: "viewerReady" }, from);
+    p.deliverFrom({ gen2: "buildOptions", opts: { backCover: true, closures: { 2: "none" } } }, from);
+  }
+  assert.equal(p.app.state.backCover, false, "a foreign-origin buildOptions changed the planner's options");
+  assert.equal(p.app.state.placed[1].closure, "magnet", "a foreign-origin buildOptions changed a drawer");
+  // the relay still points at the real viewer: the next change goes there, and the stranger received nothing at all
+  p.sent.length = 0;
+  p.app.state.backCover = true;
+  p.app.refresh();
+  assert.ok(lastOpts(p.sent), "the real viewer stopped receiving options - the foreign message captured the relay");
+  assert.deepEqual(evilGot, [], "a foreign window received the build");
+  // the control: the same kind of post from the real viewer on its real origin IS applied
+  p.deliver({ gen2: "buildOptions", opts: { backCover: false } });
+  assert.equal(p.app.state.backCover, false, "the control failed: the real viewer's post was refused");
+  p.close();
+});
+
+test("relay auth: an ALLOWED origin from a window that is not this planner's viewer is ignored (window binding)", () => {
+  const p = planner({ ...shelfBuild(null), backCover: false });
+  const got = [];
+  const stranger = strangerWindow(got);   // e.g. a viewer tab that some OTHER planner tab opened
+  p.deliverFrom({ gen2: "viewerReady" }, { source: stranger, origin: VIEWER });
+  p.deliverFrom({ gen2: "buildOptions", opts: { backCover: true } }, { source: stranger, origin: VIEWER });
+  assert.equal(p.app.state.backCover, false, "a viewer-origin window that is not ours changed the options");
+  assert.deepEqual(got, [], "a viewer-origin window that is not ours was answered");
+  // a popped-out viewer after a planner RELOAD: the planner holds no reference, but the tab's opener is still this window
+  const popGot = [];
+  const popped = { closed: false, opener: p.window, parent: null, postMessage: (d, o) => popGot.push({ d, o }), focus() {} };
+  p.deliverFrom({ gen2: "viewerReady" }, { source: popped, origin: VIEWER });
+  assert.ok(popGot.some((m) => m.d.gen2 === "layout" && m.o === VIEWER), "a tab this planner opened was not re-adopted after a reload");
+  p.close();
+});
+
+test("relay auth: every post to the viewer names the viewer's EXACT origin, never \"*\" (buildRejected included)", async () => {
+  const p = planner({ ...shelfBuild("front"), buildId: "k7m2p9q4x1z8" });
+  p.app.state.backCover = !p.app.state.backCover;
+  p.app.refresh();                                               // buildOptions
+  p.window.document.documentElement.dataset.theme = "dark";      // theme (the MutationObserver)
+  await new Promise((r) => setTimeout(r, 10));
+  p.deliver({ gen2: "colors", t: Date.now(), colors: {}, on: false });
+  p.deliver({ gen2: "viewerReady" });                            // theme + colors + layout
+  p.app.state.placed.push({ id: 9, x: 2, y: 0, w: 1, hh: 2, fill: "shelf", shelves: 0 });
+  p.app.refresh();
+  await new Promise((r) => setTimeout(r, 450));                  // the debounced layout
+  const kinds = new Set(p.sent.map((m) => m.gen2));
+  for (const k of ["buildOptions", "layout", "theme", "colors"]) assert.ok(kinds.has(k), `no ${k} post to check (${[...kinds]})`);
+  assert.equal(p.targets.length, p.sent.length);
+  assert.deepEqual([...new Set(p.targets)], [VIEWER], `posts went to ${JSON.stringify([...new Set(p.targets)])}`);
+  // the stale-build refusal answers the window that asked, on the origin it spoke from
+  const n = p.sent.length;
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "zzzzzzzzzzzz", backCover: true } });
+  assert.equal(p.sent[n] && p.sent[n].gen2, "buildRejected", "the refusal was not sent");
+  assert.equal(p.targets[n], VIEWER, `buildRejected went to ${p.targets[n]}`);
+  p.close();
+});
+
+test("relay auth: a LOCAL planner accepts and targets its loopback viewer; production refuses loopback", () => {
+  const dev = planner({ ...shelfBuild(null), backCover: false }, { url: "http://localhost:8124/" });
+  assert.deepEqual([...new Set(dev.targets)], ["http://localhost:8123"], `the dev handshake replied to ${JSON.stringify(dev.targets)}`);
+  dev.deliverFrom({ gen2: "buildOptions", opts: { backCover: true } }, { source: dev.fake, origin: "http://127.0.0.1:8642" });
+  assert.equal(dev.app.state.backCover, true, "a local planner refused its loopback viewer on another port");
+  dev.close();
+  const prod = planner({ ...shelfBuild(null), backCover: false });
+  prod.deliverFrom({ gen2: "buildOptions", opts: { backCover: true } }, { source: prod.fake, origin: "http://localhost:8123" });
+  assert.equal(prod.app.state.backCover, false, "a production planner obeyed a loopback origin");
+  prod.close();
 });

@@ -2076,6 +2076,13 @@
      tab (a poisoned state would otherwise crash every refresh()).
      Returns how many units were dropped, for the caller's warning. */
   const LABEL_MAX = 40;   // mirrors the #ut-label input's maxlength
+  /* ONE canonical form for a label's words, on EVERY path they enter by - the field, a share link, a saved build, the 3D
+     viewer's relay: trim, THEN cut to LABEL_MAX, and empty means "no label". Until 2026-10-02 sanitizeBuild sliced without
+     trimming while the field trimmed, so a whitespace-padded label from a link lived in a form the viewer (which trims) could
+     never agree with. The viewer's label-spec.js cleanLabelText is this function; its test runs both on the same inputs. */
+  function cleanLabelText(v) {
+    return typeof v === "string" ? v.trim().slice(0, LABEL_MAX) : "";
+  }
 
   /* Drawer labels (2026-10-02) - what the label generator needs beyond the words.
      A unit's `labelBadge` is the left icon or letter the generator prints before
@@ -2193,7 +2200,7 @@
       if (id) usedIds.add(id);
       const unit = { id, x, y, w, hh, fill: u.fill,
                      shelves: int(u.shelves, 0, Math.max(0, h - 1), 0) };
-      if (typeof u.label === "string" && u.label.trim()) unit.label = u.label.slice(0, LABEL_MAX);
+      { const lt = cleanLabelText(u.label); if (lt) unit.label = lt; }
       // a label's icon or letter lives and dies with its words (cleanLabelBadge)
       if (unit.label) { const b = cleanLabelBadge(u.labelBadge); if (b) unit.labelBadge = b; }
       // closures: drawers only, whitelisted to released options ("none" is
@@ -2564,14 +2571,35 @@
        VARIANT_MODES), right after lips as the viewer orders it */
     const variants = {};
     state.placed.forEach((u) => { if (u.fill === "decor") variants[u.id] = u.variant === "gridfinity" ? "gridfinity" : "standard"; });
+    /* drawer labels (label plan step 2): `labels` for every DECOR unit ("" = none - the only units whose faceplate label the
+       viewer can show; a classic unit's name stays this planner's), `labelBadges` for the labelled ones (null = absent = the
+       generator predicts), the cleaned `labelStyle`; the viewer's label-panel.js labelOptsOf emits the same three, in the
+       same place, right after variants */
+    const labels = {}, labelBadges = {};
+    state.placed.forEach((u) => {
+      if (u.fill !== "decor") return;
+      const t = cleanLabelText(u.label);
+      labels[u.id] = t;
+      if (t) labelBadges[u.id] = cleanLabelBadge(u.labelBadge);
+    });
+    /* buildId FIRST: the viewer refuses a post naming another build. ⚠ A new id (Surprise me, a loaded build, an undo
+       across one) must reach the viewer as a LAYOUT before this post, or the viewer - still on the old id - would drop the
+       post as a mismatch and count an error on a perfectly normal flow (refresh() posts options now and the layout 350 ms
+       later). So the layout goes first, synchronously, whenever the id MOVED since the last layout this viewer was sent
+       (postLayoutNow records it). Not on a connection's first post: the viewer already holds the id from the handshake's
+       layout or its #build= hash, and a forced layout there is a second post for one change (test/drawer-conversion). */
+    if (lastOptsBuildId !== null && state.buildId !== lastOptsBuildId) postLayoutNow();
+    lastOptsBuildId = state.buildId;
     /* buildPlate LAST and resolved, in the viewer's own key order: the echo guard on each side
        compares the other's JSON with its own */
-    const opts = { closures, lips, variants, removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu", buildPlate: BUILD_PLATES.includes(state.buildPlate) ? state.buildPlate : "powder" };
+    const opts = { buildId: state.buildId, closures, lips, variants, labels, labelBadges, labelStyle: cleanLabelStyle(state.labelStyle),
+      removedStoppers: state.removedStoppers || [], wallStagger: !!state.wallStagger, handleStyle: state.handleStyle, faceStyle: state.faceStyle, backCover: !!state.backCover, feet: state.feet === "adhesive" ? "adhesive" : "tpu", buildPlate: BUILD_PLATES.includes(state.buildPlate) ? state.buildPlate : "powder" };
     const json = JSON.stringify(opts);
     if (json === lastSentOpts) return;
     lastSentOpts = json;
     try { viewerWin.postMessage({ gen2: "buildOptions", opts }, "*"); } catch (e) { /* tab closed */ }
   }
+  let lastOptsBuildId = null;   // the build id the last options post carried (see syncOptionsToViewer)
 
   /* ---- Live LAYOUT sync (planner → viewer, 2026-07-19) ----
      Placing / moving / removing units re-generates the open 3D viewer live —
@@ -2588,12 +2616,16 @@
     p: state.placed.map((u) => [u.id, u.x, u.y, u.w, u.hh, u.fill, u.shelves || 0, u.label || "", JSON.stringify(u.labelBadge || null), u.closure || "", u.lip || "", u.variant || "", JSON.stringify(u.interior || null)]),
     // the build's label style re-renders every label in the viewer (its layoutKey carries it too)
     ls: JSON.stringify(state.labelStyle || null),
+    // the build's own id: a layout differing only in it must still be POSTED (and the viewer's layoutKey carries it, so it
+    // is APPLIED) - that is how a viewer booted from an official kit learns the id this planner minted
+    id: state.buildId || "",
   });
   function postLayoutNow() {
     if (!viewerWin || viewerWin.closed) return;
     const sig = layoutSig();
     if (sig === lastSentLayout) return;
     lastSentLayout = sig;
+    lastOptsBuildId = state.buildId;   // the viewer now knows this id (see syncOptionsToViewer)
     const reason = instructionsBlockReason();
     try {
       // the viewer's blocked overlay renders this as text — send the prose, not the code
@@ -3588,7 +3620,9 @@
     }
 
     $("#ut-label-wrap").hidden = false;
-    $("#ut-label").value = p.label || "";
+    // not while the user is typing in it: a relayed viewer edit arriving mid-word would replace what they have typed
+    // (refresh() re-renders this on every incoming buildOptions)
+    if (document.activeElement !== $("#ut-label")) $("#ut-label").value = p.label || "";
     // the field shows what will print (shownLabel) while keeping the typed case
     $("#ut-label").classList.toggle("caps", labelCaps());
 
@@ -5012,6 +5046,10 @@
       }
       if (d.gen2 !== "buildOptions" || !d.opts) return;
       const o = d.opts;
+      /* a post naming ANOTHER build is dropped whole, before anything is touched (lastSentOpts included): unit ids restart
+         at 1 on every new build, so a stale viewer tab's "drawer 1" would otherwise write into whichever drawer now carries
+         the number. A viewer with no id (an official kit, a pre-2026-10 hash) omits the key and is accepted. */
+      if (typeof o.buildId === "string" && o.buildId !== state.buildId) return;
       applyingRemoteOpts = true;
       try {
         if (o.closures) state.placed.forEach((u) => {
@@ -5046,6 +5084,28 @@
           if (u.fill !== "decor" || (v !== "standard" && v !== "gridfinity")) return;
           if (v === "standard") delete u.variant; else u.variant = v;
         });
+        /* drawer labels (label plan step 2) - exactly the #ut-label handlers' and sanitizeBuild's rules: the words cleaned
+           (cleanLabelText), empty words delete the badge too, a badge only on a unit WITH words, a hostile badge leaves the
+           stored one alone, the style replaced by its cleaned value whenever the key is present.
+           ⚠ NOT the unit whose label field has focus here: the viewer posts its full options on any of its own changes
+           (a drawer body, a magnet), and it has not heard a word this user is still typing - applying its "" would delete
+           the draft from state while the field kept showing it. The `change` handler below re-reads the field on blur, so
+           the two converge on the typed words. */
+        const typingUnit = document.activeElement === $("#ut-label") ? state.selectedUnit : null;
+        if (o.labels && typeof o.labels === "object") state.placed.forEach((u) => {
+          const v = o.labels[u.id];
+          if (u.fill !== "decor" || u.id === typingUnit || typeof v !== "string") return;
+          const t = cleanLabelText(v);
+          if (t) u.label = t; else { delete u.label; delete u.labelBadge; }
+        });
+        if (o.labelBadges && typeof o.labelBadges === "object") state.placed.forEach((u) => {
+          if (u.fill !== "decor" || u.id === typingUnit || !u.label || !(u.id in o.labelBadges)) return;
+          const v = o.labelBadges[u.id];
+          if (v === null) { delete u.labelBadge; return; }
+          const b = cleanLabelBadge(v);
+          if (b) u.labelBadge = b;
+        });
+        if ("labelStyle" in o) state.labelStyle = cleanLabelStyle(o.labelStyle);
         lastSentOpts = JSON.stringify(o); // we're now in sync with the viewer — don't echo
         refresh();
       } finally { applyingRemoteOpts = false; }
@@ -5078,7 +5138,7 @@
       if (!u) return;
       // stored AS TYPED - the board, the exports and the generator show it in
       // the build's label style (shownLabel), ALL CAPS unless that is turned off
-      const v = e.target.value.trim();
+      const v = cleanLabelText(e.target.value);
       // clearing the words clears the icon picked for them (cleanLabelBadge)
       if (v) u.label = v; else { delete u.label; delete u.labelBadge; }
       renderBoard();
@@ -5100,8 +5160,15 @@
     // refresh(): `change` fires on the blur that a click elsewhere causes,
     // and a re-render there would replace the very button being pressed
     // before its click lands.
-    $("#ut-label").addEventListener("change", () => {
-      if (!selectedUnit()) return;
+    $("#ut-label").addEventListener("change", (e) => {
+      const u = selectedUnit();
+      if (!u) return;
+      // re-read the field into state: a viewer options post that arrived mid-word was kept off THIS unit (the handler above),
+      // so the field, not state, holds the truth until this commit
+      const v = cleanLabelText(e.target.value);
+      if (v) u.label = v; else { delete u.label; delete u.labelBadge; }
+      renderBoard();
+      updateLabelGenLink();
       pushHistoryNow();
       syncLayoutToViewer();
     });
@@ -5322,7 +5389,7 @@
       encodeBuildHash, applyBuildHash,
       undoRedo, pushHistoryNow, history, buildMeta,
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,
-      cleanLabelBadge, cleanLabelStyle, labelOrder, shownLabel, layoutSig, newBuildId,
+      cleanLabelBadge, cleanLabelStyle, cleanLabelText, labelOrder, shownLabel, layoutSig, newBuildId, syncOptionsToViewer,
     };
   }
 })();

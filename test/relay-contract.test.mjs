@@ -267,3 +267,209 @@ test("incoming: a hostile drawer body is IGNORED, and a classic unit never takes
   assert.ok(!("variant" in p.app.state.placed[1]), "a classic drawer took a Gridfinity body");
   p.close();
 });
+
+/* ---- drawer labels on the relay (label plan step 2, 2026-10-02): per-unit words + badge, build-wide style, and the build id ----
+   The VIEWER now edits labels too (its identify card), and posts them on buildOptions: `labels` for every decor unit ("" = none),
+   `labelBadges` for the labelled ones (null = absent = the generator predicts), the cleaned `labelStyle`, and `buildId` FIRST.
+   This half: the planner emits the same keys in the same order (its echo guard is a JSON-string compare, so ORDER is the
+   contract), applies what the viewer sends by its own field's rules, refuses a post naming another build, keeps a label the
+   user is still typing, and makes a relayed edit an undo entry. */
+const labelBuild = (extra = {}) => ({
+  mount: "tabletop", length: 185, faceStyle: "edgelabel", handleStyle: "deco",
+  wallStagger: false, backCover: false, feet: "tpu", removedStoppers: [], buildId: "k7m2p9q4x1z8",
+  gridW: 4, gridH: 1,
+  placed: [
+    { id: 1, x: 0, y: 0, w: 1, hh: 2, fill: "decor", shelves: 0, label: "Torx Bits" },
+    { id: 2, x: 1, y: 0, w: 1, hh: 2, fill: "decor", shelves: 0, label: "Nuts", labelBadge: { type: "icon", value: "nut" } },
+    { id: 3, x: 2, y: 0, w: 1, hh: 2, fill: "decor", shelves: 0 },
+    { id: 4, x: 3, y: 0, w: 1, hh: 2, fill: "classic", shelves: 0, label: "Washers" },
+  ],
+  nextId: 5,
+  ...extra,
+});
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// the board wraps a label across lines (one <text> per line), so the lines are joined back into one string
+const boardLabels = (p) => [...p.window.document.querySelectorAll(".d-userlabel")].map((t) => t.textContent).join(" ");
+// state objects live in the jsdom realm (another Object.prototype), so structures are compared as JSON, never deepEqual
+const j = (v) => JSON.stringify(v === undefined ? null : v);
+
+test("outgoing: buildId FIRST, labels / labelBadges / labelStyle right after variants, buildPlate still LAST, decor units only", () => {
+  const p = planner(labelBuild());
+  p.sent.length = 0;
+  p.app.refresh();
+  const o = lastOpts(p.sent);
+  assert.ok(o, "no buildOptions posted");
+  const keys = Object.keys(o.opts);
+  assert.equal(keys[0], "buildId", `buildId is not first: ${keys.join(", ")}`);
+  assert.equal(o.opts.buildId, "k7m2p9q4x1z8", "the stored id was not relayed (sanitize re-minted it?)");
+  assert.deepEqual(keys.slice(keys.indexOf("variants"), keys.indexOf("variants") + 4), ["variants", "labels", "labelBadges", "labelStyle"],
+    `the label keys are not right after variants: ${keys.join(", ")}`);
+  assert.equal(keys.at(-1), "buildPlate");
+  assert.deepEqual(o.opts.labels, { 1: "Torx Bits", 2: "Nuts", 3: "" }, "labels: every decor unit, \"\" for none, as typed");
+  assert.ok(!(4 in o.opts.labels), "a classic unit's name was relayed - the viewer shows no faceplate label for it");
+  assert.deepEqual(o.opts.labelBadges, { 1: null, 2: { type: "icon", value: "nut" } });
+  assert.equal(o.opts.labelStyle, null);
+  p.app.state.labelStyle = { capMm: 4, allCaps: false };
+  p.sent.length = 0; p.app.refresh();
+  assert.deepEqual(lastOpts(p.sent).opts.labelStyle, { capMm: 4, allCaps: false });
+  p.close();
+});
+
+test("incoming: the viewer's words, badge and style are APPLIED by the field's own rules, and the board follows (shownLabel)", () => {
+  const p = planner(labelBuild());
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 3: "  bolts  " } } });
+  assert.equal(p.app.state.placed[2].label, "bolts", "stored AS TYPED and trimmed - never upper-cased at entry");
+  assert.ok(boardLabels(p).includes("BOLTS"), `the board shows ${boardLabels(p)} - shownLabel (ALL CAPS by default) did not follow`);
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 3: "y".repeat(45) } } });
+  assert.equal(p.app.state.placed[3 - 1].label, "y".repeat(40), "incoming words must be cut to LABEL_MAX");
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labelBadges: { 1: { type: "char", value: "t" } } } });
+  assert.equal(j(p.app.state.placed[0].labelBadge), j({ type: "char", value: "t" }));
+  for (const bad of [{ type: "svg", value: "<svg/>" }, "nut", { type: "icon", value: "Not An Id" }, 7])
+    p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labelBadges: { 1: bad } } });
+  assert.equal(j(p.app.state.placed[0].labelBadge), j({ type: "char", value: "t" }), "a hostile badge overwrote the stored one");
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labelBadges: { 1: null } } });
+  assert.ok(!("labelBadge" in p.app.state.placed[0]), "null (Auto) must delete the badge");
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labelBadges: { 3: { type: "icon", value: "nut" } }, labels: { 3: "" } } });
+  assert.ok(!("label" in p.app.state.placed[2]) && !("labelBadge" in p.app.state.placed[2]), "a badge landed on a unit with no words");
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 2: "" } } });
+  assert.ok(!("labelBadge" in p.app.state.placed[1]), "clearing the words must delete the badge (it would reappear on the next name)");
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labelStyle: { capMm: 7, allCaps: false } } });
+  assert.equal(j(p.app.state.labelStyle), j({ allCaps: false }), "capMm 7 must be DROPPED (never clamped) while allCaps:false is kept");
+  assert.ok(boardLabels(p).includes("Torx Bits") && !boardLabels(p).includes("TORX"), `with ALL CAPS off the board shows the typed case: ${boardLabels(p)}`);
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 4: "Shims" } } });
+  assert.equal(p.app.state.placed[3].label, "Washers", "a classic unit's name is not the viewer's to change");
+  p.close();
+});
+
+test("incoming: a post naming ANOTHER build is IGNORED whole - state untouched, and the echo guard not disturbed", () => {
+  const p = planner(labelBuild());
+  p.sent.length = 0; p.app.refresh();
+  const before = JSON.stringify(p.app.serializeBuild());
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "zzzzzzzzzzzz", labels: { 1: "HACK" }, closures: { 1: "magnet" }, buildPlate: "smooth" } });
+  assert.equal(JSON.stringify(p.app.serializeBuild()), before, "a mismatched post changed state");
+  // the control: the same post with the right id applies everything
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 1: "HACK" }, closures: { 1: "magnet" }, buildPlate: "smooth" } });
+  assert.equal(p.app.state.placed[0].label, "HACK"); assert.equal(p.app.state.placed[0].closure, "magnet"); assert.equal(p.app.state.buildPlate, "smooth");
+  // and a viewer with NO id (an official kit) is accepted
+  p.deliver({ gen2: "buildOptions", opts: { labels: { 1: "Bolts" } } });
+  assert.equal(p.app.state.placed[0].label, "Bolts");
+  p.close();
+});
+
+test("echo guard: a FULL post the viewer sends back in this planner's own key order costs no re-post on the next refresh", () => {
+  /* ⚠ The loop-breaker on the apply itself is applyingRemoteOpts (refresh() runs inside it and syncOptionsToViewer returns at
+     its first line); the JSON compare matters on the NEXT planner refresh. So the mutation this catches - a key appended on
+     one side only, or in another position - shows up as ONE redundant buildOptions post here, after a second refresh. */
+  const p = planner(labelBuild());
+  p.sent.length = 0; p.app.refresh();
+  const mine = lastOpts(p.sent).opts;
+  const back = JSON.parse(JSON.stringify(mine)); back.labels[3] = "Bolts"; back.labelBadges[3] = null;   // the viewer's edit, in the viewer's shape
+  p.deliver({ gen2: "buildOptions", opts: back });
+  assert.equal(p.app.state.placed[2].label, "Bolts");
+  p.sent.length = 0;
+  p.app.refresh();
+  assert.equal(p.sent.filter((m) => m.gen2 === "buildOptions").length, 0,
+    `the planner re-posted options after applying the viewer's own post - its JSON differs from the viewer's: ${JSON.stringify(Object.keys(mine))}`);
+  p.close();
+});
+
+test("a label the planner user is still TYPING survives a viewer post that has not heard it (the lost-edit race)", () => {
+  const p = planner(labelBuild());
+  p.app.state.selectedUnit = 3; p.app.refresh();
+  const field = p.window.document.getElementById("ut-label");
+  field.focus();
+  assert.equal(p.window.document.activeElement, field, "jsdom did not focus the field - the test cannot prove anything");
+  field.value = "Nuts";
+  field.dispatchEvent(new p.window.Event("input", { bubbles: true }));
+  assert.equal(p.app.state.placed[2].label, "Nuts");
+  // the viewer toggles a drawer body and posts its full options - with "" for the unit this user is mid-word in
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 1: "Torx Bits", 2: "Nuts", 3: "" }, variants: { 1: "gridfinity", 2: "standard", 3: "standard" } } });
+  assert.equal(p.app.state.placed[0].variant, "gridfinity", "the control: the rest of the post applied");
+  assert.equal(p.app.state.placed[2].label, "Nuts", "the viewer's \"\" deleted the label being typed");
+  assert.equal(field.value, "Nuts", "the refresh overwrote the field being typed in");
+  // and a post that names the OTHER units' labels still lands on them
+  assert.equal(p.app.state.placed[0].label, "Torx Bits");
+  field.value = "Nuts and bolts";
+  field.dispatchEvent(new p.window.Event("change", { bubbles: true }));
+  assert.equal(p.app.state.placed[2].label, "Nuts and bolts", "change must re-read the field into state");
+  p.close();
+});
+
+test("a relayed label becomes an undo entry, and the layout the planner answers with carries it", async () => {
+  const p = planner(labelBuild());
+  p.app.pushHistoryNow();
+  const depth = p.app.history.stack.length;
+  p.sent.length = 0;
+  p.deliver({ gen2: "buildOptions", opts: { buildId: "k7m2p9q4x1z8", labels: { 3: "Bolts" }, labelBadges: { 3: { type: "icon", value: "nut" } } } });
+  assert.equal(p.sent.filter((m) => m.gen2 === "buildOptions").length, 0, "the apply itself re-posted options (echo)");
+  await sleep(450);   // the coalesced snapshot and the debounced layout both settle at 350 ms
+  assert.equal(p.app.history.stack.length, depth + 1, "the relayed edit did not become its own undo entry");
+  const lay = lastLayout(p.sent);
+  assert.ok(lay, "no layout was posted after the apply");
+  assert.equal(lay.build.placed[2].label, "Bolts"); assert.deepEqual(lay.build.placed[2].labelBadge, { type: "icon", value: "nut" });
+  assert.equal(lay.build.buildId, "k7m2p9q4x1z8", "the layout does not carry the build id");
+  p.app.undoRedo(-1);
+  assert.ok(!("label" in p.app.state.placed[2]), "Ctrl+Z in the planner did not revert the relayed label");
+  p.close();
+});
+
+test("layoutSig DISTINGUISHES a buildId-only change (the asymmetric-guards rule: posted here, applied by the viewer's layoutKey)", () => {
+  const p = planner(labelBuild());
+  const a = p.app.layoutSig();
+  p.app.state.buildId = "zzzzzzzzzzzz";
+  assert.notEqual(p.app.layoutSig(), a, "layoutSig ignores buildId - a layout differing only in the id would never be posted");
+  p.app.state.buildId = "k7m2p9q4x1z8";
+  assert.equal(p.app.layoutSig(), a);
+  p.close();
+});
+
+test("a NEW build id reaches the viewer as a LAYOUT before any options post (Surprise me must not trip the viewer's gate)", () => {
+  const p = planner(labelBuild());
+  p.sent.length = 0;
+  p.app.surpriseMe();
+  const first = p.sent[0];
+  assert.ok(first && first.gen2 === "layout", `the first post after a new build was ${first && first.gen2}, not a layout`);
+  const id = first.build.buildId;
+  assert.ok(id && id !== "k7m2p9q4x1z8", "surpriseMe did not mint a new id");
+  const o = lastOpts(p.sent);
+  assert.ok(o, "no options post followed");
+  assert.equal(o.opts.buildId, id, "the options post carries another id than the layout");
+  assert.ok(p.sent.indexOf(first) < p.sent.indexOf(o), "the options post came before the layout");
+  p.close();
+});
+
+test("sanitize: a label's words have ONE canonical form on every path - trimmed, then cut to 40", () => {
+  const b = labelBuild();
+  b.placed[0].label = "  Torx  ";
+  b.placed[1].label = " ".repeat(3) + "x".repeat(45);
+  b.placed[2].label = " ".repeat(50) + "x";
+  b.placed[3].label = " ".repeat(40);
+  const p = planner(b);
+  const [u1, u2, u3, u4] = p.app.state.placed;
+  assert.equal(u1.label, "Torx");
+  assert.equal(u2.label, "x".repeat(40), "slice before trim would keep 37 x's");
+  assert.equal(u3.label, "x", "leading whitespace ate the allowance");
+  assert.ok(!("label" in u4), "a whitespace-only label was stored");
+  assert.equal(p.app.cleanLabelText("  a  "), "a");
+  p.close();
+});
+
+test("the forced layout fires only when the id MOVED since the layout the viewer was sent - a connection's first options post forces none", () => {
+  /* The handshake's layout told the viewer this build's id (postLayoutNow records it). An ordinary refresh then posts options
+     and NO second layout - the first version forced one on a connection's first options post, and test/drawer-conversion
+     ("one debounced layout post for the whole conversion") caught the extra message. A LOADED build with another id is the
+     case the forced post exists for: layout first, then the options naming the same id. */
+  const p = planner(labelBuild());
+  p.sent.length = 0;
+  p.app.refresh();
+  assert.equal(p.sent.filter((m) => m.gen2 === "layout").length, 0, "an unchanged id forced a layout on an ordinary refresh");
+  assert.ok(lastOpts(p.sent), "and the options post itself was made");
+  const b = p.app.serializeBuild(); b.buildId = "zzzzzzzzzzzz";
+  p.sent.length = 0;
+  p.app.applyBuild(b);
+  const first = p.sent[0];
+  assert.equal(first && first.gen2, "layout", `the first post after loading a build with another id was ${first && first.gen2}`);
+  assert.equal(first.build.buildId, "zzzzzzzzzzzz");
+  assert.equal(lastOpts(p.sent).opts.buildId, "zzzzzzzzzzzz");
+  p.close();
+});

@@ -71,6 +71,16 @@ test('P-unit-4: the job is UNPADDED base64url of the UTF-8 JSON (no `=`, `+` or 
   const job = LR.buildLabelJob(view([U(1, 0, 0, { label: 'A é漢 &amp; <b>' })]), jobCtx());
   const enc = LR.encodeJob(job);
   assert.ok(!/[=+/]/.test(enc));
+  // padding depends on the byte length (mod 3): try jobs of every residue, and prove the sweep really contains padded standard base64
+  let padded = 0;
+  for (let n = 1; n <= 6; n++) {
+    const j = LR.buildLabelJob(view([U(1, 0, 0, { label: 'x'.repeat(n) })]), jobCtx());
+    const e = LR.encodeJob(j);
+    assert.ok(!/[=+/]/.test(e), 'padded or unsafe base64url at label length ' + n);
+    if (/=$/.test(Buffer.from(JSON.stringify(j)).toString('base64'))) padded++;
+    assert.deepEqual(JSON.parse(Buffer.from(e, 'base64url').toString('utf8')), plain(j));
+  }
+  assert.ok(padded >= 2, 'the fixtures never needed padding, so they cannot catch a padded encoder');
   const url = LR.jobUrl('https://g.example/', ['x'], job);
   const legacy = url.match(/labels=([^&]+)/)[1];
   assert.deepEqual(JSON.parse(decodeURIComponent(escape(atob(legacy)))), ['x'], 'the old regex reads only the legacy value');

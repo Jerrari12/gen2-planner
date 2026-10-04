@@ -244,18 +244,21 @@ function isUnsaved(link, snaps, style, opts) {
   const o = opts || {};
   const max = link.job.textMax;
   const base = new Map(link.baseline.rows.map((r) => [r.u, r]));
-  let rows = false, extras = 0;
+  let rows = false, extras = 0, localOnly = 0;
   for (const s of snaps) {
     if (!isLinked(s)) { if (hasContent(s)) extras++; continue; }
     const b = base.get(s.u);
     if (!b) { rows = true; continue; }
     const rep = badgeRep(s, o.iconIds);
+    // an icon-only label or a custom upload cannot go to the Planner, so it exists only in this tab: not a row to SEND, but local work
+    // that a replacement job or closing the tab would destroy (verified live: a second Planner click erased it with no prompt and no backup)
+    if (isUnsupplied(rep)) localOnly++;
     const sameBadge = isUnsupplied(rep) || canon(rep) === canon(b.b === undefined ? null : b.b);
     if (norm(s.text, max) !== norm(b.t, max) || !sameBadge) rows = true;
   }
   const pending = !!(link.pending && link.pending.state && link.pending.state !== 'abandoned');
   const styleChanged = !styleEqual(style, link.baseline.style);
-  return { rows, extras, pending, style: styleChanged, any: rows || extras > 0 || pending || styleChanged };
+  return { rows, extras, localOnly, pending, style: styleChanged, any: rows || extras > 0 || localOnly > 0 || pending || styleChanged };
 }
 
 /* ---- the Planner's answers (section 4.5) ---- */

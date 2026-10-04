@@ -53,7 +53,7 @@ test('P-unit-2: a badge is carried only on a drawer WITH words, cleaned', () => 
 test('P-unit-3: the legacy part comes FIRST and is byte-identical to today\'s updateLabelGenLink value; no words -> #job= alone', () => {
   const { window, app } = bootPlanner();
   app.state.mount = 'tabletop'; app.state.length = 185; app.state.faceStyle = 'edgelabel';
-  assert.ok(app.applyBuild(labelBuild({}, [U(1, 0, 0, { label: 'Zip Ties & Clips' }), U(2, 1, 0, { label: 'M3 Screws' }), U(3, 2, 0)])));
+  assert.ok(app.applyBuild(labelBuild({}, [U(1, 0, 0, { label: 'Zip Ties & Clips' }), U(2, 1, 0, { label: 'M3 Screws' }), U(3, 2, 0, { label: 'x'.repeat(39) + '\ud83d' })])));
   app.refresh();
   const href = window.document.getElementById('label-gen-link').href;
   const words = C.labelOrder(app.state.placed.filter((p) => p.fill === 'decor' && p.label)).map((p) => p.label);

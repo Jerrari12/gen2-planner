@@ -263,6 +263,6 @@ test('C-8: the legacy part of the URL is what an old generator still imports', (
   const g = toGenerator(SEEDS['tricky text']);
   const legacy = GL.importedLabelsFromHash(g.hash);
   const words = C.labelOrder(g.view.units.filter((u) => u.fill === 'decor' && u.label)).map((u) => u.label);
-  assert.deepEqual(legacy, words.filter(LR.encodable), 'a word that is half a surrogate pair is the one word the old encoding cannot carry; it must not stop the rest');
-  assert.ok(words.some((w) => !LR.encodable(w)), 'the seed really contains such a word');
+  assert.deepEqual(legacy, words, 'every word, a half surrogate pair included (JSON escapes it before the URL encoding sees it)');
+  assert.ok(words.some((w) => w.charCodeAt(w.length - 1) === 0xd83d), 'the seed really contains a word cut in half through a surrogate pair');
 });

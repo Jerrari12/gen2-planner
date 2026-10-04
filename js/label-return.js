@@ -89,13 +89,10 @@ const encodeJob = (job) => utf8ToB64u(JSON.stringify(job));
 
 /* `base + #labels=<legacy> & job=<job>`: the legacy part is EXACTLY today's updateLabelGenLink value and comes first, so an old
    generator imports the words as before; the unpadded job holds no `=`, so its regex stops at the `&`. No words -> `#job=` alone. */
-/* A word whose 40th UTF-16 unit is half of a surrogate pair (cleanLabelText cuts by unit) makes encodeURIComponent THROW, which
-   would take the whole click down: the legacy list leaves such a word out. The job part carries it intact (JSON escapes a lone
-   surrogate as a \u escape), so only an OLD generator, which has never been able to read it, misses it. */
-const encodable = (w) => { try { encodeURIComponent(w); return true; } catch (e) { return false; } };
+/* EXACTLY today's updateLabelGenLink value. A word whose 40th UTF-16 unit is half a surrogate pair is fine here: JSON.stringify
+   escapes a lone surrogate as a backslash-u escape before encodeURIComponent ever sees it (checked by the contract test's seed). */
 function legacyHash(words) {
-  const ok = words.filter(encodable);
-  return ok.length ? 'labels=' + btoa(unescape(encodeURIComponent(JSON.stringify(ok)))) : '';
+  return words.length ? 'labels=' + btoa(unescape(encodeURIComponent(JSON.stringify(words)))) : '';
 }
 function jobUrl(base, words, job) {
   const legacy = legacyHash(words);
@@ -382,7 +379,7 @@ function jobStore(storage, opts) {
 return {
   JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, RETURN_JSON_MAX, TEXT_MAX, ID_MAX, LABEL_DEFAULTS, STYLE_KEYS, STYLE_FLAGS, STORE_PREFIX,
   RECORD_MAX_AGE, RECORDS_MAX, ANSWERS_KEPT,
-  canon, newId, effectiveStyle, buildLabelJob, encodeJob, encodable, legacyHash, jobUrl, measureJob, makeJobRecord,
+  canon, newId, effectiveStyle, buildLabelJob, encodeJob, legacyHash, jobUrl, measureJob, makeJobRecord,
   parseLabelReturn, mergeLabelReturn, planSig, defaultSelections, carrySelections, applyPlan, resultRows, summarize,
   badgeTag, styleText, jobStore,
 };

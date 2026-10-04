@@ -349,7 +349,7 @@ test('P-merge-19: a style the generator sends that the planner would DROP (out o
   const s = setup(three());
   const bad = merge(s, ret(s.job, {}, { style: { ...s.job.style, capMm: 7, depth: 0.8 } }));
   assert.deepEqual(plain(bad.style.map((x) => x.key)), ['depth']);
-  assert.ok(bad.notApplied.some((n) => n.key === 'capMm' && /outside the allowed range/.test(n.text)), JSON.stringify(bad.notApplied));
+  assert.ok(bad.notApplied.some((n) => n.key === 'capMm' && /^Text size 7 mm is outside 2-6\.5 - not saved\.$/.test(n.text)), JSON.stringify(bad.notApplied));
   const other = merge(s, ret(s.job, { 1: { t: 'One!' } }, { style: { ...s.job.style, capMm: 4.5 } }), { view: view(three(), { faceStyle: 'classicpro' }) });
   assert.equal(other.style.length, 0);
   assert.ok(other.notApplied.some((n) => /another faceplate/.test(n.text)));

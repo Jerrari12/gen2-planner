@@ -233,6 +233,7 @@ test('C-5: the label-style defaults are one set: planner LABEL_DEFAULTS = genera
   assert.deepEqual(LR.STYLE_FLAGS, GL.STYLE_FLAGS);
   // the planner's own limits (labelSpec) are the generator's input limits, so a value the generator can send the planner keeps
   assert.deepEqual(plain(C.GEN2.labelSpec.limits), plain(GL.STYLE_LIMITS));
+  assert.deepEqual(plain(LR.STYLE_LIMITS), plain(GL.STYLE_LIMITS), "the planner's own range sentence uses the same limits");
   assert.deepEqual([...C.GEN2.labelSpec.flags].sort(), [...GL.STYLE_FLAGS].sort());
   const viewers = [process.env.GEN2_VIEWER_ROOT && resolve(process.env.GEN2_VIEWER_ROOT), resolve(root, '../GEN2 Visual Animator'), resolve(root, '../../GEN2 Visual Animator'), resolve(root, '../../../GEN2 Visual Animator'), resolve(root, '../../../GEN2 relay-auth/GEN2 Visual Animator')]
     .filter(Boolean).map((p) => join(p, 'viewer', 'js', 'vendor', 'edgelabel-core.js')).filter(existsSync);

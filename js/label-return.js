@@ -38,6 +38,8 @@ const RECORDS_MAX = 20;
 const RECORDS_QUOTA_RETRY = 10;
 const STYLE_LABEL = { capMm: 'Text size', depth: 'Text depth', badgeSize: 'Badge size', bold: 'Bold text', allCaps: 'All caps', predictIcons: 'Predict icons' };
 const STYLE_UNIT = { capMm: ' mm', depth: ' mm', badgeSize: ' mm' };
+/* for the sentence only: the cleaners (cleanLabelStyle) decide what is kept; the contract test pins these to GEN2.labelSpec */
+const STYLE_LIMITS = Object.freeze({ capMm: [2, 6.5], depth: [0.2, 1.2], badgeSize: [4, 22] });
 
 const isObj = (v) => Object.prototype.toString.call(v) === '[object Object]';
 const isInt = (v, lo, hi) => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
@@ -232,7 +234,7 @@ function mergeLabelReturn(view, record, ret, ctx) {
   for (const key of STYLE_KEYS) {
     if (!(key in ret.style)) continue;
     const one = ctx.cleanStyle({ [key]: ret.style[key] });
-    if (!one || !(key in one)) { styleDropped.push(key); notApplied.push({ key, text: STYLE_LABEL[key] + ' ' + String(ret.style[key]) + (STYLE_UNIT[key] || '') + ' is outside the allowed range - not saved.' }); continue; }
+    if (!one || !(key in one)) { styleDropped.push(key); notApplied.push({ key, text: STYLE_LABEL[key] + ' ' + String(ret.style[key]) + (STYLE_UNIT[key] || '') + (STYLE_LIMITS[key] ? ' is outside ' + STYLE_LIMITS[key][0] + '-' + STYLE_LIMITS[key][1] : ' is not a valid value') + ' - not saved.' }); continue; }
     const theirs = one[key];
     const c = classify('style', baseEff ? baseEff[key] : null, mineEff[key], theirs, hasBase, {});
     if (!c) continue;
@@ -377,7 +379,7 @@ function jobStore(storage, opts) {
 }
 
 return {
-  JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, RETURN_JSON_MAX, TEXT_MAX, ID_MAX, LABEL_DEFAULTS, STYLE_KEYS, STYLE_FLAGS, STORE_PREFIX,
+  JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, RETURN_JSON_MAX, TEXT_MAX, ID_MAX, LABEL_DEFAULTS, STYLE_KEYS, STYLE_FLAGS, STYLE_LIMITS, STORE_PREFIX,
   RECORD_MAX_AGE, RECORDS_MAX, ANSWERS_KEPT,
   canon, newId, effectiveStyle, buildLabelJob, encodeJob, legacyHash, jobUrl, measureJob, makeJobRecord,
   parseLabelReturn, mergeLabelReturn, planSig, defaultSelections, carrySelections, applyPlan, resultRows, summarize,

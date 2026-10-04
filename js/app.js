@@ -2041,6 +2041,7 @@
     // ids restart at 1, so this is a NEW build: a label job made for the old
     // one must not find "drawer 1" here (newBuildId)
     state.buildId = newBuildId();
+    loadId = newBuildId();   // and a new build-loading session (see loadId at the undo history)
     state.gridW = Math.max(GRID_LIMITS.wMin, Math.min(capW(), W));
     state.gridH = Math.max(GRID_LIMITS.hMin, Math.min(capH(), Math.ceil(totalHH / 2)));
     let cursor = fromTop ? 0 : rows();        // build outward from the mount surface
@@ -2257,6 +2258,7 @@
   function applyBuild(data) {
     if (!data || !Array.isArray(data.placed)) return false;
     data = JSON.parse(JSON.stringify(data));   // isolate from the source (no shared refs)
+    if (!history.restoring) loadId = newBuildId();   // an EXTERNAL load: a new build-loading session (see loadId)
     const dropped = sanitizeBuild(data);
     BUILD_FIELDS.forEach((k) => { if (k in data) state[k] = data[k]; });
     enforceMountLength(); // a stale/edited link can't restore an invalid mount+length (e.g. tabletop + 59)
@@ -2283,7 +2285,14 @@
      through applyBuild (sanitize + full re-render) with a guard so the
      restore's own refresh doesn't re-snapshot. */
   const HISTORY_MAX = 50;
-  const history = { stack: [], idx: -1, timer: null, restoring: false };
+  const history = { stack: [], loadIds: [], idx: -1, timer: null, restoring: false };
+  /* A BUILD-LOADING SESSION (label plan step 3, STEP3-SPEC section 6.6). Unit ids are only unique inside one build, and one build
+     can come back in an older form: a share link, a saved file, Undo through a load, "Surprise me". A label job remembers the
+     loadId it was made in; a return from a job of ANOTHER session is reviewed line by line, never pre-ticked - drawer id +
+     geometry alone is not proof it is the same drawer (a reopened older version of the build can match both). Minted at boot, in
+     applyBuild (every external load: hash, resume, file, restore-saved), in surpriseMe and startFresh, and when an undo/redo
+     lands on an entry made under a different one. history.loadIds runs parallel to history.stack to say which. */
+  let loadId = newBuildId();
   // Last session's build, captured at script load — init's own baseline
   // snapshot writes to the same key moments later, so reading it any later
   // would find the fresh empty state instead of what the user left behind.
@@ -2291,10 +2300,12 @@
   function pushHistoryNow() {
     clearTimeout(history.timer); history.timer = null;
     const snap = JSON.stringify(serializeBuild());
-    if (history.stack[history.idx] === snap) return;
+    if (history.stack[history.idx] === snap) { history.loadIds[history.idx] = loadId; return; }   // same content: it now belongs to this session
     history.stack = history.stack.slice(0, history.idx + 1);   // a new change clears redo
+    history.loadIds = history.loadIds.slice(0, history.idx + 1);
     history.stack.push(snap);
-    if (history.stack.length > HISTORY_MAX) history.stack.shift();
+    history.loadIds.push(loadId);
+    if (history.stack.length > HISTORY_MAX) { history.stack.shift(); history.loadIds.shift(); }
     history.idx = history.stack.length - 1;
     store.set("gen2-last-build", snap);   // auto-save: a closed tab costs nothing
     updateHistoryButtons();
@@ -2312,8 +2323,17 @@
     const to = history.idx + step;
     if (to < 0 || to >= history.stack.length) return;
     history.idx = to;
+    /* an undo/redo that lands on an entry made under ANOTHER build-loading session crosses a load (see loadId); one inside a
+       single session keeps it. And an id that was ever handed out is never handed out again within the build: the restored
+       snapshot carries the smaller nextId it had back then, so "place, undo, place" used to REUSE an id - which a label job
+       still open for the earlier drawer would then find on the wrong one. */
+    const crossed = history.loadIds[to] !== loadId;
+    const prevNext = state.nextId, prevBuildId = state.buildId;
     history.restoring = true;
     try { applyBuild(JSON.parse(history.stack[to])); } finally { history.restoring = false; }
+    if (state.buildId === prevBuildId) state.nextId = Math.max(state.nextId, prevNext);
+    if (crossed) loadId = newBuildId();
+    history.loadIds[history.idx] = loadId;
     // applyBuild normalizes what it restores (sanitize reassigns nextId etc.),
     // so resync the entry to the ACTUAL post-restore state — otherwise the
     // next undo's flush sees a "change" and pushes a phantom entry, making
@@ -2522,8 +2542,23 @@
      viewer on its permanent custom domain (2026-07-23 — the old
      jerrari12.github.io/gen2-visual-animator/ URL 301-redirects there). */
   const IS_LOCAL_DEV = location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname);
+  const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
+  /* LOCAL DEV ONLY (label plan step 3): `?dev_viewer=<origin>` and `?dev_labelgen=<origin>` point this planner at a viewer / a label
+     generator served from another local port, so a cross-origin run never needs :8123. Remembered in sessionStorage (the query is
+     cleaned by later navigation), a loopback http origin only, and ignored entirely off localhost - a production planner has no
+     way to be told to trust or open any other address. Each one sets its URL AND its allowlist entry together. */
+  const devOrigin = (name) => {
+    if (!IS_LOCAL_DEV) return null;
+    let v = null;
+    try {
+      v = new URLSearchParams(location.search).get(name);
+      if (v) sessionStorage.setItem("gen2-" + name, v); else v = sessionStorage.getItem("gen2-" + name);
+    } catch (e) { /* storage blocked: the override simply does not apply */ }
+    return v && LOOPBACK_ORIGIN.test(v) ? v : null;
+  };
+  const DEV_VIEWER = devOrigin("dev_viewer");
   const INSTRUCTIONS_VIEWER_URL = IS_LOCAL_DEV
-    ? "http://localhost:8123/"
+    ? (DEV_VIEWER || "http://localhost:8123") + "/"
     : "https://gen2build.jerrari3d.com/";
   /* ⚠ THE STARTER BUILDS LINKS ARE THE MODULITH SITE'S /builds/ (2026-09-24, Joey: "can we replace the planners build page
      with: https://modulith-site.pages.dev/builds/"). They were the 3D Build Studio's kits gallery, which this block used to
@@ -2543,7 +2578,6 @@
      - every post to the viewer names the origin it was opened on or last heard from (`viewerOrigin`), never "*". A window
        that has navigated anywhere else simply does not receive it. */
   const VIEWER_PROD_ORIGIN = "https://gen2build.jerrari3d.com";
-  const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
   const viewerOriginAllowed = (o) => o === VIEWER_PROD_ORIGIN || (IS_LOCAL_DEV && typeof o === "string" && LOOPBACK_ORIGIN.test(o));
   let viewerOrigin = new URL(INSTRUCTIONS_VIEWER_URL).origin;   // where viewerWin lives: set wherever viewerWin is
   function isOwnViewer(src) {
@@ -2714,6 +2748,373 @@
   function postColorsToViewer() {
     if (!viewerColors || !viewerWin || viewerWin.closed) return;
     try { postToViewer({ gen2: "colors", ...viewerColors }); } catch (e) { /* tab closed */ }
+  }
+
+  /* ===================== EDGELABEL TWO-WAY EDITING (label plan step 3) =====================
+     The planner's own "Design your EdgeLabel labels" button opens the generator LINKED to this build; the generator sends its
+     edits back as a RETURN; the planner says "received" at once, then shows a per-drawer change list and applies only what
+     the user ticks. The rules (the merge, the job, the store) are js/label-return.js and are executed by node; this is the page
+     half. Spec: handoffs/label-plan-step3/STEP3-SPEC.md (section numbers below).
+     ⚠ window.GEN2LabelReturn is read ONLY inside handlers (LR()), never in refresh() or at load: harnesses that eval this file's
+     scripts by name (the viewer's parity suite, the MODULITH site's vendor-build-boms.mjs) then never need label-return.js.
+     ⚠ The gen2label channel is its OWN key with the relay's three rules (STEP3-SPEC section 5.1): the sender's origin is on an
+     allowlist, the message comes from the window this planner opened for that job, and every answer goes to that origin - never
+     "*". A gen2label message has no `gen2` key, so the viewer relay's listener ignores it and it can never set viewerWin. */
+  const LR = () => window.GEN2LabelReturn || null;
+  const LABEL_GEN_ORIGINS = ["https://edgelabel.jerrari3d.com"];
+  const DEV_LABELGEN = devOrigin("dev_labelgen");   // local dev only: URL and allowlist entry together (see devOrigin)
+  const labelGenOrigins = () => (DEV_LABELGEN ? LABEL_GEN_ORIGINS.concat([DEV_LABELGEN]) : LABEL_GEN_ORIGINS.slice());
+  /* this tab's identity, across reloads: the generator window is NAMED after it, so one planner tab reuses its own generator tab
+     and two planner tabs never share one; job records say which tab made them */
+  const plannerTabId = (() => {
+    let id = null;
+    try { id = sessionStorage.getItem("gen2-planner-tab"); } catch (e) { /* blocked */ }
+    if (!id || !BUILD_ID_RE.test(id)) { id = newBuildId(); try { sessionStorage.setItem("gen2-planner-tab", id); } catch (e) { /* in-memory only */ } }
+    return id;
+  })();
+  const labelGenWin = new Map();      // jobId -> the generator window this tab opened (or, after a reload, bound on its first message)
+  const labelHelloSeen = new Set();
+  const labelAnswerMem = new Map();   // returnId -> { kind, msg }: answers given, kept beside the job record's own cache
+  const labelQueue = [];              // returns waiting for the dialog, FIFO
+  let labelOpen = null;               // the return the dialog is showing
+  let labelNoteKind = "";
+  const baseTitle = document.title;
+  const labelView = () => ({ units: state.placed, faceStyle: state.faceStyle, labelStyle: state.labelStyle, buildId: state.buildId });
+  const labelCtx = (extra) => ({ origin: location.origin, textMax: LABEL_MAX, loadId, plannerTabId, newId: newBuildId,
+    cleanText: cleanLabelText, cleanBadge: cleanLabelBadge, cleanStyle: cleanLabelStyle, labelOrder, ...extra });
+  function labelStore() {
+    const mod = LR();
+    if (!mod) return null;
+    try { return mod.jobStore(window.localStorage); } catch (e) { return null; }   // blocked storage
+  }
+  /* a record this tab did not make is no baseline for this tab: the return is then reviewed as an unknown session */
+  function ownRecord(jobId) {
+    const st = labelStore();
+    const rec = st ? st.get(jobId) : null;
+    return rec && rec.tab === plannerTabId && rec.family === "edgelabel" ? rec : null;
+  }
+
+  function showLabelGenNote(kind, text, actions) {
+    const box = $("#label-gen-note");
+    if (!box) return;
+    box.innerHTML = "";
+    const p = document.createElement("span");
+    p.textContent = text;
+    box.appendChild(p);
+    (actions || []).forEach((a) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "lg-note-btn"; b.textContent = a.label;
+      b.addEventListener("click", () => { hideLabelGenNote(); if (a.fn) a.fn(); });
+      box.appendChild(b);
+    });
+    labelNoteKind = kind;
+    box.hidden = false;
+  }
+  function hideLabelGenNote(onlyKind) {
+    const box = $("#label-gen-note");
+    if (!box || (onlyKind && labelNoteKind !== onlyKind)) return;
+    box.hidden = true; box.innerHTML = ""; labelNoteKind = "";
+  }
+
+  /* ---- the button (section 6.1) ----
+     The anchor keeps today's one-way href, so a middle-click, Ctrl/Cmd/Shift/Alt-click, "open in new tab" and the Classic Pro
+     button are exactly what they were. Only a plain left click on an EdgeLabel build is intercepted. */
+  function onLabelGenClick(e) {
+    const a = e.target && e.target.closest ? e.target.closest("#label-gen-link") : null;
+    if (!a) return;
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (state.faceStyle !== "edgelabel") return;
+    const mod = LR();
+    if (!mod || !/^https?:/.test(location.origin)) return;   // no module (or a file: page, whose origin is "null"): the plain one-way link
+    e.preventDefault();
+    const field = $("#ut-label");
+    if (field && document.activeElement === field) field.blur();   // commits a label still being typed (its change handler), so the job carries what is on screen
+    const fdef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
+    const view = labelView();
+    const job = mod.buildLabelJob(view, labelCtx());
+    const words = labelOrder(state.placed.filter((p) => p.fill === "decor" && p.label)).map((p) => p.label);
+    const base = DEV_LABELGEN ? DEV_LABELGEN + "/" : fdef.labelGen;
+    const url = mod.jobUrl(base, words, job);
+    const openOneWay = () => { window.open(a.href, "_blank", "noopener"); };
+    // the ACTUAL encoded size, measured before anything opens - never a silent one-way open
+    const m = mod.measureJob(job, url);
+    if (!m.ok) {
+      showLabelGenNote("size", `This build has too many labels for a linked generator session (${Math.ceil(m.urlChars / 1024)} KB; the limit is ${Math.round(mod.JOB_URL_MAX / 1024)} KB). Open it one-way instead? Changes made there won't come back.`,
+        [{ label: "Open one-way", fn: openOneWay }, { label: "Close" }]);
+      return;
+    }
+    const st = labelStore();
+    const put = st ? st.put(mod.makeJobRecord(view, job, labelCtx({ now: Date.now() }))) : { ok: false };
+    if (!put.ok) {
+      showLabelGenNote("storage", "Your browser's storage is full, so the generator can't be linked. Open it one-way (changes won't come back)?", [{ label: "Open one-way", fn: openOneWay }, { label: "Close" }]);
+      return;
+    }
+    const w = window.open(url, "gen2-labelgen-" + plannerTabId);
+    if (!w) {
+      st.remove(job.jobId);
+      showLabelGenNote("blocked", "Your browser blocked the label generator window. Allow pop-ups for this site, or middle-click the button for a one-way copy.", [{ label: "Close" }]);
+      return;
+    }
+    labelGenWin.set(job.jobId, w);
+    try { w.focus(); } catch (err) { /* a browser may ignore it */ }
+    track("labelgen:edgelabel-linked");
+    hideLabelGenNote();
+    // an older generator (or a stale cached one) receives the labels but never speaks: say so, instead of looking linked
+    setTimeout(() => {
+      if (labelHelloSeen.has(job.jobId)) return;
+      showLabelGenNote("hello", "The label generator didn't confirm the link. If its tab still shows earlier labels, reload that tab. (An older generator version only receives labels; nothing comes back.)", [{ label: "Close" }]);
+    }, 5000);
+  }
+
+  /* ---- the gen2label channel (section 5) ---- */
+  const postLabel = (src, origin, msg) => { try { src.postMessage(msg, origin); } catch (e) { /* window gone */ } };
+  function onLabelMessage(e) {
+    const d = e.data;
+    if (!d || typeof d !== "object" || typeof d.gen2label !== "string") return;
+    const mod = LR();
+    if (!mod) return;
+    if (!labelGenOrigins().includes(e.origin)) return;                       // 1. origin allowlist
+    if (!e.source || e.source === window) return;                            // 2. a real other window
+    const jobId = d.jobId;
+    if (typeof jobId !== "string" || !BUILD_ID_RE.test(jobId)) return;
+    const bound = labelGenWin.get(jobId);                                    // 3. the window this tab opened for that job; after a reload, the first valid message binds
+    if (bound) { if (bound !== e.source) return; } else labelGenWin.set(jobId, e.source);
+    if (d.gen2label === "hello") return onLabelHello(e, d, mod);
+    if (d.gen2label === "return") return onLabelReturn(e, d, mod);
+  }
+  function onLabelHello(e, d, mod) {
+    if (d.v !== 1 || d.family !== "edgelabel") return;
+    const jobId = d.jobId;
+    if (d.buildId !== state.buildId) { postLabel(e.source, e.origin, { gen2label: "refused", v: 1, jobId, reason: "other-build" }); return; }
+    labelHelloSeen.add(jobId);
+    hideLabelGenNote("hello");
+    const st = labelStore();
+    const rec = ownRecord(jobId);
+    let review = "full", baseRev = typeof d.baseRev === "string" && BUILD_ID_RE.test(d.baseRev) ? d.baseRev : newBuildId(), drawers = state.placed.filter((p) => p.fill === "decor").length;
+    if (rec) {
+      baseRev = rec.baseRev;
+      drawers = rec.baseline.rows.length;
+      review = rec.loadId === loadId && d.baseRev === rec.baseRev ? "normal" : "full";
+      rec.lastActivity = Date.now();
+      if (st) st.put(rec);
+    }
+    postLabel(e.source, e.origin, { gen2label: "ack", v: 1, jobId, baseRev, drawers, review });
+  }
+  function onLabelReturn(e, d, mod) {
+    const parsed = mod.parseLabelReturn(d);
+    const jobId = d.jobId;
+    const returnId = typeof d.returnId === "string" && BUILD_ID_RE.test(d.returnId) ? d.returnId : undefined;
+    const refuse = (reason) => postLabel(e.source, e.origin, { gen2label: "refused", v: 1, jobId, ...(returnId ? { returnId } : {}), reason });
+    if (!parsed.ok) { refuse(parsed.reason); return; }
+    const ret = parsed.ret;
+    // idempotency (section 5.2): a returnId already answered gets the SAME answer again; one still waiting gets `received` again
+    const rec0 = ownRecord(jobId);
+    const cached = labelAnswerMem.get(ret.returnId) || (rec0 && rec0.answers && rec0.answers[ret.returnId]);
+    if (cached) { postLabel(e.source, e.origin, cached.msg); return; }
+    const waiting = labelQueue.find((q) => q.returnId === ret.returnId) || (labelOpen && labelOpen.returnId === ret.returnId ? labelOpen : null);
+    if (waiting) { postLabel(e.source, e.origin, { gen2label: "received", v: 1, jobId, returnId: ret.returnId }); return; }
+    if (ret.buildId !== state.buildId) { refuse("other-build"); return; }
+    // "received" is the ONLY timed answer the generator waits for: it goes out now, before any dialog, in the same task
+    postLabel(e.source, e.origin, { gen2label: "received", v: 1, jobId, returnId: ret.returnId });
+    const dlg = $("#label-return");
+    if (!dlg || typeof dlg.showModal !== "function") { refuse("planner-unsupported"); return; }   // no fallback dialog in production
+    const item = { jobId, returnId: ret.returnId, ret, src: e.source, origin: e.origin, at: Date.now(), done: false };
+    // a second return for the SAME job replaces that job's QUEUED one (never the open dialog)
+    const old = labelQueue.findIndex((q) => q.jobId === jobId);
+    if (old >= 0) {
+      const gone = labelQueue.splice(old, 1)[0];
+      postLabel(gone.src, gone.origin, { gen2label: "superseded", v: 1, jobId, returnId: gone.returnId, by: ret.returnId });
+    }
+    labelQueue.push(item);
+    updateLabelTitle();
+    pumpLabelQueue();
+  }
+  function updateLabelTitle() {
+    const n = labelQueue.length + (labelOpen ? 1 : 0);
+    document.title = n ? `(${n}) Labels to review · ${baseTitle}` : baseTitle;
+  }
+  function pumpLabelQueue() {
+    if (labelOpen || !labelQueue.length) return;
+    const item = labelQueue.shift();
+    labelOpen = item;
+    reviewMerge(item, true);
+    renderLabelReturn(item);
+    const dlg = $("#label-return");
+    try { dlg.showModal(); } catch (err) { /* already open */ }
+    const first = $("#lr-apply");
+    if (first && !first.disabled) first.focus(); else { const c = $("#lr-cancel"); if (c) c.focus(); }
+  }
+  function reviewMerge(item, first) {
+    const mod = LR();
+    const plan = mod.mergeLabelReturn(labelView(), ownRecord(item.jobId), item.ret, labelCtx());
+    if (first) { item.plan = plan; item.sel = mod.defaultSelections(plan); item.changed = new Set(); item.notice = ""; }
+    return plan;
+  }
+
+  /* ---- the dialog (section 6.5): text only through textContent, never markup ---- */
+  const lrEl = (tag, cls, text) => { const x = document.createElement(tag); if (cls) x.className = cls; if (text !== undefined) x.textContent = text; return x; };
+  const lrShown = (t) => (t ? shownLabel(t) : "(no label)");
+  function lrFieldText(it, v) { return it.field === "badge" ? LR().badgeTag(v) : lrShown(v); }
+  function renderLabelReturn(item) {
+    const mod = LR(), plan = item.plan, body = $("#lr-body");
+    body.innerHTML = "";
+    $("#lr-time").textContent = new Date(item.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const mode = $("#lr-mode");
+    mode.hidden = !plan.modeText;
+    mode.textContent = plan.modeText;
+    const notice = $("#lr-notice");
+    notice.hidden = !item.notice;
+    notice.textContent = item.notice || "";
+    const section = (title, count, cls) => { const s = lrEl("section", "lr-sec" + (cls ? " " + cls : "")); s.appendChild(lrEl("h3", "", count === null ? title : `${title} (${count})`)); body.appendChild(s); return s; };
+    const rowEl = (it) => {
+      const key = it.field ? it.u + ":" + it.field : "style:" + it.key;
+      const li = lrEl("div", "lr-row" + (item.changed.has(key) ? " lr-changed" : ""));
+      li.dataset.key = key;
+      const head = it.field ? `#${it.n} · ${it.pos} - ${it.field === "text" ? "Words" : "Icon"}` : it.label;
+      const now = it.field ? lrFieldText(it, it.mine) : mod.styleText(it.key, it.mine);
+      const theirs = it.field ? lrFieldText(it, it.theirs) : mod.styleText(it.key, it.theirs);
+      if (it.class === "conflict") {
+        li.appendChild(lrEl("div", "lr-head", head));
+        [["planner", "Keep the planner's: " + now], ["generator", "Use the generator's: " + theirs]].forEach(([val, text]) => {
+          const lab = lrEl("label", "lr-opt");
+          const r = document.createElement("input");
+          r.type = "radio"; r.name = "lr-r-" + key; r.value = val; r.checked = item.sel[key] === val;
+          r.addEventListener("change", () => { item.sel[key] = val; updateLrApply(item); });
+          lab.appendChild(r); lab.appendChild(lrEl("span", "", text)); li.appendChild(lab);
+        });
+      } else {
+        const lab = lrEl("label", "lr-opt");
+        const c = document.createElement("input");
+        c.type = "checkbox"; c.checked = item.sel[key] === true;
+        c.addEventListener("change", () => { item.sel[key] = c.checked; updateLrApply(item); });
+        lab.appendChild(c);
+        const txt = lrEl("span", "");
+        txt.appendChild(lrEl("span", "lr-head", head));
+        txt.appendChild(lrEl("span", "lr-diff", `Now: ${now} → From the generator: ${theirs}`));
+        lab.appendChild(txt);
+        li.appendChild(lab);
+      }
+      const why = it.why === "moved" ? "This drawer moved or was replaced since you opened the generator." : (it.why === "unknown" ? "The planner has no record of this drawer in that session." : "");
+      if (why) li.appendChild(lrEl("div", "lr-why", why));
+      if (it.note) li.appendChild(lrEl("div", "lr-why", it.note));
+      return li;
+    };
+    const items = [...plan.rows.map((r) => ({ ...r, kind: "row" })), ...plan.style.map((s) => ({ ...s, kind: "style" }))];
+    const by = (cls, kind) => items.filter((x) => x.class === cls && x.kind === kind);
+    const rowsOf = (cls) => by(cls, "row");
+    let any = false;
+    if (rowsOf("change").length) { const s = section("Changes", rowsOf("change").length); rowsOf("change").forEach((x) => s.appendChild(rowEl(x))); any = true; }
+    if (rowsOf("conflict").length) { const s = section("Changed in both places", rowsOf("conflict").length); rowsOf("conflict").forEach((x) => s.appendChild(rowEl(x))); any = true; }
+    if (rowsOf("review").length) { const s = section("Check these", rowsOf("review").length); rowsOf("review").forEach((x) => s.appendChild(rowEl(x))); any = true; }
+    const styles = items.filter((x) => x.kind === "style");
+    if (styles.length) { const s = section("Label style", styles.length); styles.forEach((x) => s.appendChild(rowEl(x))); any = true; }
+    if (!any) body.appendChild(lrEl("p", "lr-empty", "Nothing to change: the generator's labels match this build."));
+    if (plan.notSaved.length) { const s = section("Not saved to the planner", null); plan.notSaved.forEach((n) => s.appendChild(lrEl("div", "lr-why", n.text))); }
+    if (plan.notApplied.length) {
+      const det = lrEl("details", "lr-sec lr-na");
+      det.appendChild(lrEl("summary", "", `Not applied (${plan.notApplied.length})`));
+      plan.notApplied.forEach((n) => det.appendChild(lrEl("div", "lr-why", n.text)));
+      body.appendChild(det);
+    }
+    updateLrApply(item);
+  }
+  function lrCount(item) {
+    const plan = item.plan;
+    let n = 0;
+    for (const it of [...plan.rows, ...plan.style]) {
+      const key = it.field ? it.u + ":" + it.field : "style:" + it.key, v = item.sel[key];
+      if (it.class === "conflict" ? v === "generator" : v === true) n++;
+    }
+    return n;
+  }
+  function updateLrApply(item) {
+    const n = lrCount(item), b = $("#lr-apply");
+    b.textContent = n === 1 ? "Apply 1 change" : `Apply ${n} changes`;
+    b.disabled = n === 0;
+  }
+
+  /* ---- answers ---- */
+  function labelAnswer(item, kind, msg) {
+    labelAnswerMem.set(item.returnId, { kind, msg });
+    postLabel(item.src, item.origin, msg);
+  }
+  function closeLabelReturn(item) {
+    item.done = true;
+    if (labelOpen === item) labelOpen = null;
+    const dlg = $("#label-return");
+    try { if (dlg && dlg.open) dlg.close(); } catch (e) { /* closed */ }
+    updateLabelTitle();
+    pumpLabelQueue();
+  }
+  /* Cancel, Escape and closing the dialog all land here, once */
+  function answerLabelCancelled(item) {
+    if (!item || item.done) return;
+    const msg = { gen2label: "cancelled", v: 1, jobId: item.jobId, returnId: item.returnId };
+    const st = labelStore(), rec = ownRecord(item.jobId);
+    if (rec) { rec.answers = { ...(rec.answers || {}), [item.returnId]: { kind: "cancelled", msg, at: Date.now() } }; rec.lastActivity = Date.now(); if (st) st.put(rec); }
+    labelAnswer(item, "cancelled", msg);
+    closeLabelReturn(item);
+  }
+  function applyLabelReturn(item) {
+    const mod = LR();
+    if (!item || item.done) return;
+    if (state.buildId !== item.ret.buildId) {
+      postLabel(item.src, item.origin, { gen2label: "refused", v: 1, jobId: item.jobId, returnId: item.returnId, reason: "other-build" });
+      closeLabelReturn(item);
+      return;
+    }
+    // 1. recompute against the planner as it is NOW, carrying the user's ticks over by (drawer, field)
+    const plan2 = reviewMerge(item, false);
+    const { sel, changed } = mod.carrySelections(item.plan, item.sel, plan2);
+    // 2. only when the PROPOSED RESULT changed (not any change anywhere): show what is new and ask again
+    if (plan2.sig !== item.plan.sig) {
+      item.plan = plan2; item.sel = sel; item.changed = changed;
+      item.notice = "The planner changed while this was open. The highlighted rows are new or different - check them, then Apply again.";
+      renderLabelReturn(item);
+      return;
+    }
+    // 3. apply: ONE undo entry (flush, mutate, refresh, snapshot)
+    const view = labelView();
+    const res = mod.applyPlan(view, plan2, item.sel, labelCtx());
+    pushHistoryNow();
+    for (const op of res.ops) {
+      const u = state.placed.find((x) => x.id === op.u);
+      if (!u || u.fill !== "decor" || u.x !== op.g[0] || u.y !== op.g[1] || u.w !== op.g[2] || u.hh !== op.g[3]) continue;   // gone, changed kind, or moved since the plan
+      if (op.text) { if (op.text.set) u.label = op.text.set; else { delete u.label; delete u.labelBadge; } }   // empty words take their badge with them
+      if (op.badge && u.label) { if (op.badge.set) u.labelBadge = op.badge.set; else delete u.labelBadge; }
+    }
+    if (res.styleNext !== undefined) state.labelStyle = res.styleNext;
+    refresh();            // posts the layout to the dock / pop-out through the relay: the 3D labels follow (no viewer change needed)
+    pushHistoryNow();
+    // 4. the record: the planner's resulting rows are the next baseline
+    const after = labelView();
+    const result = mod.resultRows(after, plan2.jobUnits, res.decisions, labelCtx());
+    const newBase = newBuildId();
+    const order = labelOrder(state.placed.filter((p) => p.fill === "decor"));
+    const nOf = new Map(order.map((x, i) => [x.id, i + 1]));
+    const now = Date.now(), st = labelStore();
+    let rec = ownRecord(item.jobId);
+    const baseline = { rows: result.rows.map((r) => ({ u: r.u, n: nOf.get(r.u), g: r.g, t: r.t, b: r.b })), style: result.style, styleSet: cleanLabelStyle(state.labelStyle) };
+    if (!rec) rec = { v: 1, jobId: item.jobId, family: "edgelabel", buildId: state.buildId, tab: plannerTabId, createdAt: now, answers: {} };
+    const msg = { gen2label: "applied", v: 1, jobId: item.jobId, returnId: item.returnId, baseRev: newBase,
+      rows: result.rows.map((r) => ({ u: r.u, t: r.t, b: r.b, decision: r.decision, tDecision: r.tDecision, bDecision: r.bDecision })),
+      gone: result.gone, style: result.style, styleDecision: res.decisions.style, changes: res.applied };
+    rec.baseline = baseline; rec.baseRev = newBase; rec.loadId = loadId; rec.lastActivity = now;
+    rec.answers = { ...(rec.answers || {}), [item.returnId]: { kind: "applied", msg, at: now } };
+    if (st) st.put(rec);
+    // 5. answer
+    labelAnswer(item, "applied", msg);
+    closeLabelReturn(item);
+  }
+  function bindLabelReturn() {
+    document.addEventListener("click", onLabelGenClick);
+    window.addEventListener("message", onLabelMessage);
+    const dlg = $("#label-return");
+    if (!dlg) return;
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); answerLabelCancelled(labelOpen); });
+    dlg.addEventListener("close", () => { if (labelOpen && !labelOpen.done) answerLabelCancelled(labelOpen); });
+    $("#lr-apply").addEventListener("click", () => applyLabelReturn(labelOpen));
+    $("#lr-cancel").addEventListener("click", () => answerLabelCancelled(labelOpen));
   }
 
   /* ---- preferred 3D model site (2026-07-25) ----
@@ -2957,6 +3358,7 @@
       "Tip: your current build will be lost — use the SAVE button (left panel) first to keep a copy on your computer. You can LOAD it back anytime.";
     if (!window.confirm(msg)) return;
     track("start-fresh");
+    loadId = newBuildId();   // a reset is a new build-loading session (the reload below does the same)
     // A popped-out 3D Build Studio would sit there showing the build we just
     // threw away — nothing left to sync it to, so close it with the reset
     // (Joey 2026-07-24). The dock's iframe needs no help: it dies with the
@@ -5453,6 +5855,7 @@
   bindControls();
   bindBomTracker();
   bindHistory();
+  bindLabelReturn();
   bindThumbZoom();
   bindVideoModal();
   bindStepCollapse();
@@ -5488,6 +5891,7 @@
       undoRedo, pushHistoryNow, history, buildMeta,
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,
       cleanLabelBadge, cleanLabelStyle, cleanLabelText, labelOrder, shownLabel, layoutSig, newBuildId, syncOptionsToViewer,
+      labelGenOrigins, plannerTabId, loadIdNow: () => loadId, labelQueueLength: () => labelQueue.length, labelOpenItem: () => labelOpen,
     };
   }
 })();

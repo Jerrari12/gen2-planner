@@ -464,6 +464,7 @@
         <div class="fp-cards" id="faceplate-style-cards"></div>
         <p class="club-note" id="club-note" hidden></p>
         <a class="label-gen" id="label-gen-link" target="_blank" rel="noopener" hidden></a>
+        <div class="label-gen-note" id="label-gen-note" role="status" hidden></div>
         <div class="fp-video" id="faceplate-video" hidden></div>
         <div class="style-pick nested-pick" id="handle-style-pick" hidden>
           <label>Handle style</label>
@@ -567,6 +568,19 @@
   <a class="vm-yt" id="video-modal-link" target="_blank" rel="noopener">Watch on YouTube ↗</a>
 </dialog>
 
+<!-- Labels sent back from the EdgeLabel generator: one per-drawer change list, nothing applied until Apply (label plan step 3).
+     A native modal <dialog>: focus moves in, the page behind is inert, Escape cancels. Filled by renderLabelReturn() in app.js. -->
+<dialog class="label-return" id="label-return" aria-labelledby="lr-title">
+  <h2 class="lr-title" id="lr-title">Labels from the EdgeLabel generator <span class="lr-time" id="lr-time"></span></h2>
+  <p class="lr-mode" id="lr-mode" hidden></p>
+  <p class="lr-notice" id="lr-notice" role="status" hidden></p>
+  <div class="lr-body" id="lr-body"></div>
+  <div class="lr-foot">
+    <button type="button" class="lr-apply" id="lr-apply">Apply 0 changes</button>
+    <button type="button" class="lr-cancel" id="lr-cancel">Cancel</button>
+  </div>
+</dialog>
+
 <footer class="footer">
   <b>MODULITH</b> &middot; The 3D-Printable Modular Storage System, formerly GEN2 &middot; by <a data-track="follow:jerrari3d" href="https://www.jerrari3d.com" target="_blank" rel="noopener">Jerrari Design</a>
   · Models on <a data-track="follow:printables" href="https://www.printables.com/@Jerrari" target="_blank" rel="noopener">Printables</a>
@@ -587,6 +601,7 @@
      requirement-scope file above. Loads before app.js, which calls it. -->
 <script src="js/tabletop-completion.js"></script>
 <script src="js/data.js"></script>
+<script src="js/label-return.js"></script>
 <script src="js/app.js"></script>
 <script src="js/hero.js"></script>
 <!-- the dark-mode switch. Same direct-goatcounter pattern as track-links.js

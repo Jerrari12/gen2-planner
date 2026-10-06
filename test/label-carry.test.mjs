@@ -115,3 +115,13 @@ test('C-8: a build with no list stays without one (both null), and its other fie
   assert.deepEqual(out.placed[0].labelBadge, { type: 'none' });
   window.close();
 });
+
+test('C-9: custom uploaded icons are label content - ten 60 KB icons (about 600 KB of list) are carried, not dropped', () => {
+  const svg = '<svg viewBox="0 0 10 10"><path d="' + 'M0 0L1 1'.repeat(7500) + '"/></svg>';
+  const list = { format: 'modulith-labels', version: 1, labels: Array.from({ length: 10 }, (_, i) => ({ id: 'cust' + String(i).padStart(8, '0'), text: '', badge: { type: 'icon', svg } })) };
+  const { app, window } = boot(withList({ labelList: list, labelAssign: { 1: 'cust00000000' } }));
+  const out = plain(app.serializeBuild());
+  assert.ok(JSON.stringify(out.labelList).length > 500000, 'the fixture is the size it claims');
+  assert.deepEqual(out.labelList, list);
+  window.close();
+});

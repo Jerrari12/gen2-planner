@@ -2137,8 +2137,12 @@
      unassigned label, every shared label, text past 40 characters and every part record - reconciling from the mirror cannot
      bring those back. Only the SHAPE is checked here: a plain object each, together at most LABEL_DATA_MAX characters of
      JSON; anything else is dropped (null), never repaired. Edits made here to a drawer's words or badge are reconciled by the
-     newer planner when it loads the build (the mirror wins for that drawer only). */
-  const LABEL_DATA_MAX = 192 * 1024;
+     newer planner when it loads the build (the mirror wins for that drawer only).
+     LABEL_DATA_MAX is a guard against a hostile or corrupt link, NOT a product limit: a label list carries custom uploaded
+     icon artwork (label content, kept in the build - Astra 2026-10-06), up to 64 KB each, so the bound sits far above
+     anything the label release writes; that release owns its own limits and offers a full-file route instead of a link
+     that is too big. (192 KB first, raised the same day so a few custom icons could never be dropped here silently.) */
+  const LABEL_DATA_MAX = 2 * 1024 * 1024;
   function carryLabelData(list, assign) {
     const plain = (v) => Object.prototype.toString.call(v) === "[object Object]";
     const l = plain(list) ? list : null, a = plain(assign) ? assign : null;

@@ -22,7 +22,7 @@ import { join, resolve } from 'node:path';
 import { cleaners, bootPlanner, labelBuild, unit, plain, root } from './lib/label-env.mjs';
 
 const require = createRequire(import.meta.url);
-const PIN = '39bb5cd00e7849d49c0b513d944e009d6b13659ec2fb53cf67a23b42e75d8a8f';
+const PIN = 'b69b4f7fb0ce1f7e4e99a6f41c437de13f9de9367a0d5cf9e64adb280195c744';
 const VENDORED = join(root, 'test', 'vendor', 'edgelabel-label-list.js');
 const L = require('./vendor/edgelabel-label-list.js');
 const C = cleaners();

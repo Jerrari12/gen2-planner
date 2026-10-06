@@ -113,9 +113,11 @@ function cleanPins(p) {
 }
 
 // One label from untrusted data, or null when it is not a label at all. Unknown keys are KEPT, verbatim, so a newer tool's
-// data survives this one. opts.inBuild: the COMPACT form a planner build stores - no uploaded SVG, no part photo (neither is
-// needed to reproduce the label, and both are too big for a share link). The FULL form (a standalone project, the backup) keeps
-// both; a part whose photo is malformed or too big keeps its record and loses only the photo, and validation says so.
+// data survives this one. opts.inBuild: the COMPACT form a planner build stores - no part PHOTO (a reference, not label
+// content, and too big for a share link); the FULL form (a standalone project, the backup) keeps it, and a part whose photo is
+// malformed or too big keeps its record and loses only the photo (validation says so). An uploaded ICON is label content and
+// is kept in BOTH forms (Astra 2026-10-06: a build must reproduce its labels; a build too big for a share link gets a
+// full-file route, never a silently stripped icon).
 function cleanLabel(l, opts) {
   const inBuild = !!(opts && opts.inBuild);
   if (!isObj(l) || typeof l.text !== 'string' || l.text.length > TEXT_MAX) return null;
@@ -123,7 +125,7 @@ function cleanLabel(l, opts) {
   try { out = copy(l); } catch (e) { return null; }
   if (!(typeof l.id === 'string' && ID_RE.test(l.id))) delete out.id;   // minted by cleanLabelList
   if ('badge' in out) {
-    const b = cleanBadge(l.badge, { svg: !inBuild });
+    const b = cleanBadge(l.badge, { svg: true });
     if (b) out.badge = b; else delete out.badge;
   }
   if ('part' in out) {
@@ -137,12 +139,12 @@ function cleanLabel(l, opts) {
 
 /* What a label SHOWS (Astra 2026-10-06): text only, icon only, and text with an icon are all labels; neither is an EMPTY label,
    which stays in a list but is never assigned to a drawer (Sol 01a11238, finding 2: the mirror cannot carry it, and the next
-   load would read it as an older tool clearing the drawer). A visible badge is an icon (by id or an uploaded SVG) or a letter;
-   { type: 'none' } and an absent badge show nothing when there are no words (prediction needs words). In a build the uploaded
-   SVG is not stored, so an svg-only icon with no words is empty THERE (validation says so). */
+   load would read it as an older tool clearing the drawer). A visible badge is an icon (by id or an uploaded SVG - kept in a
+   build too) or a letter; { type: 'none' } and an absent badge show nothing when there are no words (prediction needs words).
+   (`opts` is accepted for older callers and ignored.) */
 const hasWords = (l) => !!l && cleanText(l.text) !== '';
 function visibleBadge(l, opts) {
-  const b = l ? cleanBadge(l.badge, { svg: !(opts && opts.inBuild) }) : null;
+  const b = l ? cleanBadge(l.badge, { svg: true }) : null;
   return !!b && (b.type === 'char' || (b.type === 'icon' && (!!b.value || !!b.svg)));
 }
 const iconOnly = (l, opts) => !hasWords(l) && visibleBadge(l, opts);
@@ -151,7 +153,7 @@ const assignable = (l) => !!l && !isEmpty(l, { inBuild: true });
 
 /* ---- the list ---- */
 
-// opts.inBuild: the planner's labelList (no style, no output, no uploaded SVG, no part photo). Malformed labels are dropped;
+// opts.inBuild: the planner's labelList (no style, no output, no part photo). Malformed labels are dropped;
 // a missing or duplicate id gets a fresh one (the first label keeps a shared id). Unknown top-level keys are kept.
 function cleanLabelList(doc, opts) {
   const inBuild = !!(opts && opts.inBuild);
@@ -193,7 +195,9 @@ function cleanAssignments(assign, list, unitIds) {
 
 /* ---- the mirror older tools read, and reconciling it on load ---- */
 
-// what a drawer's mirror says for a label: the words cut to 40, the badge without an uploaded SVG (absent = predict). An
+// what a drawer's mirror says for a label: the words cut to 40, the badge as older tools know it - a built-in icon id or a
+// letter; an UPLOADED icon is beyond them, so its mirror has no badge and an older tool shows the words with its own predicted
+// icon (a documented degradation; the build itself keeps the artwork). An
 // icon-only label has NO mirror: an older tool cannot show a drawer with an icon and no words (it degrades to an empty drawer).
 function mirrorOfLabel(l) {
   const label = cleanText(l.text);
@@ -399,7 +403,6 @@ function validateLabelList(doc, opts) {
       const at = typeof v === 'string' ? ids.get(v) : undefined;
       if (at === undefined) say(`Assignment for drawer ${k}: no label has the id "${v}".`);
       else if (isEmpty(doc.labels[at])) say(`Assignment for drawer ${k}: label ${at + 1} is empty (no words and no icon), so it cannot go on a drawer.`);
-      else if (!assignable(doc.labels[at])) say(`Assignment for drawer ${k}: label ${at + 1} shows only an uploaded icon, which a planner build does not store, so the drawer would be empty there.`);
     }
   }
   return p;

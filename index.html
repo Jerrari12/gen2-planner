@@ -313,6 +313,24 @@
           <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>
 
+        <!-- the label tray (label tool step 3): this build's labels that are not on a drawer yet, then the ones that are. Tap a
+             label, then a drawer; the next label is picked for you. Each placement is one Undo step. -->
+        <section class="label-tray" id="label-tray" hidden aria-label="Labels">
+          <div class="lt-head">
+            <span class="lt-title">Labels</span>
+            <span class="lt-count" id="lt-count"></span>
+            <button type="button" class="btn ghost small" id="lt-add" title="Add labels from a labels file (MODULITH label list or a Part Picker label-items file)">Add labels…</button>
+            <input type="file" id="lt-file" accept=".json,application/json" hidden />
+          </div>
+          <p class="lt-hint" id="lt-hint"></p>
+          <div class="lt-list" id="lt-list"></div>
+          <details class="lt-placed" id="lt-placed" hidden>
+            <summary id="lt-placed-sum"></summary>
+            <div class="lt-list" id="lt-placed-list"></div>
+          </details>
+          <p class="lt-status" id="lt-status" role="status"></p>
+        </section>
+
         <div class="unit-toolbar" id="unit-toolbar">
           <div class="ut-info">
             <img class="ut-thumb empty" id="ut-thumb" alt="" />
@@ -376,6 +394,9 @@
             <input type="text" id="ut-label" maxlength="40" autocomplete="off"
               placeholder="What's in this drawer? (e.g. M3 screws)" />
           </label>
+          <!-- label tool step 3: this drawer's label goes back to the tray (shown only in a build with a label list) -->
+          <button type="button" class="btn ghost small ut-unassign" id="ut-unassign" hidden
+            title="Take this drawer's label off and put it back in the Labels tray">Unassign label</button>
           <div class="ut-interior" id="ut-interior" hidden>
             <div class="ut-sheet-backdrop" id="ut-sheet-backdrop"></div>
             <div class="ut-sheet" role="dialog" aria-label="Cabinet interior editor">

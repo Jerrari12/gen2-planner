@@ -246,6 +246,8 @@ function mirrorOf(list, assignments) {
    - an assignment whose label's mirror differs (an older tool edited the drawer): the mirror wins FOR THIS DRAWER ONLY - a new
      label from the mirror, the drawer reassigned; the old label stays (still on any other drawer that carries it);
    - an assignment with no mirror words (an older tool cleared the drawer): unassigned; the label stays in the list.
+   opts.editInPlace (the planner's live sync) changes the last two for a PLAIN label carried by that one drawer only: an edit
+   changes it in place, and clearing the words deletes it (kinds 'edited-in-place', 'removed-in-place').
    A build with no list converts by the same rules: one new label per labelled drawer, no deduplication, badge absence kept.
    Returns { list, assignments, changes }. `changes` lists the drawer-level reconciliations only; an assignment naming a drawer
    that is gone, or a label that is gone or has no words, is dropped without an entry (removing a drawer removes its
@@ -265,6 +267,8 @@ function reconcile(units, list, assignments, opts) {
     labels.push(l); byId.set(l.id, l);
     return l.id;
   };
+  // a plain label (no hardware item, no part record) on exactly one drawer: what that drawer's field may edit or delete
+  const soleCarrier = (l) => !isHardware(l) && !l.part && Object.values(assign).filter((v) => v === l.id).length === 1;
   const ordered = (units || []).slice().sort((a, b) => (a.y - b.y) || (a.x - b.x));
   for (const u of ordered) {
     const key = String(u.id);
@@ -280,6 +284,13 @@ function reconcile(units, list, assignments, opts) {
       // words), so a mirror with no words says nothing about it - the assignment stands. Words in the mirror (below) mean an
       // older tool typed a name there: that is an edit.
       if (iconOnly(l, { inBuild: true })) { out[key] = l.id; continue; }
+      // opts.editInPlace: clearing a drawer's words deletes a PLAIN label carried by that drawer alone - the field IS that
+      // label, and leaving its last words in the tray would turn every cleared or retyped name into a stray label. A hardware
+      // or part label, or a shared one, is only unassigned (back in the tray); the tray's Unassign is the explicit way back.
+      if (inPlace && soleCarrier(l)) {
+        labels.splice(labels.indexOf(l), 1); byId.delete(l.id);
+        changes.push({ unit: u.id, kind: 'removed-in-place', label: l.id }); continue;
+      }
       changes.push({ unit: u.id, kind: 'cleared', label: l.id }); continue;
     }
     const m = mirrorOfLabel(l);
@@ -288,7 +299,7 @@ function reconcile(units, list, assignments, opts) {
     // in place, so typing in a drawer's field does not leave the old words behind as an unassigned label. A hardware or part
     // label, or one shared by other drawers, still gets a new label for this drawer only: its structure and its other drawers
     // never change behind the user's back.
-    if (inPlace && !isHardware(l) && !l.part && Object.values(assign).filter((v) => v === l.id).length === 1) {
+    if (inPlace && soleCarrier(l)) {
       l.text = words;
       if (badge) l.badge = badge; else delete l.badge;
       out[key] = l.id;

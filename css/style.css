@@ -1253,6 +1253,62 @@ body.docked .fab-3d { display: none; }
    touch devices). */
 #board { display: block; margin: 0 auto; max-width: 100%; height: auto; touch-action: none; }
 .board-meta { margin-top: 8px; font-size: 0.85rem; color: var(--muted); }
+/* the label tray (label tool step 3): labels waiting for a drawer, then the ones on drawers. Pick one, tap a drawer. */
+.label-tray {
+  margin-top: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+.lt-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lt-title { font-weight: 700; }
+.lt-count { font-size: 0.85rem; color: var(--muted); flex: 1 1 auto; }
+.lt-hint { margin: 6px 0 8px; font-size: 0.85rem; color: var(--muted); }
+.lt-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.lt-item { display: inline-flex; align-items: stretch; }
+.lt-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.lt-item .lt-chip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.lt-placed .lt-item .lt-chip { border-radius: 8px; }
+.lt-chip:hover:not(:disabled) { border-color: var(--accent); }
+.lt-chip.on { border-color: var(--accent); background: rgba(255, 106, 26, 0.16); box-shadow: 0 0 0 1px var(--accent) inset; }
+.lt-chip:disabled { opacity: 0.55; cursor: not-allowed; }
+.lt-words { font-weight: 600; letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22em; }
+.lt-tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.lt-where { font-size: 0.75rem; color: var(--muted); }
+.lt-remove {
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.lt-remove:hover { color: inherit; border-color: var(--accent); }
+.lt-placed { margin-top: 8px; }
+.lt-placed summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+.lt-status { margin: 8px 0 0; font-size: 0.85rem; min-height: 1.2em; }
+.lt-status:empty { display: none; }
+.lt-status.warn-text { color: #e8b04b; }
+.ut-unassign { align-self: center; }
+/* assign mode on the board: decor drawers are the targets */
+#board.picking g.drawer { cursor: not-allowed; }
+#board.picking g.drawer.lt-target { cursor: copy; }
+#board.picking g.drawer.lt-target .d-case { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
+#board.picking g.drawer.lt-current .d-case { stroke-dasharray: none; stroke-width: 3; }
 .warn {
   margin-top: 8px;
   background: rgba(229, 83, 75, 0.12);

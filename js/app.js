@@ -1388,6 +1388,7 @@
     if (avail > 40) { svg.style.width = Math.min(avail, W * 2.4) + "px"; svg.style.height = "auto"; }
     else { svg.style.width = ""; svg.style.height = ""; }
     svg.innerHTML = "";
+    svg.classList.toggle("picking", !!tray.pick);   // the label tray's assign mode
 
     drawMountScene(svg, W, H);
 
@@ -1512,7 +1513,9 @@
     const g = el("g", {
       class: "drawer" + (sel ? " selected" : "") + (dragging ? " dragging" : "")
         + (bows && bows.has(p.id) ? " bow" : "") + (sags && sags.has(p.id) ? " sag" : "")
-        + (lowTops && lowTops.has(p.id) ? " lowtop" : ""),
+        + (lowTops && lowTops.has(p.id) ? " lowtop" : "")
+        + (tray.pick && p.fill === "decor" ? " lt-target" : "")
+        + (state.labelAssign && state.labelAssign[p.id] && state.labelAssign[p.id] === tray.pick ? " lt-current" : ""),
       "data-id": p.id,
     }, svg);
     // an advanced cabinet whose interior isn't fully tiled flags red on the board
@@ -2351,6 +2354,7 @@
   const saveSession = (snap) => { if (!slotHoldsNewer(store.get("gen2-last-build"))) store.set("gen2-last-build", snap); };
   function pushHistoryNow() {
     clearTimeout(history.timer); history.timer = null;
+    if (syncLabels()) renderTray();   // a snapshot always holds the list in step with the drawers (the label tray)
     const snap = JSON.stringify(serializeBuild());
     if (history.stack[history.idx] === snap) { history.loadIds[history.idx] = loadId; return; }   // same content: it now belongs to this session
     history.stack = history.stack.slice(0, history.idx + 1);   // a new change clears redo
@@ -2855,7 +2859,358 @@
   let labelOpen = null;               // the return the dialog is showing
   let labelNoteKind = "";
   const baseTitle = document.title;
-  const labelView = () => ({ units: state.placed, faceStyle: state.faceStyle, labelStyle: state.labelStyle, buildId: state.buildId });
+  /* THE LABEL TRAY (label tool step 3; MODULITH handoffs/label-release/step3/STEP3-PLAN.md section 3). The build's label list
+     (state.labelList, the generator's label-list.js format) and its drawer assignments (state.labelAssign), with unit.label /
+     unit.labelBadge kept as the MIRROR every older tool reads.
+     - A build gets a list only when labels are ADDED to it (a #labels-add= link, or Add labels in the tray). Opening a build
+       never creates one, so every build without one keeps its exact shape; a list whose last label goes drops back to none.
+     - syncLabels() turns any mirror edit (the drawer's field, a 3D Studio edit, a generator return, a load) into list terms
+       (label-list.js reconcile with editInPlace). It runs at the top of refresh() and in pushHistoryNow() before a snapshot -
+       so a typed edit syncs when it settles (350 ms) or is committed, not per keystroke (no label churn mid-word); until then
+       the label job sends a drawer's hardware item only while its words are still that label's (hardwareByUnit).
+     - Every tray operation is ONE transaction (labelAction): flush any pending history, compute the new list/assignments,
+       write the mirror, one refresh() (whose sync then finds nothing to change), exactly one history entry.
+     The module is optional at runtime like label-return.js: a harness that evals the planner's scripts without
+     js/label-list.js (the viewer's parity suite, the MODULITH site's vendor-build-boms.mjs) gets no tray and no sync. */
+  const LL = () => window.GEN2LabelList || null;
+  const HW_ITEMS_SCHEMA = "part-picker-label-items/1";
+  const LABEL_BATCHES_KEY = "gen2-label-batches", LABEL_BATCHES_MAX = 50, LABEL_BATCH_RE = /^[a-z0-9]{8,32}$/;
+  const tray = { pick: null, status: "", warn: false };
+  const labelsOf = () => (state.labelList && Array.isArray(state.labelList.labels) ? state.labelList.labels : []);
+  const labelById = (id) => labelsOf().find((l) => l.id === id) || null;
+  const labelWords = (l) => (l && typeof l.text === "string" ? l.text.trim() : "");
+  const quoteLabel = (l) => { const w = labelWords(l); return w ? `“${shownLabel(w)}”` : "the icon-only label"; };
+  // the drawer numbers the generator's rows use: decor drawers in the planner's one drawer order
+  const drawerNumber = (unitId) => labelOrder(state.placed.filter((u) => u.fill === "decor")).findIndex((u) => u.id === unitId) + 1;
+  const hwNotReady = (l) => !!(l && l.hardware && (!Array.isArray(l.hardware.fields) || !l.hardware.fields.length
+    || (Array.isArray(l.hardware.value_missing) ? l.hardware.value_missing.length : !!l.hardware.value_missing)));
+
+  function syncLabels() {
+    const L = LL();
+    if (!L || !state.labelList) return false;
+    const r = L.reconcile(state.placed, state.labelList, state.labelAssign, { editInPlace: true });
+    const none = !r.list.labels.length;
+    const list = none ? null : r.list, assign = none ? null : r.assignments;
+    if (JSON.stringify([list, assign]) === JSON.stringify([state.labelList, state.labelAssign])) return false;
+    state.labelList = list; state.labelAssign = assign;
+    if (tray.pick && !labelById(tray.pick)) tray.pick = null;
+    return true;
+  }
+  // unit.label / unit.labelBadge from the list: an assigned drawer shows its label's mirror (an icon-only label has none), an
+  // unassigned drawer shows nothing (after a sync every worded drawer is assigned, so this only clears what an operation took off)
+  function writeMirror() {
+    const L = LL();
+    if (!L) return;
+    const m = state.labelList ? L.mirrorOf(state.labelList, state.labelAssign) : {};
+    for (const u of state.placed) {
+      const mm = m[u.id];
+      if (mm) { u.label = mm.label; if (mm.labelBadge) u.labelBadge = mm.labelBadge; else delete u.labelBadge; }
+      else { delete u.label; delete u.labelBadge; }
+    }
+  }
+  // one tray operation = one Undo step. fn(L, current) returns { state, msg, pick? } or null (nothing to do)
+  function labelAction(fn) {
+    const L = LL();
+    if (!L) return false;
+    pushHistoryNow();   // flush (and sync) any pending change first, so this entry holds this operation alone
+    const cur = { list: state.labelList ? JSON.parse(JSON.stringify(state.labelList)) : { format: L.FORMAT, version: L.VERSION, labels: [] },
+      assignments: Object.assign({}, state.labelAssign || {}) };
+    const res = fn(L, cur);
+    if (!res) { renderTray(); return false; }
+    const none = !res.state.list.labels.length;
+    state.labelList = none ? null : res.state.list;
+    state.labelAssign = none ? null : res.state.assignments;
+    writeMirror();
+    if ("pick" in res) tray.pick = res.pick;
+    setTrayStatus(res.msg || "");
+    refresh();
+    pushHistoryNow();
+    return true;
+  }
+  function setTrayStatus(msg, warn) { tray.status = msg || ""; tray.warn = !!warn; }
+  // the next unassigned, assignable label after `fromId` in list order (wrapping), or null
+  function nextUnassigned(st, fromId) {
+    const L = LL();
+    const carried = new Set(Object.values(st.assignments || {}));
+    const ls = st.list.labels;
+    const at = Math.max(0, ls.findIndex((l) => l.id === fromId));
+    for (let k = 1; k <= ls.length; k++) {
+      const l = ls[(at + k) % ls.length];
+      if (!carried.has(l.id) && L.assignable(l)) return l.id;
+    }
+    return null;
+  }
+
+  /* A tap on a drawer while a label is picked: assign it. An empty drawer takes it at once; a drawer that has a label asks
+     first, and the label it had goes back to the tray if no other drawer carries it. A label on exactly ONE other drawer
+     MOVES (that is how an assignment is corrected); a label already on several stays on them all (shared). The pick then
+     advances to the next label still in the tray. */
+  function trayTap(p) {
+    const id = tray.pick;
+    if (!id) return false;
+    if (p.fill !== "decor") {
+      setTrayStatus(`Labels go on decor drawers, not on a ${fillDef(p.fill).label.toLowerCase()}.`, true);
+      renderTray();
+      return true;
+    }
+    labelAction((L, cur) => {
+      const l = cur.list.labels.find((x) => x.id === id);
+      if (!l) return { state: cur, pick: null, msg: "" };
+      const key = String(p.id), n = drawerNumber(p.id);
+      const prev = cur.assignments[key];
+      if (prev === id) return null;
+      const prevLabel = prev ? cur.list.labels.find((x) => x.id === prev) : null;
+      if (prevLabel && !window.confirm(`Drawer ${n} has ${quoteLabel(prevLabel)}. Replace it with ${quoteLabel(l)}?`)) return null;
+      let st = cur;
+      const from = L.assignedUnits(cur, id);
+      if (from.length === 1) st = L.unassign(st, from[0]).state;
+      const r = L.assign(st, p.id, id);
+      if (!r.ok) { setTrayStatus(r.reason, true); return null; }
+      const parts = [`${quoteLabel(l)} is on drawer ${n}`];
+      if (from.length === 1) parts.push(`moved from drawer ${drawerNumber(from[0])}`);
+      if (prevLabel && !L.assignedUnits(r.state, prev).length) parts.push(`${quoteLabel(prevLabel)} is back in the tray`);
+      const next = nextUnassigned(r.state, id);
+      return { state: r.state, pick: next, msg: parts.join("; ") + "." + (next ? "" : " Every label is on a drawer.") };
+    });
+    return true;
+  }
+  function trayUnassign(unitId) {
+    return labelAction((L, cur) => {
+      const id = cur.assignments[String(unitId)];
+      if (!id) return null;
+      const l = cur.list.labels.find((x) => x.id === id);
+      const st = L.unassign(cur, unitId).state;
+      return { state: st, msg: `${quoteLabel(l)} is off drawer ${drawerNumber(unitId)}` + (L.assignedUnits(st, id).length ? "." : " and back in the tray.") };
+    });
+  }
+  function trayRemove(labelId) {
+    return labelAction((L, cur) => {
+      const l = cur.list.labels.find((x) => x.id === labelId);
+      if (!l || L.assignedUnits(cur, labelId).length) return null;   // only a label in the tray is removed
+      const st = { list: Object.assign({}, cur.list, { labels: cur.list.labels.filter((x) => x.id !== labelId) }), assignments: cur.assignments };
+      return { state: st, pick: tray.pick === labelId ? null : tray.pick, msg: `Removed ${quoteLabel(l)} from this build.` };
+    });
+  }
+  function setPick(id) {
+    tray.pick = id && labelById(id) && LL() && LL().assignable(labelById(id)) ? id : null;
+    if (tray.pick) setTrayStatus("");
+    renderTray();
+    if (state.mount && state.length) renderBoard();
+  }
+
+  /* ADDING LABELS: a modulith-labels list (from the generator's "Add to planner build", or a file) or a Part Picker label-items
+     file. They are appended UNASSIGNED to the open build as one Undo step; a label whose id the build already uses gets a fresh
+     one (never an overwrite, never a duplicate id). A #labels-add= link carries a batchId: once added it is remembered, so a
+     reload or a second open of the same link never adds the batch twice. */
+  function itemWords(it) {   // a hardware item's printed words, without the layout: the value fields and the pinned attributes
+    if (!it || typeof it !== "object") return "";
+    const fields = Array.isArray(it.fields) ? it.fields.filter((f) => typeof f === "string" && f.trim()) : [];
+    const pinned = new Set(Array.isArray(it.pinned) ? it.pinned : []);
+    const attrs = (Array.isArray(it.attributes) ? it.attributes : []).filter((a) => a && pinned.has(a.path) && typeof a.text === "string" && a.text.trim());
+    return [fields.join(" "), ...attrs.map((a) => a.text)].filter(Boolean).join(" · ");
+  }
+  function labelsFromDoc(doc) {
+    const L = LL();
+    const obj = doc && typeof doc === "object" && !Array.isArray(doc);
+    if (obj && doc.format === L.FORMAT) {
+      if (!(Number.isInteger(doc.version) && doc.version >= 1)) return { problem: "This label list has no valid version." };
+      if (doc.version > L.VERSION) return { problem: "These labels were made by a newer version of the label tool. Refresh this tab and add them again." };
+      if (!Array.isArray(doc.labels)) return { problem: "This label list has no labels." };
+      return { labels: doc.labels, batchId: doc.batchId };
+    }
+    const items = obj && doc.schema === HW_ITEMS_SCHEMA && Array.isArray(doc.items) ? doc.items : obj && doc.schema === L.HW_ITEM ? [doc] : null;
+    if (items) return { labels: items.map((it) => ({ text: itemWords(it).slice(0, L.TEXT_MAX), hardware: it })), batchId: doc.batchId };
+    return { problem: "This is not a labels file. Use a MODULITH label list or a Part Picker label-items file." };
+  }
+  function seenBatches() {
+    try { const a = JSON.parse(store.get(LABEL_BATCHES_KEY) || "[]"); return Array.isArray(a) ? a.filter((x) => typeof x === "string") : []; }
+    catch (e) { return []; }
+  }
+  function rememberBatch(id) {
+    const a = seenBatches().filter((x) => x !== id);
+    a.push(id);
+    store.set(LABEL_BATCHES_KEY, JSON.stringify(a.slice(-LABEL_BATCHES_MAX)));
+  }
+  // returns "added" | "replay" | "refused" | "bad"
+  function importLabels(doc, { link = false } = {}) {
+    const L = LL();
+    if (!L) return "bad";
+    if (lastRefusedNewer || SESSION_HOLDS_NEWER) {   // the newer-build notice is up: these labels belong to that build
+      setTrayStatus("These labels were not added: refresh this tab first (see the notice above).", true);
+      renderTray();
+      return "refused";
+    }
+    const got = labelsFromDoc(doc);
+    if (got.problem) { setTrayStatus(got.problem, true); renderTray(); showLabelsNotice(got.problem); return "bad"; }
+    const batch = typeof got.batchId === "string" && LABEL_BATCH_RE.test(got.batchId) ? got.batchId : null;
+    if (link && batch && seenBatches().includes(batch)) {
+      const msg = "These labels were already added to this build.";
+      setTrayStatus(msg, true); renderTray(); showLabelsNotice(msg);
+      return "replay";
+    }
+    let added = 0, renamed = 0, dropped = 0;
+    labelAction((Lm, cur) => {
+      // a build with no list yet: its typed labels become list labels first (the same conversion a load does)
+      const base = state.labelList ? cur : (() => { const r = Lm.reconcile(state.placed, null, null); return { list: r.list, assignments: r.assignments }; })();
+      const r = Lm.appendLabels(base, got.labels, { inBuild: true });
+      added = r.added.length; renamed = r.remapped; dropped = r.dropped;
+      if (!added) return null;
+      const first = r.added.find((x) => Lm.assignable(r.state.list.labels.find((l) => l.id === x))) || null;
+      const msg = `Added ${added} ${plural(added, "label", "labels")}` + (renamed ? ` (${renamed} given new ids)` : "")
+        + (dropped ? `; ${dropped} could not be read` : "") + "." + (first ? " Tap a drawer for the first one." : "");
+      return { state: r.state, pick: first, msg };
+    });
+    if (!added) {
+      const msg = dropped ? "None of these labels could be read." : "There were no labels to add.";
+      setTrayStatus(msg, true); renderTray(); showLabelsNotice(msg);
+      return "bad";
+    }
+    if (link && batch) rememberBatch(batch);
+    track("labels-add:" + (link ? "link" : "file"));
+    if (!(state.mount && state.length)) showLabelsNotice(tray.status + " Choose a mount and a collection length to place them on drawers.");
+    return "added";
+  }
+  // where the tray cannot be seen (no mount or length chosen yet), the outcome goes in a notice at the top of <main>
+  function showLabelsNotice(msg) {
+    const prev = document.getElementById("labels-add-note");
+    if (prev) prev.remove();
+    if (state.mount && state.length) return;
+    const box = document.createElement("div");
+    box.className = "warn warn-soft";
+    box.id = "labels-add-note";
+    box.setAttribute("role", "status");
+    box.textContent = msg;
+    const main = document.querySelector("main");
+    if (main) main.prepend(box);
+  }
+  function b64urlJson(s) {
+    const b = s.replace(/-/g, "+").replace(/_/g, "/");
+    // UTF-8 by decodeURIComponent(escape()), the inverse of label-return.js utf8ToB64u (no TextDecoder: the jsdom harnesses lack it)
+    return JSON.parse(decodeURIComponent(escape(atob(b + "===".slice((b.length + 3) % 4)))));
+  }
+  // #labels-add=<base64url JSON>: at boot (after the session resumes - the labels join the build this browser has open, never
+  // replace it) and on hashchange. The fragment is cleared once handled, unless the tab must be refreshed first.
+  function importFromHash() {
+    const m = (location.hash || "").match(/(?:^#|&)labels-add=([^&]+)/);
+    if (!m) return null;
+    let doc = null;
+    try { doc = b64urlJson(decodeURIComponent(m[1])); } catch (e) { doc = undefined; }
+    const out = doc === undefined ? (setTrayStatus("This labels link is damaged; nothing was added.", true), showLabelsNotice(tray.status), renderTray(), "bad")
+      : importLabels(doc, { link: true });
+    if (out !== "refused") window.history.replaceState(null, "", location.pathname + location.search);
+    return out;
+  }
+
+  function renderTray() {
+    const sec = $("#label-tray");
+    if (!sec) return;
+    const L = LL();
+    if (tray.pick && !labelById(tray.pick)) tray.pick = null;   // an undo, a load or a sync took it away
+    const ready = !!(state.mount && state.length);
+    const labels = labelsOf();
+    const decor = state.placed.some((u) => u.fill === "decor");
+    sec.hidden = !L || !ready || (!labels.length && !decor);
+    $("#ut-unassign").hidden = !(L && state.selectedUnit && state.labelAssign && state.labelAssign[state.selectedUnit]);
+    if (sec.hidden) { if (tray.pick) tray.pick = null; return; }
+    const carriers = new Map();
+    for (const [k, id] of Object.entries(state.labelAssign || {})) { if (!carriers.has(id)) carriers.set(id, []); carriers.get(id).push(Number(k)); }
+    const free = labels.filter((l) => !carriers.has(l.id)), placed = labels.filter((l) => carriers.has(l.id));
+    $("#lt-count").textContent = labels.length ? `${free.length} in the tray · ${placed.length} on drawers` : "";
+    const picked = labelById(tray.pick);
+    $("#lt-hint").textContent = picked ? `Tap a drawer for ${quoteLabel(picked)}. Esc or tap the label again to stop.`
+      : free.length ? "Tap a label, then tap a drawer. The next label is picked for you."
+      : labels.length ? "Every label is on a drawer. Open “on drawers” to move one."
+      : "Add labels made in the label generator or the Part Picker, then place them on drawers.";
+    const chip = (l, where) => {
+      const wrap = document.createElement("span");
+      wrap.className = "lt-item";
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "lt-chip" + (l.id === tray.pick ? " on" : "") + (l.hardware ? " hw" : "");
+      b.dataset.label = l.id;
+      b.setAttribute("aria-pressed", l.id === tray.pick ? "true" : "false");
+      const words = labelWords(l);
+      const ok = L.assignable(l);
+      b.disabled = !ok;
+      const t = document.createElement("span");
+      t.className = "lt-words";
+      t.textContent = words ? shownLabel(words) : ok ? "(icon only)" : "(empty)";
+      b.appendChild(t);
+      if (l.hardware) {
+        const m = document.createElement("span");
+        m.className = "lt-tag";
+        m.textContent = hwNotReady(l) ? "not ready" : "hardware";
+        b.appendChild(m);
+      }
+      if (where) {
+        const d = document.createElement("span");
+        d.className = "lt-where";
+        d.textContent = where.map((u) => "drawer " + drawerNumber(u)).join(", ");
+        b.appendChild(d);
+      }
+      b.title = (words ? shownLabel(words) : "") + (l.hardware ? " (hardware label: laid out from its part record)" : "");
+      wrap.appendChild(b);
+      if (!where) {
+        const x = document.createElement("button");
+        x.type = "button";
+        x.className = "lt-remove";
+        x.dataset.remove = l.id;
+        x.setAttribute("aria-label", "Remove " + (words || "this label") + " from this build");
+        x.textContent = "×";
+        wrap.appendChild(x);
+      }
+      return wrap;
+    };
+    const list = $("#lt-list");
+    list.replaceChildren(...free.map((l) => chip(l, null)));
+    const det = $("#lt-placed");
+    det.hidden = !placed.length;
+    $("#lt-placed-sum").textContent = `On drawers (${placed.length})`;
+    $("#lt-placed-list").replaceChildren(...placed.map((l) => chip(l, carriers.get(l.id).sort((a, b) => drawerNumber(a) - drawerNumber(b)))));
+    if (picked && carriers.has(picked.id)) det.open = true;
+    const st = $("#lt-status");
+    st.textContent = tray.status;
+    st.classList.toggle("warn-text", tray.warn);
+  }
+  function bindLabelTray() {
+    const sec = $("#label-tray");
+    if (!sec) return;
+    sec.addEventListener("click", (e) => {
+      const rm = e.target.closest("[data-remove]");
+      if (rm) { trayRemove(rm.dataset.remove); return; }
+      const c = e.target.closest("[data-label]");
+      if (c) setPick(tray.pick === c.dataset.label ? null : c.dataset.label);
+    });
+    $("#lt-add").addEventListener("click", () => $("#lt-file").click());
+    $("#lt-file").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!f) return;
+      f.text().then((txt) => {
+        let doc;
+        try { doc = JSON.parse(txt); } catch (err) { setTrayStatus("That file is not a labels file (it is not JSON).", true); renderTray(); return; }
+        importLabels(doc);
+      });
+    });
+    $("#ut-unassign").addEventListener("click", () => { if (state.selectedUnit) trayUnassign(state.selectedUnit); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && tray.pick) setPick(null); });
+    window.addEventListener("hashchange", () => { importFromHash(); });
+  }
+
+  // the hardware item a drawer's label carries, for the label job - only while the drawer's words are still that label's
+  // (a drawer typed over since the last sync is a plain label now, and must not print the old part)
+  function hardwareByUnit() {
+    const L = LL();
+    const out = {};
+    if (!L || !state.labelAssign) return out;
+    for (const u of state.placed) {
+      const l = labelById(state.labelAssign[u.id]);
+      const m = l && l.hardware && L.mirrorOfLabel(l);
+      if (m && m.label === cleanLabelText(u.label)) out[u.id] = l.hardware;
+    }
+    return out;
+  }
+  const labelView = () => ({ units: state.placed, faceStyle: state.faceStyle, labelStyle: state.labelStyle, buildId: state.buildId, hardware: hardwareByUnit() });
   const labelCtx = (extra) => ({ origin: location.origin, textMax: LABEL_MAX, loadId, plannerTabId, newId: newBuildId,
     cleanText: cleanLabelText, cleanBadge: cleanLabelBadge, cleanStyle: cleanLabelStyle, labelOrder, ...extra });
   function labelStore() {
@@ -5330,8 +5685,12 @@
         if (drag.moved) {
           if (p && canPlace(drag.tx, drag.ty, p.w, p.hh, p.id)) { p.x = drag.tx; p.y = drag.ty; }
         } else if (p) {
+          // the label tray's assign mode: a tap on a drawer places the picked label (its own refresh and Undo step)
+          if (tray.pick && trayTap(p)) { drag = null; pressCell = null; return; }
           state.selectedUnit = state.selectedUnit === p.id ? null : p.id; // press+release on a unit = select
         }
+      } else if (pressCell && tray.pick) {
+        setTrayStatus("Tap a drawer to place the label, or press Esc to stop."); renderTray();   // never places a unit
       } else if (pressCell) {
         const pt = svgPoint(svg, e);
         const { x, y } = cellAt(pt.x, pt.y);
@@ -5414,6 +5773,8 @@
             p.y = drag.ty;
           }
         } else {
+          const tp = state.placed.find((u) => u.id === drag.id);
+          if (tray.pick && tp && trayTap(tp)) { drag = null; touchMode = null; e.preventDefault(); return; }
           // a tap (no move) toggles the unit's selection / toolbar
           state.selectedUnit = state.selectedUnit === drag.id ? null : drag.id;
         }
@@ -5423,6 +5784,7 @@
         refresh();
         return;
       }
+      if (touchMode === "empty" && tray.pick) { touchMode = null; return; }   // assign mode never places a unit
       if (touchMode === "empty" && touchStartCell && e.changedTouches.length) {
         const t = e.changedTouches[0];
         const pt = boardPoint(t.clientX, t.clientY);
@@ -5843,6 +6205,7 @@
   /* ----------------------------- Refresh ----------------------------- */
 
   function refresh() {
+    syncLabels();          // the label tray: any mirror edit becomes list terms before anything serializes the build
     const ready = state.mount && state.length;
     // "Start fresh" only means something once there's a layout to lose, and it
     // sits under the hero rather than in the nav so it can't be mis-clicked.
@@ -5919,6 +6282,7 @@
     }
     if (ready) renderBoard();
     renderToolbar();
+    renderTray();
     renderBom();
   }
 
@@ -5932,6 +6296,7 @@
   bindBomTracker();
   bindHistory();
   bindLabelReturn();
+  bindLabelTray();
   bindThumbZoom();
   bindVideoModal();
   bindStepCollapse();
@@ -5951,6 +6316,8 @@
       if (last && Array.isArray(last.placed) && last.placed.length && applyBuild(last)) track("resume-build");
     } catch (e) { /* corrupt stored build — start fresh */ }
   }
+  // labels handed over by the generator (#labels-add=): they join the build this tab now has open, never replace it
+  importFromHash();
 
   /* Headless test hook. Attaches the live state and a few pure helpers to the
      window ONLY when a harness opts in by setting this flag truthy before the
@@ -5968,6 +6335,7 @@
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,
       cleanLabelBadge, cleanLabelStyle, cleanLabelText, labelOrder, shownLabel, layoutSig, newBuildId, syncOptionsToViewer,
       carryLabelData, LABEL_DATA_MAX, BUILD_SCHEMA, buildTooNew, sessionHoldsNewer: () => SESSION_HOLDS_NEWER,
+      syncLabels, trayTap, trayUnassign, trayRemove, setPick, importLabels, importFromHash, itemWords, hardwareByUnit, tray, drawerNumber,
       labelGenOrigins, plannerTabId, loadIdNow: () => loadId, labelQueueLength: () => labelQueue.length, labelOpenItem: () => labelOpen,
       viewerWinInfo: () => ({ has: !!viewerWin, closed: !!(viewerWin && viewerWin.closed), origin: viewerOrigin, isFrame: !!(viewerWin && $("#viewer-frame") && viewerWin === $("#viewer-frame").contentWindow), isGen: [...labelGenWin.values()].some((w) => w === viewerWin) }),
     };

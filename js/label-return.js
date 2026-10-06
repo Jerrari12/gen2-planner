@@ -77,7 +77,12 @@ function buildLabelJob(view, ctx) {
     style: effectiveStyle(ctx.cleanStyle(view.labelStyle)),
     rows: decor.map((u, i) => {
       const t = ctx.cleanText(u.label);
-      return { u: u.id, n: i + 1, g: [u.x, u.y, u.w, u.hh], t, b: t ? (ctx.cleanBadge(u.labelBadge) || null) : null };
+      const row = { u: u.id, n: i + 1, g: [u.x, u.y, u.w, u.hh], t, b: t ? (ctx.cleanBadge(u.labelBadge) || null) : null };
+      // label tool step 3: a drawer whose label is a HARDWARE label carries its layout input, so the generator lays it out as a
+      // hardware row (read-only there; it comes back unchanged). An older generator ignores the key and shows the words.
+      const hw = view.hardware && view.hardware[u.id];
+      if (hw && t) row.hw = hw;
+      return row;
     }),
   };
 }

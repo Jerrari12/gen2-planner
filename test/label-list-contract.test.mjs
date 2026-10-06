@@ -22,7 +22,7 @@ import { join, resolve } from 'node:path';
 import { cleaners, bootPlanner, labelBuild, unit, plain, root } from './lib/label-env.mjs';
 
 const require = createRequire(import.meta.url);
-const PIN = 'c3171a338074559e7195f1d5fb486ef3c1b2b042cd41684d905b452fce0089bf';   // generator step3 efa8f16: hardware labels, editInPlace, appendLabels
+const PIN = 'e8df8966b82dbfd70f70c38061009bb0a3264ae5d7a15df0e8139d69e9f34b81';   // generator step3 e91500e: hardware labels, editInPlace (edits and clears), appendLabels
 const VENDORED = join(root, 'js', 'label-list.js');
 const L = require('../js/label-list.js');
 const C = cleaners();
@@ -100,7 +100,7 @@ test('LC-3: THE APPEARANCE RULE through the planner\'s real sanitizer - 120 rand
   window.close();
 });
 
-test('LC-4: a carried list (Release A) reconciles to no changes while the planner leaves the mirror alone, and an edit made here is caught', () => {
+test('LC-4: a carried list reconciles to no changes, and an edit made here is ALREADY in the list (step 3: this planner syncs itself)', () => {
   const { app, window } = bootPlanner({ url: 'http://localhost:8124/' });
   const first = labelBuild({ gridH: 1 }, [unit(1, 0, 0, { label: 'Nuts' }), unit(2, 1, 0, { label: 'Nuts', labelBadge: { type: 'none' } }), unit(3, 2, 0)]);
   assert.ok(app.applyBuild(plain(first)));
@@ -108,11 +108,12 @@ test('LC-4: a carried list (Release A) reconciles to no changes while the planne
   assert.ok(app.applyBuild(plain({ ...first, labelList: c.list, labelAssign: c.assignments })));
   const out = plain(app.serializeBuild());
   assert.deepEqual(L.reconcile(out.placed, out.labelList, out.labelAssign).changes, []);
-  app.state.placed[0].label = 'Washers'; app.refresh();            // an edit made by THIS planner: the mirror only
+  app.state.placed[0].label = 'Washers'; app.refresh();            // the drawer's field: a sole plain label, edited in place
   const after = plain(app.serializeBuild());
-  const r = L.reconcile(after.placed, after.labelList, after.labelAssign);
-  assert.deepEqual(r.changes.map((x) => [x.unit, x.kind]), [[1, 'edited']]);
-  assert.equal(r.list.labels.find((l) => l.id === r.assignments['1']).text, 'Washers');
+  assert.equal(after.labelList.labels.find((l) => l.id === after.labelAssign['1']).text, 'Washers');
+  assert.equal(after.labelAssign['1'], out.labelAssign['1'], 'the same label, edited - not a new one');
+  assert.equal(after.labelList.labels.length, out.labelList.labels.length, 'no stray label left behind');
+  assert.deepEqual(L.reconcile(after.placed, after.labelList, after.labelAssign).changes, [], 'a later load finds nothing to reconcile');
   window.close();
 });
 

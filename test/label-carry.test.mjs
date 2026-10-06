@@ -54,16 +54,21 @@ test('C-2: the share link round-trips them (encodeBuildHash -> applyBuildHash)',
   window.close();
 });
 
-test('C-3: undo and redo keep them, and editing a drawer\'s words here leaves the list alone (the newer planner reconciles)', () => {
+test('C-3: undo and redo keep them; editing a sole plain label\'s words edits that label in place (step 3), and undo reverts both', () => {
   const { app, window } = boot();
-  app.state.placed[0].label = 'Filters';      // an edit made in THIS planner: the mirror only
+  app.state.placed[0].label = 'Filters';      // the drawer's field: Coffee filters is carried by drawer 1 alone
   app.refresh(); app.pushHistoryNow();
+  const edited = plain(app.serializeBuild());
+  assert.equal(edited.labelList.labels[0].id, 'k3f9w2m8q1zt', 'the same label');
+  assert.equal(edited.labelList.labels[0].text, 'Filters', 'edited in place');
+  assert.deepEqual(edited.labelList.labels.slice(1), LIST.labels.slice(1), 'every other label untouched, unknown keys included');
+  assert.deepEqual(edited.labelAssign, plain(ASSIGN));
   app.undoRedo(-1);
   assert.equal(app.state.placed[0].label, 'Coffee filters');
   assert.deepEqual(plain(app.serializeBuild()).labelList, LIST);
   app.undoRedo(+1);
   assert.equal(app.state.placed[0].label, 'Filters');
-  assert.deepEqual(plain(app.serializeBuild()).labelList, LIST, 'the list is carried, not edited');
+  assert.deepEqual(plain(app.serializeBuild()).labelList, edited.labelList);
   assert.deepEqual(plain(app.serializeBuild()).labelAssign, plain(ASSIGN));
   window.close();
 });
@@ -119,7 +124,8 @@ test('C-8: a build with no list stays without one (both null), and its other fie
 test('C-9: custom uploaded icons are label content - ten 60 KB icons (about 600 KB of list) are carried, not dropped', () => {
   const svg = '<svg viewBox="0 0 10 10"><path d="' + 'M0 0L1 1'.repeat(7500) + '"/></svg>';
   const list = { format: 'modulith-labels', version: 1, labels: Array.from({ length: 10 }, (_, i) => ({ id: 'cust' + String(i).padStart(8, '0'), text: '', badge: { type: 'icon', svg } })) };
-  const { app, window } = boot(withList({ labelList: list, labelAssign: { 1: 'cust00000000' } }));
+  // drawer 1 carries an ICON-ONLY label, so its mirror has no words (step 3: a mirror with words would be an edit)
+  const { app, window } = boot(labelBuild({ gridH: 1, labelList: list, labelAssign: { 1: 'cust00000000' } }, [unit(1, 0, 0), unit(2, 1, 0), unit(3, 2, 0)]));
   const out = plain(app.serializeBuild());
   assert.ok(JSON.stringify(out.labelList).length > 500000, 'the fixture is the size it claims');
   assert.deepEqual(out.labelList, list);

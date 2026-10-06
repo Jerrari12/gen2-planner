@@ -20,5 +20,5 @@ tabletop-completion.js text eol=lf
 # a fixed LF keeps the checkout and the pin the same bytes on every OS.
 edgelabel-label-link.js text eol=lf
 
-# The EdgeLabel generator's label-list.js (the label list format), vendored and sha256-pinned for the contract test.
-edgelabel-label-list.js text eol=lf
+# The EdgeLabel generator's label-list.js (the label list format), run by the page as js/label-list.js and sha256-pinned.
+label-list.js text eol=lf

@@ -21,7 +21,7 @@ export function bootPlanner({ url, withLabelReturn = true, storage, beforeApp } 
   window.__GEN2_PLANNER_TEST__ = true;
   if (beforeApp) beforeApp(window);
   window.eval(read('js/requirement-scope.js') + '\n' + read('js/tabletop-completion.js') + '\n' + read('js/data.js') + '\n'
-    + (withLabelReturn ? read('js/label-return.js') + '\n' : '') + read('js/app.js'));
+    + read('js/label-list.js') + '\n' + (withLabelReturn ? read('js/label-return.js') + '\n' : '') + read('js/app.js'));
   return { window, app: window.__GEN2_PLANNER_TEST__, dom };
 }
 

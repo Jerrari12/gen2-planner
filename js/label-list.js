@@ -37,6 +37,9 @@ const PART_MAX = 16 * 1024;                  // characters of JSON of one part s
 const PHOTO_MAX = 256 * 1024;                // a part's own photo (a data: URL), kept in a full project, never in a build
 const PHOTO_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 const STYLE_LIMITS = { capMm: [2, 6.5], depth: [0.2, 1.2], badgeSize: [4, 22] };   // label-link.js STYLE_LIMITS
+const HW_ITEM = 'part-picker-label-item/1';  // a HARDWARE label's layout input: the Part Picker's label item (step 3)
+// the generator's own import limits for a hardware item (index.html HW_MAX): they bound the layout's 3^n search
+const HW_MAX = { printable: 8, attributes: 24, fields: 6, text: 60, json: 8 * 1024 };
 const STYLE_FLAGS = ['bold', 'allCaps', 'predictIcons'];
 
 const isObj = (v) => Object.prototype.toString.call(v) === '[object Object]';
@@ -99,6 +102,24 @@ function cleanStyle(s) {   // the planner's cleanLabelStyle: in range and typed,
 
 /* ---- one label ---- */
 
+// a HARDWARE label's item (label tool step 3): the Part Picker's part-picker-label-item/1, the whole input of the hardware layout
+// (hardware-layout.js) - the value's fields, the attribute texts with their field paths, which are pinned and which optional.
+// It is label CONTENT, kept in a build like an uploaded icon. Checked exactly as the generator's import checks it.
+function cleanHardware(h) {
+  if (!isObj(h) || h.schema !== HW_ITEM || typeof h.id !== 'string' || !h.id || h.id.length > 64) return null;
+  const strs = (a, max) => Array.isArray(a) && a.length <= max && a.every((x) => typeof x === 'string' && x.length <= HW_MAX.text);
+  if (!strs(h.fields, HW_MAX.fields)) return null;
+  if (!Array.isArray(h.attributes) || h.attributes.length > HW_MAX.attributes) return null;
+  if (!h.attributes.every((a) => isObj(a) && typeof a.path === 'string' && typeof a.text === 'string' && a.text.length <= HW_MAX.text)) return null;
+  for (const k of ['pinned', 'optional']) if (h[k] !== undefined && !strs(h[k], HW_MAX.printable)) return null;
+  const printable = [...(h.pinned || []), ...(h.optional || [])];
+  if (printable.length > HW_MAX.printable || !printable.every((p) => h.attributes.some((a) => a.path === p))) return null;
+  let out;
+  try { out = copy(h); } catch (e) { return null; }
+  return JSON.stringify(out).length <= HW_MAX.json ? out : null;
+}
+const isHardware = (l) => !!l && isObj(l.hardware);
+
 // a part snapshot: a part-record/1 with a family, at most PART_MAX characters of JSON besides its photo. The photo is judged on
 // its own (Astra 2026-10-06: a compact build leaves it out, but the full project backup must not lose it silently).
 function partOk(p) {
@@ -134,6 +155,7 @@ function cleanLabel(l, opts) {
   }
   if ('pins' in out) { const p = cleanPins(l.pins); if (p) out.pins = p; else delete out.pins; }
   if ('copies' in out && !isInt(l.copies, 1, COPIES_MAX)) delete out.copies;
+  if ('hardware' in out) { const h = cleanHardware(l.hardware); if (h) out.hardware = h; else delete out.hardware; }
   return out;
 }
 
@@ -228,7 +250,8 @@ function mirrorOf(list, assignments) {
    Returns { list, assignments, changes }. `changes` lists the drawer-level reconciliations only; an assignment naming a drawer
    that is gone, or a label that is gone or has no words, is dropped without an entry (removing a drawer removes its
    assignment). When the mirror matches, `changes` is empty and a second reconcile returns the same list and assignments. */
-function reconcile(units, list, assignments) {
+function reconcile(units, list, assignments, opts) {
+  const inPlace = !!(opts && opts.editInPlace);
   const base = list ? cleanLabelList(list, { inBuild: true }) : { format: FORMAT, version: VERSION, labels: [] };
   const labels = base.labels;
   const byId = new Map(labels.map((l) => [l.id, l]));
@@ -261,6 +284,17 @@ function reconcile(units, list, assignments) {
     }
     const m = mirrorOfLabel(l);
     if (m && m.label === words && canon(m.labelBadge || null) === canon(badge)) { out[key] = l.id; continue; }
+    // opts.editInPlace (the planner's live sync, label tool step 3): a PLAIN label carried by this drawer alone takes the edit
+    // in place, so typing in a drawer's field does not leave the old words behind as an unassigned label. A hardware or part
+    // label, or one shared by other drawers, still gets a new label for this drawer only: its structure and its other drawers
+    // never change behind the user's back.
+    if (inPlace && !isHardware(l) && !l.part && Object.values(assign).filter((v) => v === l.id).length === 1) {
+      l.text = words;
+      if (badge) l.badge = badge; else delete l.badge;
+      out[key] = l.id;
+      changes.push({ unit: u.id, kind: 'edited-in-place', label: l.id });
+      continue;
+    }
     out[key] = fromMirror(words, badge);
     changes.push({ unit: u.id, kind: 'edited', from: l.id, label: out[key] });
   }
@@ -312,6 +346,22 @@ function addLabel(state, label, opts) {
   c.id = freshId(new Set(s.list.labels.map((l) => l.id)));
   s.list.labels.push(c);
   return { ok: true, state: s, id: c.id };
+}
+// append labels from an import (a planner tray upload, a #labels-add= link): each is cleaned like any label, keeps its id when the
+// list does not already use it, and otherwise gets a fresh one (Sol 01a112c2 finding 3: an import never overwrites a label and
+// never creates a duplicate id). Returns { state, added: [ids], remapped, dropped }.
+function appendLabels(state, labels, opts) {
+  const s = clone(state);
+  const taken = new Set(s.list.labels.map((l) => l.id));
+  const added = []; let remapped = 0; let dropped = 0;
+  for (const l of Array.isArray(labels) ? labels : []) {
+    const c = cleanLabel(l, opts || { inBuild: true });
+    if (!c) { dropped++; continue; }
+    if (!c.id || taken.has(c.id)) { if (c.id) remapped++; c.id = freshId(taken); } else taken.add(c.id);
+    s.list.labels.push(c);
+    added.push(c.id);
+  }
+  return { state: s, added, remapped, dropped };
 }
 // assign a label to a drawer. `replaced` names the label it displaces, so a UI can make a replacement explicit before calling.
 function assign(state, unitId, labelId) {
@@ -387,6 +437,7 @@ function validateLabelList(doc, opts) {
     }
     if (l.pins !== undefined && !cleanPins(l.pins)) say(`${n}: "pins" must be a list of up to ${PINS_MAX} field paths such as "thread.diameter".`);
     if (l.copies !== undefined && !isInt(l.copies, 1, COPIES_MAX)) say(`${n}: "copies" must be a whole number from 1 to ${COPIES_MAX} (how many of this label to print).`);
+    if (l.hardware !== undefined && !cleanHardware(l.hardware)) say(`${n}: "hardware" must be a ${HW_ITEM} item (fields, attributes with their paths, pinned and optional among them; at most ${HW_MAX.printable} printable attributes and ${HW_MAX.text}-character texts); it will be left out (the words are kept).`);
   });
   if (doc.style !== undefined && doc.style !== null) {
     if (!isObj(doc.style)) say('"style" must be an object.');
@@ -409,11 +460,11 @@ function validateLabelList(doc, opts) {
 }
 
 return {
-  FORMAT, VERSION, ID_RE, TEXT_MAX, MIRROR_MAX, CHAR_MAX, COPIES_MAX, PART_SCHEMA, STYLE_LIMITS, STYLE_FLAGS,
+  FORMAT, VERSION, ID_RE, TEXT_MAX, MIRROR_MAX, CHAR_MAX, COPIES_MAX, PART_SCHEMA, STYLE_LIMITS, STYLE_FLAGS, HW_ITEM, HW_MAX,
   canon, newLabelId, cleanText, cleanBadge, cleanStyle, cleanLabel, cleanLabelList, cleanAssignments, assignable,
-  hasWords, visibleBadge, iconOnly, isEmpty,
+  hasWords, visibleBadge, iconOnly, isEmpty, cleanHardware, isHardware,
   mirrorOfLabel, mirrorOf, reconcile, fromLegacyUnits, STYLE_INPUT, fromGeneratorProject,
-  assignedUnits, addLabel, assign, unassign, removeDrawer, editLabel,
+  assignedUnits, addLabel, appendLabels, assign, unassign, removeDrawer, editLabel,
   validateLabelList,
 };
 });

@@ -9,7 +9,7 @@
      (fromLegacyUnits) must give back exactly the words and badges the planner holds - an explicit "no icon" stays, an absent
      badge stays absent, nothing is deduplicated.
 
-   The module is vendored at test/vendor/edgelabel-label-list.js and sha256-PINNED. C-pin-2 compares it byte-for-byte with a
+   The module is loaded by the page as js/label-list.js (label tool step 3: the planner runs it) and sha256-PINNED. C-pin-2 compares it byte-for-byte with a
    generator checkout when one can be found (GEN2_EDGELABEL_ROOT or a sibling folder) and reports "not run" otherwise.
    To move the pin: copy the generator's label-list.js here, run `sha256sum`, edit PIN, and say why in the commit. */
 import { test } from 'node:test';
@@ -22,9 +22,9 @@ import { join, resolve } from 'node:path';
 import { cleaners, bootPlanner, labelBuild, unit, plain, root } from './lib/label-env.mjs';
 
 const require = createRequire(import.meta.url);
-const PIN = 'b69b4f7fb0ce1f7e4e99a6f41c437de13f9de9367a0d5cf9e64adb280195c744';
-const VENDORED = join(root, 'test', 'vendor', 'edgelabel-label-list.js');
-const L = require('./vendor/edgelabel-label-list.js');
+const PIN = 'c3171a338074559e7195f1d5fb486ef3c1b2b042cd41684d905b452fce0089bf';   // generator step3 efa8f16: hardware labels, editInPlace, appendLabels
+const VENDORED = join(root, 'js', 'label-list.js');
+const L = require('../js/label-list.js');
 const C = cleaners();
 
 function generatorCandidates() {

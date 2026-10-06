@@ -302,3 +302,60 @@ test('TR-14: a change still waiting to become its own Undo step (the 350 ms coal
   assert.equal(U(app, 14).x, 1, 'the next undo takes back the move');
   window.close();
 });
+
+/* THE APPEARANCE INVARIANT (STEP3-PLAN section 5; spec section 3), now that this planner reconciles on load: across 300 seeded
+   hostile builds - lists that agree with the drawers, lists an older tool has edited past (words typed over, cleared, a drawer
+   removed), shared labels, icon-only labels, unassigned hardware labels - loading a build NEVER changes what a drawer shows
+   (the mirror equals what the sanitizer alone reads), every worded drawer ends on a label whose mirror is exactly its words,
+   no hardware item is altered or lost, and a second load changes nothing. */
+const seeded = (seed) => () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+test('TR-15: 300 hostile builds with lists - loading never changes a drawer, hardware items survive, a second load is a no-op', () => {
+  const { app, window } = boot(null);
+  const L = window.GEN2LabelList;
+  const r = seeded(61007);
+  const pick = (a) => a[Math.floor(r() * a.length)];
+  const TEXTS = ['Nuts', '  Nuts  ', '', '   ', 'x'.repeat(60), 'M5 × 20 · SHCS', 'tab\tinside', 42, null];
+  const BADGES = [undefined, null, { type: 'none' }, { type: 'icon', value: 'nut' }, { type: 'icon', value: 'Nut' }, { type: 'char', value: 'A' }, { type: 'char', value: 'ABCDE' }, {}];
+  const mirrorOf = (placed) => placed.map((u) => [u.id, u.label === undefined ? null : u.label, u.labelBadge === undefined ? null : u.labelBadge]);
+  let hwSeen = 0, edits = 0;
+  for (let k = 0; k < 300; k++) {
+    const units = [];
+    for (let y = 0; y < 4; y += 2) for (let x = 0; x < 3; x++) {
+      const o = {};
+      if (r() < 0.75) o.label = pick(TEXTS);
+      if (r() < 0.6) o.labelBadge = pick(BADGES);
+      units.push(unit(units.length + 1, x, y, o));
+    }
+    assert.ok(app.applyBuild(plain(labelBuild({}, units))));
+    // a list made from those drawers, then disturbed the way older tools and other planners disturb one
+    const conv = L.fromLegacyUnits(plain(app.state.placed));
+    const list = conv.list, assign = { ...conv.assignments };
+    const hwIn = [];
+    if (r() < 0.6) { const l = { id: 'hw' + String(k).padStart(8, '0'), text: 'M5 × ' + k + ' · SHCS', hardware: ITEM(k) }; list.labels.push(l); hwIn.push(l); if (r() < 0.5) assign[String(1 + Math.floor(r() * 6))] = l.id; }
+    if (r() < 0.3) list.labels.push({ id: 'icon' + String(k).padStart(8, '0'), text: '', badge: { type: 'icon', value: 'nut' } });
+    if (r() < 0.3) { const ids = Object.values(assign); if (ids.length) assign[String(1 + Math.floor(r() * 6))] = pick(ids); }   // shared
+    if (r() < 0.2) assign['99'] = Object.values(assign)[0] || 'missing00000';                                               // a removed drawer
+    const placed = plain(app.state.placed);
+    // the mirror an older tool then edits (that tool's own sanitizer rules: words cleaned, a badge only with words)
+    const tool = placed.map((u) => { const v = { ...u }; if (r() < 0.25) { edits++; const t = app.cleanLabelText(pick(TEXTS)); if (t) v.label = t; else { delete v.label; delete v.labelBadge; } } return v; });
+    const toolBuild = labelBuild({ labelList: list, labelAssign: assign }, tool);
+    assert.ok(app.applyBuild(plain(labelBuild({}, tool))));
+    const want = mirrorOf(plain(app.state.placed));            // what that build shows, read without its list
+    assert.ok(app.applyBuild(plain(toolBuild)), `build ${k} loads`);
+    app.refresh(); app.pushHistoryNow();
+    const got = plain(app.serializeBuild());
+    assert.deepEqual(mirrorOf(got.placed), want, `build ${k}: loading changed what a drawer shows`);
+    if (got.labelList) {
+      const byId = new Map(got.labelList.labels.map((l) => [l.id, l]));
+      for (const u of got.placed) {
+        const id = got.labelAssign[u.id];
+        if (u.label) assert.ok(id && L.mirrorOfLabel(byId.get(id)).label === u.label, `build ${k}: drawer ${u.id} is not on a label with its words`);
+      }
+      for (const h of hwIn) { hwSeen++; assert.deepEqual(byId.get(h.id) && byId.get(h.id).hardware, h.hardware, `build ${k}: a hardware item changed or went`); }
+    }
+    assert.ok(app.applyBuild(plain(got))); app.refresh();
+    assert.equal(JSON.stringify(plain(app.serializeBuild())), JSON.stringify(got), `build ${k}: a second load changed something`);
+  }
+  assert.ok(hwSeen > 100 && edits > 200, `the sweep exercised hardware labels (${hwSeen}) and older-tool edits (${edits})`);
+  window.close();
+});

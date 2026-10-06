@@ -37,6 +37,8 @@
     buildPlate: "powder",   // the sheet the build prints on (BUILD_PLATES): its finish shows on every bed-contact face in the 3D viewer; bills nothing
     labelStyle: null,       // the label generator's set-wide settings (GEN2.labelSpec); null = the generator's own defaults
     buildId: newBuildId(),  // this build's own identity - see newBuildId()
+    labelList: null,        // a newer planner's label list - CARRIED, never read here (carryLabelData)
+    labelAssign: null,      // ...and its drawer -> label assignments
   };
 
   /* A build's own identity (2026-10-02). Unit ids are only unique INSIDE one
@@ -2042,6 +2044,9 @@
     // one must not find "drawer 1" here (newBuildId)
     state.buildId = newBuildId();
     loadId = newBuildId();   // and a new build-loading session (see loadId at the undo history)
+    // a NEW build: its ids restart at 1, so a carried label list's assignments would land on the new drawers that reuse
+    // those numbers - it goes with the old build
+    state.labelList = null; state.labelAssign = null;
     state.gridW = Math.max(GRID_LIMITS.wMin, Math.min(capW(), W));
     state.gridH = Math.max(GRID_LIMITS.hMin, Math.min(capH(), Math.ceil(totalHH / 2)));
     let cursor = fromTop ? 0 : rows();        // build outward from the mount surface
@@ -2060,7 +2065,7 @@
   // The fields that make a build reproducible (setup + layout).
   const BUILD_FIELDS = ["mount", "length", "printer", "customBed", "spaceW", "spaceH",
     "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "feet", "buildPlate", "removedStoppers", "gridW", "gridH", "placed", "nextId",
-    "labelStyle", "buildId"];
+    "labelStyle", "buildId", "labelList", "labelAssign"];
 
   const serializeBuild = () => {
     const o = {};
@@ -2124,6 +2129,25 @@
     for (const k of GEN2.labelSpec.flags) if (typeof s[k] === "boolean") out[k] = s[k];
     return Object.keys(out).length ? out : null;
   }
+  /* THE LABEL LIST, CARRIED (2026-10-06; handoffs/label-release/LABEL-LIST-FORMAT.md section 3a). A later planner keeps a
+     build's labels as `labelList` (the labels: words, badge, an optional part record, pins, copies) and `labelAssign`
+     (drawer unit id -> label id), with unit.label / unit.labelBadge still written as a mirror for older tools. THIS planner
+     does not read either; it CARRIES them, verbatim, through share links, files, the session and undo, and keeps editing the
+     mirror as it always has. Sol 01a11238: a planner that DROPPED them on load and re-save would lose, for good, every
+     unassigned label, every shared label, text past 40 characters and every part record - reconciling from the mirror cannot
+     bring those back. Only the SHAPE is checked here: a plain object each, together at most LABEL_DATA_MAX characters of
+     JSON; anything else is dropped (null), never repaired. Edits made here to a drawer's words or badge are reconciled by the
+     newer planner when it loads the build (the mirror wins for that drawer only). */
+  const LABEL_DATA_MAX = 192 * 1024;
+  function carryLabelData(list, assign) {
+    const plain = (v) => Object.prototype.toString.call(v) === "[object Object]";
+    const l = plain(list) ? list : null, a = plain(assign) ? assign : null;
+    if (!l && !a) return { labelList: null, labelAssign: null };
+    let size;
+    try { size = JSON.stringify({ l, a }).length; } catch (e) { return { labelList: null, labelAssign: null }; }
+    if (size > LABEL_DATA_MAX) return { labelList: null, labelAssign: null };
+    return JSON.parse(JSON.stringify({ labelList: l, labelAssign: a }));   // a private copy: nothing shares a reference
+  }
   // One bound for unit ids AND the nextId watermark: a valid id is a safe
   // positive integer <= ID_MAX; anything else mints fresh. One rule, so the
   // "never reuse a freed id" guarantee has no range where it silently fails.
@@ -2154,6 +2178,9 @@
     // a new one; a valid one is KEPT, so a saved or shared build stays itself
     d.buildId = typeof d.buildId === "string" && BUILD_ID_RE.test(d.buildId) ? d.buildId : newBuildId();
     d.labelStyle = cleanLabelStyle(d.labelStyle);
+    // ALWAYS written (null when absent): applyBuild copies only the keys a build has, so a build without them must
+    // not inherit the previous build's list
+    Object.assign(d, carryLabelData(d.labelList, d.labelAssign));
     // removedStoppers: dedupe + keep only well-formed "<unitId>:<localCol>" keys
     // (pruned below to keys that name a kept drawer, once the units are known)
     d.removedStoppers = Array.isArray(d.removedStoppers)
@@ -5891,6 +5918,7 @@
       undoRedo, pushHistoryNow, history, buildMeta,
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,
       cleanLabelBadge, cleanLabelStyle, cleanLabelText, labelOrder, shownLabel, layoutSig, newBuildId, syncOptionsToViewer,
+      carryLabelData, LABEL_DATA_MAX,
       labelGenOrigins, plannerTabId, loadIdNow: () => loadId, labelQueueLength: () => labelQueue.length, labelOpenItem: () => labelOpen,
       viewerWinInfo: () => ({ has: !!viewerWin, closed: !!(viewerWin && viewerWin.closed), origin: viewerOrigin, isFrame: !!(viewerWin && $("#viewer-frame") && viewerWin === $("#viewer-frame").contentWindow), isGen: [...labelGenWin.values()].some((w) => w === viewerWin) }),
     };

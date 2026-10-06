@@ -2067,6 +2067,19 @@
     "faceStyle", "doorStyle", "handleStyle", "wallStagger", "backCover", "feet", "buildPlate", "removedStoppers", "gridW", "gridH", "placed", "nextId",
     "labelStyle", "buildId", "labelList", "labelAssign"];
 
+  /* THE BUILD SCHEMA (label tool step 3, Astra 2026-10-06: "an older planner instance should not be able to overwrite a build
+     containing newer label-list data and silently discard it. A refresh/reload requirement is preferable to data loss").
+     A build may carry `schema` (absent = 1). This planner understands BUILD_SCHEMA and below; a build saying more is REFUSED
+     on every path one arrives by - a share link, a saved file, the browser's saved session - with a refresh prompt, and the
+     saved-session slot holding it is never overwritten by this tab. Nothing writes a schema today: the label list needs no
+     bump (from this planner on it is carried verbatim, so no tab this new can strip it). A future change an older planner
+     would LOSE data on bumps it, and every planner from this one on refuses instead of stripping. Planner tabs opened before
+     this code shipped cannot be changed by any deploy: that residual is in handoffs/label-release/step3/STEP3-PLAN.md. */
+  const BUILD_SCHEMA = 1;
+  const buildTooNew = (d) => !!d && typeof d === "object" && d.schema !== undefined && d.schema !== null
+    && !(Number.isInteger(d.schema) && d.schema >= 1 && d.schema <= BUILD_SCHEMA);
+  let lastRefusedNewer = false;   // the last applyBuild refused a newer build (read by the callers that word their message)
+
   const serializeBuild = () => {
     const o = {};
     BUILD_FIELDS.forEach((k) => { o[k] = state[k]; });
@@ -2287,7 +2300,9 @@
   }
 
   function applyBuild(data) {
+    lastRefusedNewer = false;
     if (!data || !Array.isArray(data.placed)) return false;
+    if (buildTooNew(data)) { lastRefusedNewer = true; showNewerBuild(); track("error:build-newer"); return false; }
     data = JSON.parse(JSON.stringify(data));   // isolate from the source (no shared refs)
     if (!history.restoring) loadId = newBuildId();   // an EXTERNAL load: a new build-loading session (see loadId)
     const dropped = sanitizeBuild(data);
@@ -2328,6 +2343,12 @@
   // snapshot writes to the same key moments later, so reading it any later
   // would find the fresh empty state instead of what the user left behind.
   const LAST_BUILD_RAW = store.get("gen2-last-build");
+  // a newer planner's build in the saved-session slot: this tab neither opens it (applyBuild refuses) nor overwrites it. The slot
+  // is re-read before EVERY save, because the dangerous case is two tabs: a newer planner opened beside this one writes the slot
+  // after this tab loaded, and this tab's next auto-save must not replace it (the slot is shared by every tab of the site).
+  const slotHoldsNewer = (raw) => { try { return buildTooNew(JSON.parse(raw)); } catch (e) { return false; } };
+  const SESSION_HOLDS_NEWER = slotHoldsNewer(LAST_BUILD_RAW);
+  const saveSession = (snap) => { if (!slotHoldsNewer(store.get("gen2-last-build"))) store.set("gen2-last-build", snap); };
   function pushHistoryNow() {
     clearTimeout(history.timer); history.timer = null;
     const snap = JSON.stringify(serializeBuild());
@@ -2338,7 +2359,7 @@
     history.loadIds.push(loadId);
     if (history.stack.length > HISTORY_MAX) { history.stack.shift(); history.loadIds.shift(); }
     history.idx = history.stack.length - 1;
-    store.set("gen2-last-build", snap);   // auto-save: a closed tab costs nothing
+    saveSession(snap);   // auto-save: a closed tab costs nothing
     updateHistoryButtons();
   }
   function snapshotHistory() {
@@ -2374,7 +2395,7 @@
     // other writer and the restore's refresh() is guarded out of it, so
     // undoing a change and closing the tab used to resume the UNDONE state
     // (found 2026-08-23 while proving the mount-switch rebase is atomic).
-    store.set("gen2-last-build", history.stack[history.idx]);
+    saveSession(history.stack[history.idx]);
     updateHistoryButtons();
   }
   function updateHistoryButtons() {
@@ -2474,6 +2495,7 @@
     const m = (location.hash || "").match(/build=([^&]+)/);
     if (!m) return false;
     if (applyBuildHash(m[1])) return true;
+    if (lastRefusedNewer) return "newer";   // its own notice is up; the hash stays so a refresh opens it
     showDamagedLink(true);
     track("error:share-link-damaged");
     return "damaged";
@@ -2498,6 +2520,29 @@
   // bug wearing a recovery label. (And deliberately not the existing "Start
   // fresh" control, which WIPES the saved session - offering that next to a
   // button whose whole value is that saved session invites destroying it.)
+  // The newer-build notice (the schema rule above): persistent, at the top of <main>, with a Refresh button. Refreshing loads the
+  // deployed planner, which opens the build; nothing on the board is replaced meanwhile.
+  function showNewerBuild() {
+    const prev = document.getElementById("newer-build-warn");
+    if (prev) prev.remove();
+    const box = document.createElement("div");
+    box.className = "warn";
+    box.id = "newer-build-warn";
+    box.setAttribute("role", "alert");
+    const msg = document.createElement("div");
+    msg.textContent = "⚠ This build was saved by a newer version of the planner. This tab can't open it without losing parts of it, so it was not opened"
+      + (SESSION_HOLDS_NEWER ? " - and this tab won't overwrite your saved build either" : "") + ". Refresh this tab to open it.";
+    box.appendChild(msg);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn small warn-fix";
+    btn.textContent = "Refresh now";
+    btn.addEventListener("click", () => { try { location.reload(); } catch (e) { /* jsdom */ } });
+    box.appendChild(btn);
+    const main = document.querySelector("main");
+    if (main) main.prepend(box);
+  }
+
   function showDamagedLink(offerSaved) {
     const prev = document.getElementById("share-link-warn");
     if (prev) prev.remove();
@@ -2538,7 +2583,7 @@
     if (applyBuildHash(m[1])) {
       const prev = document.getElementById("share-link-warn");
       if (prev) prev.remove();                        // a good link supersedes the warning
-    } else {
+    } else if (!lastRefusedNewer) {
       showDamagedLink(false);
       track("error:share-link-damaged");
     }
@@ -3412,7 +3457,7 @@
       let ok = false;
       try { const p = JSON.parse(reader.result); ok = applyBuild(p && p.data ? p.data : p); } catch (e) { ok = false; }
       if (ok) track("load-build");
-      if (!ok) {
+      if (!ok && !lastRefusedNewer) {   // a newer build already says so (showNewerBuild)
         const box = $("#board-warnings");
         warn(box, "That file isn't a valid MODULITH build.");
       }
@@ -5900,7 +5945,7 @@
   // A DAMAGED share link also blocks the resume: silently showing the user's
   // own build under someone else's link is how a wrong BOM gets printed. The
   // banner offers the saved build as an explicit choice instead.
-  if (sharedLink !== "damaged" && !state.placed.length && LAST_BUILD_RAW) {
+  if (sharedLink !== "damaged" && sharedLink !== "newer" && !state.placed.length && LAST_BUILD_RAW) {
     try {
       const last = JSON.parse(LAST_BUILD_RAW);
       if (last && Array.isArray(last.placed) && last.placed.length && applyBuild(last)) track("resume-build");
@@ -5922,7 +5967,7 @@
       undoRedo, pushHistoryNow, history, buildMeta,
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,
       cleanLabelBadge, cleanLabelStyle, cleanLabelText, labelOrder, shownLabel, layoutSig, newBuildId, syncOptionsToViewer,
-      carryLabelData, LABEL_DATA_MAX,
+      carryLabelData, LABEL_DATA_MAX, BUILD_SCHEMA, buildTooNew, sessionHoldsNewer: () => SESSION_HOLDS_NEWER,
       labelGenOrigins, plannerTabId, loadIdNow: () => loadId, labelQueueLength: () => labelQueue.length, labelOpenItem: () => labelOpen,
       viewerWinInfo: () => ({ has: !!viewerWin, closed: !!(viewerWin && viewerWin.closed), origin: viewerOrigin, isFrame: !!(viewerWin && $("#viewer-frame") && viewerWin === $("#viewer-frame").contentWindow), isGen: [...labelGenWin.values()].some((w) => w === viewerWin) }),
     };

@@ -33,7 +33,9 @@ const COPIES_MAX = 99;
 const PINS_MAX = 32;
 const PIN_RE = /^[a-z_]+(?:\.[a-z_]+)*$/;    // a part-record field path: thread.diameter, length.value
 const PART_SCHEMA = 'part-record/1';
-const PART_MAX = 16 * 1024;                  // characters of JSON of one part snapshot (after a build drops its photo)
+const PART_MAX = 16 * 1024;                  // characters of JSON of one part snapshot, NOT counting its photo
+const PHOTO_MAX = 256 * 1024;                // a part's own photo (a data: URL), kept in a full project, never in a build
+const PHOTO_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 const STYLE_LIMITS = { capMm: [2, 6.5], depth: [0.2, 1.2], badgeSize: [4, 22] };   // label-link.js STYLE_LIMITS
 const STYLE_FLAGS = ['bold', 'allCaps', 'predictIcons'];
 
@@ -73,7 +75,7 @@ function cleanBadge(b, opts) {
   if (b.type === 'none') return { type: 'none' };
   if (b.type === 'icon') {
     const idOk = typeof b.value === 'string' && b.value.length <= ICON_ID_MAX && ICON_ID_RE.test(b.value);
-    const svgOk = !!(opts && opts.svg) && typeof b.svg === 'string' && b.svg.length <= SVG_MAX && /^\s*<svg[\s>]/i.test(b.svg);
+    const svgOk = !!(opts && opts.svg) && typeof b.svg === 'string' && b.svg.length <= SVG_MAX && /^\s*<svg[\s>/]/i.test(b.svg);
     if (svgOk) return idOk ? { type: 'icon', value: b.value, svg: b.svg } : { type: 'icon', svg: b.svg };
     return idOk ? { type: 'icon', value: b.value } : null;
   }
@@ -97,18 +99,23 @@ function cleanStyle(s) {   // the planner's cleanLabelStyle: in range and typed,
 
 /* ---- one label ---- */
 
+// a part snapshot: a part-record/1 with a family, at most PART_MAX characters of JSON besides its photo. The photo is judged on
+// its own (Astra 2026-10-06: a compact build leaves it out, but the full project backup must not lose it silently).
 function partOk(p) {
   if (!isObj(p) || p.schema !== PART_SCHEMA || typeof p.family !== 'string' || !p.family) return false;
-  try { return JSON.stringify(p).length <= PART_MAX; } catch (e) { return false; }
+  if (p.photo !== undefined && !photoOk(p.photo)) return false;
+  try { return JSON.stringify(Object.assign({}, p, { photo: undefined })).length <= PART_MAX; } catch (e) { return false; }
 }
+const photoOk = (v) => typeof v === 'string' && v.length <= PHOTO_MAX && PHOTO_RE.test(v);
 function cleanPins(p) {
   if (!Array.isArray(p) || p.length > PINS_MAX || !p.every((x) => typeof x === 'string' && PIN_RE.test(x))) return null;
   return [...new Set(p)];
 }
 
 // One label from untrusted data, or null when it is not a label at all. Unknown keys are KEPT, verbatim, so a newer tool's
-// data survives this one. opts.inBuild: a planner build - no uploaded SVG, no part photo (neither is needed to reproduce the
-// label, and both are too big for a share link).
+// data survives this one. opts.inBuild: the COMPACT form a planner build stores - no uploaded SVG, no part photo (neither is
+// needed to reproduce the label, and both are too big for a share link). The FULL form (a standalone project, the backup) keeps
+// both; a part whose photo is malformed or too big keeps its record and loses only the photo, and validation says so.
 function cleanLabel(l, opts) {
   const inBuild = !!(opts && opts.inBuild);
   if (!isObj(l) || typeof l.text !== 'string' || l.text.length > TEXT_MAX) return null;
@@ -120,7 +127,7 @@ function cleanLabel(l, opts) {
     if (b) out.badge = b; else delete out.badge;
   }
   if ('part' in out) {
-    if (inBuild && isObj(out.part)) delete out.part.photo;
+    if (isObj(out.part) && (inBuild || !photoOk(out.part.photo))) delete out.part.photo;
     if (!partOk(out.part)) delete out.part;
   }
   if ('pins' in out) { const p = cleanPins(l.pins); if (p) out.pins = p; else delete out.pins; }
@@ -128,9 +135,19 @@ function cleanLabel(l, opts) {
   return out;
 }
 
-// a label can be assigned to a drawer only when it has words: the mirror cannot carry an assigned empty label, and the next
-// load would read it as an older tool clearing the drawer (Sol 01a11238, finding 2)
-const assignable = (l) => !!l && cleanText(l.text) !== '';
+/* What a label SHOWS (Astra 2026-10-06): text only, icon only, and text with an icon are all labels; neither is an EMPTY label,
+   which stays in a list but is never assigned to a drawer (Sol 01a11238, finding 2: the mirror cannot carry it, and the next
+   load would read it as an older tool clearing the drawer). A visible badge is an icon (by id or an uploaded SVG) or a letter;
+   { type: 'none' } and an absent badge show nothing when there are no words (prediction needs words). In a build the uploaded
+   SVG is not stored, so an svg-only icon with no words is empty THERE (validation says so). */
+const hasWords = (l) => !!l && cleanText(l.text) !== '';
+function visibleBadge(l, opts) {
+  const b = l ? cleanBadge(l.badge, { svg: !(opts && opts.inBuild) }) : null;
+  return !!b && (b.type === 'char' || (b.type === 'icon' && (!!b.value || !!b.svg)));
+}
+const iconOnly = (l, opts) => !hasWords(l) && visibleBadge(l, opts);
+const isEmpty = (l, opts) => !hasWords(l) && !visibleBadge(l, opts);
+const assignable = (l) => !!l && !isEmpty(l, { inBuild: true });
 
 /* ---- the list ---- */
 
@@ -176,7 +193,8 @@ function cleanAssignments(assign, list, unitIds) {
 
 /* ---- the mirror older tools read, and reconciling it on load ---- */
 
-// what a drawer's mirror says for a label: the words cut to 40, the badge without an uploaded SVG (absent = predict)
+// what a drawer's mirror says for a label: the words cut to 40, the badge without an uploaded SVG (absent = predict). An
+// icon-only label has NO mirror: an older tool cannot show a drawer with an icon and no words (it degrades to an empty drawer).
 function mirrorOfLabel(l) {
   const label = cleanText(l.text);
   if (!label) return null;
@@ -230,7 +248,13 @@ function reconcile(units, list, assignments) {
       if (words) { out[key] = fromMirror(words, badge); changes.push({ unit: u.id, kind: 'added', label: out[key] }); }
       continue;
     }
-    if (!words) { changes.push({ unit: u.id, kind: 'cleared', label: l.id }); continue; }
+    if (!words) {
+      // an ICON-ONLY label: no older tool can show or clear an icon-only drawer (the old planner keeps a badge only with
+      // words), so a mirror with no words says nothing about it - the assignment stands. Words in the mirror (below) mean an
+      // older tool typed a name there: that is an edit.
+      if (iconOnly(l, { inBuild: true })) { out[key] = l.id; continue; }
+      changes.push({ unit: u.id, kind: 'cleared', label: l.id }); continue;
+    }
     const m = mirrorOfLabel(l);
     if (m && m.label === words && canon(m.labelBadge || null) === canon(badge)) { out[key] = l.id; continue; }
     out[key] = fromMirror(words, badge);
@@ -289,7 +313,7 @@ function addLabel(state, label, opts) {
 function assign(state, unitId, labelId) {
   const l = state.list.labels.find((x) => x.id === labelId);
   if (!l) return { ok: false, reason: 'no such label', state };
-  if (!assignable(l)) return { ok: false, reason: 'a label with no words cannot be assigned to a drawer', state };
+  if (!assignable(l)) return { ok: false, reason: 'an empty label (no words and no icon) cannot be assigned to a drawer', state };
   const s = clone(state);
   const key = String(unitId);
   const replaced = s.assignments[key] && s.assignments[key] !== labelId ? s.assignments[key] : null;
@@ -323,7 +347,7 @@ function editLabel(state, labelId, patch, scope, unitId) {
   }
   c.id = labelId;
   s.list.labels[i] = c;
-  // an edit that leaves a label with no words unassigns it everywhere (the mirror cannot carry it)
+  // an edit that leaves a label EMPTY (no words, no icon) unassigns it everywhere; it stays in the list
   if (!assignable(c)) for (const u of shared) delete s.assignments[String(u)];
   return { ok: true, state: s, id: labelId, cloned: false };
 }
@@ -352,7 +376,11 @@ function validateLabelList(doc, opts) {
     if (l.badge !== undefined && !cleanBadge(l.badge, { svg: true })) {
       say(`${n}: the badge must be {"type":"none"}, {"type":"icon","value":"<icon id>"}, an uploaded {"type":"icon","svg":"<svg ...>"}, or {"type":"char","value":"<up to ${CHAR_MAX} characters>"}.`);
     }
-    if (l.part !== undefined && !partOk(l.part)) say(`${n}: "part" must be a ${PART_SCHEMA} record (with a "family"), at most ${PART_MAX} characters of JSON.`);
+    if (l.part !== undefined) {
+      const noPhoto = isObj(l.part) ? Object.assign({}, l.part, { photo: undefined }) : l.part;
+      if (!partOk(noPhoto)) say(`${n}: "part" must be a ${PART_SCHEMA} record (with a "family"), at most ${PART_MAX} characters of JSON besides its photo.`);
+      else if (l.part.photo !== undefined && !photoOk(l.part.photo)) say(`${n}: the part's photo must be a JPEG, PNG or WebP data URL under ${PHOTO_MAX / 1024} KB; it will be left out (the part record is kept).`);
+    }
     if (l.pins !== undefined && !cleanPins(l.pins)) say(`${n}: "pins" must be a list of up to ${PINS_MAX} field paths such as "thread.diameter".`);
     if (l.copies !== undefined && !isInt(l.copies, 1, COPIES_MAX)) say(`${n}: "copies" must be a whole number from 1 to ${COPIES_MAX} (how many of this label to print).`);
   });
@@ -370,7 +398,8 @@ function validateLabelList(doc, opts) {
       if (!/^[1-9]\d{0,9}$/.test(k)) say(`Assignment "${k}": a drawer id is a positive whole number.`);
       const at = typeof v === 'string' ? ids.get(v) : undefined;
       if (at === undefined) say(`Assignment for drawer ${k}: no label has the id "${v}".`);
-      else if (!assignable(doc.labels[at])) say(`Assignment for drawer ${k}: label ${at + 1} has no words, so it cannot go on a drawer.`);
+      else if (isEmpty(doc.labels[at])) say(`Assignment for drawer ${k}: label ${at + 1} is empty (no words and no icon), so it cannot go on a drawer.`);
+      else if (!assignable(doc.labels[at])) say(`Assignment for drawer ${k}: label ${at + 1} shows only an uploaded icon, which a planner build does not store, so the drawer would be empty there.`);
     }
   }
   return p;
@@ -379,6 +408,7 @@ function validateLabelList(doc, opts) {
 return {
   FORMAT, VERSION, ID_RE, TEXT_MAX, MIRROR_MAX, CHAR_MAX, COPIES_MAX, PART_SCHEMA, STYLE_LIMITS, STYLE_FLAGS,
   canon, newLabelId, cleanText, cleanBadge, cleanStyle, cleanLabel, cleanLabelList, cleanAssignments, assignable,
+  hasWords, visibleBadge, iconOnly, isEmpty,
   mirrorOfLabel, mirrorOf, reconcile, fromLegacyUnits, STYLE_INPUT, fromGeneratorProject,
   assignedUnits, addLabel, assign, unassign, removeDrawer, editLabel,
   validateLabelList,

@@ -22,7 +22,7 @@ import { join, resolve } from 'node:path';
 import { cleaners, bootPlanner, labelBuild, unit, plain, root } from './lib/label-env.mjs';
 
 const require = createRequire(import.meta.url);
-const PIN = '63dcae8d11034250a18226dec318da579edcdda9c1ea6fce6c864721aabd0128';
+const PIN = '39bb5cd00e7849d49c0b513d944e009d6b13659ec2fb53cf67a23b42e75d8a8f';
 const VENDORED = join(root, 'test', 'vendor', 'edgelabel-label-list.js');
 const L = require('./vendor/edgelabel-label-list.js');
 const C = cleaners();
@@ -113,5 +113,31 @@ test('LC-4: a carried list (Release A) reconciles to no changes while the planne
   const r = L.reconcile(after.placed, after.labelList, after.labelAssign);
   assert.deepEqual(r.changes.map((x) => [x.unit, x.kind]), [[1, 'edited']]);
   assert.equal(r.list.labels.find((l) => l.id === r.assignments['1']).text, 'Washers');
+  window.close();
+});
+
+/* ICON-ONLY LABELS (Astra 2026-10-06): text only, icon only, and text with an icon are all labels. */
+test('LC-5: today\'s planner never holds an icon-only drawer - a badge without words is dropped on load, exactly as before, and converts to no label', () => {
+  const { app, window } = bootPlanner({ url: 'http://localhost:8124/' });
+  const b = labelBuild({ gridH: 1 }, [unit(1, 0, 0, { labelBadge: { type: 'icon', value: 'nut' } }), unit(2, 1, 0, { label: '  ', labelBadge: { type: 'char', value: 'A' } }), unit(3, 2, 0, { label: 'Bolts' })]);
+  assert.ok(app.applyBuild(plain(b)));
+  const placed = plain(app.state.placed);
+  assert.equal(placed[0].labelBadge, undefined, 'the badge without words is dropped (cleanLabelBadge lives and dies with the words)');
+  assert.equal(placed[1].labelBadge, undefined);
+  const c = L.fromLegacyUnits(placed);
+  assert.deepEqual(c.list.labels.map((l) => l.text), ['Bolts']);
+  window.close();
+});
+
+test('LC-6: an icon-only label written by a newer planner survives THIS planner (carried) and keeps its drawer when reconciled', () => {
+  const { app, window } = bootPlanner({ url: 'http://localhost:8124/' });
+  const list = { format: 'modulith-labels', version: 1, labels: [{ id: 'qqqqqqqqqqqq', text: '', badge: { type: 'icon', value: 'washer' } }, { id: 'rrrrrrrrrrrr', text: 'Nuts' }] };
+  const b = labelBuild({ gridH: 1, labelList: list, labelAssign: { 1: 'qqqqqqqqqqqq', 2: 'rrrrrrrrrrrr' } }, [unit(1, 0, 0), unit(2, 1, 0, { label: 'Nuts' })]);
+  assert.ok(app.applyBuild(plain(b)));
+  const out = plain(app.serializeBuild());
+  assert.deepEqual(out.labelList, list, 'carried verbatim');
+  const r = L.reconcile(out.placed, out.labelList, out.labelAssign);
+  assert.deepEqual(r.changes, []);
+  assert.equal(r.assignments['1'], 'qqqqqqqqqqqq', 'the icon-only drawer keeps its label');
   window.close();
 });

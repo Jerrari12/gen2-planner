@@ -359,3 +359,26 @@ test('TR-15: 300 hostile builds with lists - loading never changes a drawer, har
   assert.ok(hwSeen > 100 && edits > 200, `the sweep exercised hardware labels (${hwSeen}) and older-tool edits (${edits})`);
   window.close();
 });
+
+test('TR-16: a link whose batch id is there but malformed is refused, never added unguarded; 500 batches are remembered', () => {
+  const bad = '#labels-add=' + b64u(BATCH({ batchId: 'NOT a batch id!' }));
+  const { app, window } = boot(null, { hash: bad, beforeApp: (w) => w.localStorage.setItem('gen2-last-build', JSON.stringify(TWELVE())) });
+  assert.equal(app.state.labelList, null, 'nothing added');
+  assert.match(window.document.getElementById('lt-status').textContent, /batch id cannot be read/);
+  window.close();
+  const many = Array.from({ length: 499 }, (_, i) => 'old' + String(i).padStart(9, '0'));
+  const ok = boot(null, { hash: '#labels-add=' + b64u(BATCH()), beforeApp: (w) => { w.localStorage.setItem('gen2-last-build', JSON.stringify(TWELVE())); w.localStorage.setItem('gen2-label-batches', JSON.stringify(many)); } });
+  const kept = JSON.parse(ok.window.localStorage.getItem('gen2-label-batches'));
+  assert.equal(kept.length, 500, 'the 500th is kept');
+  assert.equal(kept[0], many[0], 'nothing evicted below the cap');
+  assert.equal(kept[499], 'batch000m5set');
+  ok.window.close();
+});
+
+test('TR-17: without js/label-list.js a #labels-add= link is left in place (not consumed), for a page that can add it', () => {
+  const hash = '#labels-add=' + b64u(BATCH());
+  const { app, window } = bootPlanner({ url: 'http://localhost:8124/' + hash, beforeApp: (w) => { Object.defineProperty(w, 'GEN2LabelList', { get: () => undefined, set: () => {}, configurable: true }); } });
+  assert.match(window.location.hash, /labels-add=/);
+  assert.equal(app.state.labelList, null);
+  window.close();
+});

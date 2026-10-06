@@ -2874,7 +2874,8 @@
      js/label-list.js (the viewer's parity suite, the MODULITH site's vendor-build-boms.mjs) gets no tray and no sync. */
   const LL = () => window.GEN2LabelList || null;
   const HW_ITEMS_SCHEMA = "part-picker-label-items/1";
-  const LABEL_BATCHES_KEY = "gen2-label-batches", LABEL_BATCHES_MAX = 50, LABEL_BATCH_RE = /^[a-z0-9]{8,32}$/;
+  // a browser remembers the last 500 batches it added (12-character ids, about 7 KB): replay protection without unbounded storage
+  const LABEL_BATCHES_KEY = "gen2-label-batches", LABEL_BATCHES_MAX = 500, LABEL_BATCH_RE = /^[a-z0-9]{8,32}$/;
   const tray = { pick: null, status: "", warn: false };
   const labelsOf = () => (state.labelList && Array.isArray(state.labelList.labels) ? state.labelList.labels : []);
   const labelById = (id) => labelsOf().find((l) => l.id === id) || null;
@@ -3043,6 +3044,12 @@
     const got = labelsFromDoc(doc);
     if (got.problem) { setTrayStatus(got.problem, true); renderTray(); showLabelsNotice(got.problem); return "bad"; }
     const batch = typeof got.batchId === "string" && LABEL_BATCH_RE.test(got.batchId) ? got.batchId : null;
+    // a link's batchId is what stops it being added twice: one that is there but malformed is refused, never added unguarded
+    if (link && got.batchId !== undefined && !batch) {
+      const msg = "This labels link is damaged (its batch id cannot be read); nothing was added.";
+      setTrayStatus(msg, true); renderTray(); showLabelsNotice(msg);
+      return "bad";
+    }
     if (link && batch && seenBatches().includes(batch)) {
       const msg = "These labels were already added to this build.";
       setTrayStatus(msg, true); renderTray(); showLabelsNotice(msg);
@@ -3093,6 +3100,7 @@
   function importFromHash() {
     const m = (location.hash || "").match(/(?:^#|&)labels-add=([^&]+)/);
     if (!m) return null;
+    if (!LL()) return "unavailable";   // no label-list module: the link stays, so a page that has it can add the labels
     let doc = null;
     try { doc = b64urlJson(decodeURIComponent(m[1])); } catch (e) { doc = undefined; }
     const out = doc === undefined ? (setTrayStatus("This labels link is damaged; nothing was added.", true), showLabelsNotice(tray.status), renderTray(), "bad")

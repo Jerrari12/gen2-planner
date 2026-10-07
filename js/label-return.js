@@ -65,6 +65,11 @@ function effectiveStyle(styleSet) {   // LABEL_DEFAULTS under whatever is stored
 }
 
 /* ---- the job (section 4.2) ---- */
+/* What this planner can take back (Release B, LABEL-LIST-FORMAT.md section 3a item 3.1): a job WITHOUT 'label-list' comes from a
+   planner older than the label list, and the generator opens no part-label editing for it (words only, "Refresh the planner tab
+   to edit part labels"). A top-level key: the deployed generator's validateJob ignores unknown top-level keys, so this job still
+   opens it (pinned by test/label-link-contract.test.mjs). */
+const JOB_CAPS = Object.freeze(['label-list']);
 /* view: { units: state.placed, faceStyle, labelStyle, buildId }
    ctx:  { origin, textMax, jobId?, baseRev?, newId?, cleanText, cleanBadge, cleanStyle, labelOrder }
    EVERY decor unit, in labelOrder (Classic drawers have no label slot). */
@@ -73,7 +78,7 @@ function buildLabelJob(view, ctx) {
   const mint = ctx.newId || newId;
   return {
     v: 1, family: 'edgelabel', jobId: ctx.jobId || mint(), buildId: view.buildId, baseRev: ctx.baseRev || mint(),
-    origin: ctx.origin, textMax: ctx.textMax,
+    origin: ctx.origin, textMax: ctx.textMax, caps: JOB_CAPS.slice(),
     style: effectiveStyle(ctx.cleanStyle(view.labelStyle)),
     rows: decor.map((u, i) => {
       const t = ctx.cleanText(u.label);
@@ -386,7 +391,7 @@ function jobStore(storage, opts) {
 return {
   JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, RETURN_JSON_MAX, TEXT_MAX, ID_MAX, LABEL_DEFAULTS, STYLE_KEYS, STYLE_FLAGS, STYLE_LIMITS, STORE_PREFIX,
   RECORD_MAX_AGE, RECORDS_MAX, ANSWERS_KEPT,
-  canon, newId, effectiveStyle, buildLabelJob, encodeJob, legacyHash, jobUrl, measureJob, makeJobRecord,
+  JOB_CAPS, canon, newId, effectiveStyle, buildLabelJob, encodeJob, legacyHash, jobUrl, measureJob, makeJobRecord,
   parseLabelReturn, mergeLabelReturn, planSig, defaultSelections, carrySelections, applyPlan, resultRows, summarize,
   badgeTag, styleText, jobStore,
 };

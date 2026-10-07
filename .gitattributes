@@ -19,6 +19,9 @@ tabletop-completion.js text eol=lf
 # The EdgeLabel generator's label-link.js, vendored for the cross-repo contract test and sha256-pinned there:
 # a fixed LF keeps the checkout and the pin the same bytes on every OS.
 edgelabel-label-link.js text eol=lf
+# ... and the copy that is DEPLOYED at edgelabel.jerrari3d.com (generator main), which a Release B planner talks to until the
+# generator ships too.
+edgelabel-label-link.deployed.js text eol=lf
 
 # The EdgeLabel generator's label-list.js (the label list format), run by the page as js/label-list.js and sha256-pinned.
 label-list.js text eol=lf

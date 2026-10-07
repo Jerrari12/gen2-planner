@@ -8,7 +8,10 @@
    byte-for-byte with a generator checkout when one can be found (GEN2_EDGELABEL_ROOT, or a sibling folder) and says which
    generator commit it compared; with no checkout it reports "not run" - a skip, never a pass.
 
-   To move the pin: copy the generator's label-link.js here, run `sha256sum`, edit PIN below, and say why in the commit. */
+   To move the pin: copy the generator's label-link.js here, run `sha256sum`, edit PIN below, and say why in the commit.
+   Moved 2026-10-06 to the generator's step3 file (Release B: jobCaps / canEditPartLabels). The planner ships BEFORE the
+   generator, so it talks to the DEPLOYED generator meanwhile: that file is test/vendor/edgelabel-label-link.deployed.js, pinned
+   as DEPLOYED_PIN (generator main, the copy pinned here before), and C-deployed runs a Release B job through it. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -19,7 +22,9 @@ import { join, resolve } from 'node:path';
 import { LR, cleaners, bootPlanner, labelBuild, unit, plain, root } from './lib/label-env.mjs';
 
 const require = createRequire(import.meta.url);
-const PIN = 'abe71b329a8b8bd1053bbcf3fe4aa026d16847d23061e97182881d49f73f5bd3';
+const PIN = 'a9b04e2dd51d56bb01757daac3586de3a345048fc1376ab65f33e3edde057da8';
+const DEPLOYED_PIN = 'abe71b329a8b8bd1053bbcf3fe4aa026d16847d23061e97182881d49f73f5bd3';
+const DEPLOYED = join(root, 'test', 'vendor', 'edgelabel-label-link.deployed.js');
 const VENDORED = join(root, 'test', 'vendor', 'edgelabel-label-link.js');
 const GL = require('./vendor/edgelabel-label-link.js');
 require('./vendor/edgelabel-label-link.js');
@@ -38,7 +43,8 @@ function generatorIconIds() {
 function generatorCandidates() {
   const c = [];
   if (process.env.GEN2_EDGELABEL_ROOT) c.push(resolve(process.env.GEN2_EDGELABEL_ROOT));
-  for (const rel of ['../../EdgeLabel', '../../../GEN2 EdgeLabel Label Generator', '../GEN2 EdgeLabel Label Generator', '../../GEN2 EdgeLabel Label Generator', '../EdgeLabel'])
+  // the NEAREST sibling first: from the main checkout that is the main generator, from a paired worktree (GEN2 label-tool/) its pair
+  for (const rel of ['../../GEN2 EdgeLabel Label Generator', '../GEN2 EdgeLabel Label Generator', '../../EdgeLabel', '../../../GEN2 EdgeLabel Label Generator', '../EdgeLabel'])
     c.push(resolve(root, rel));
   return c.filter((p) => existsSync(join(p, 'label-link.js')));
 }
@@ -48,6 +54,26 @@ const ICONS = generatorIconIds() || ['nut', 'washer', 'screw-hex-socket', 'star'
 test('C-pin: the vendored generator file is the pinned one', () => {
   const sha = createHash('sha256').update(readFileSync(VENDORED)).digest('hex');
   assert.equal(sha, PIN, 'test/vendor/edgelabel-label-link.js changed without moving the pin (or the pin is stale). Copy the generator\'s label-link.js over it on purpose, then update PIN.');
+});
+
+test('C-deployed: a Release B job (it declares caps) still opens the DEPLOYED generator, and the new one reads the capability', () => {
+  assert.equal(createHash('sha256').update(readFileSync(DEPLOYED)).digest('hex'), DEPLOYED_PIN, 'the deployed copy changed without moving DEPLOYED_PIN');
+  const GD = require('./vendor/edgelabel-label-link.deployed.js');
+  const units = [unit(1, 0, 0, { label: 'Torx bits' }), unit(2, 1, 0)];
+  const view = { units: plain(units), faceStyle: 'edgelabel', labelStyle: null, buildId: 'abcdefghij12' };
+  const job = LR.buildLabelJob(view, { origin: PLANNER_ORIGIN, textMax: 40, cleanText: C.cleanText, cleanBadge: C.cleanBadge, cleanStyle: C.cleanStyle, labelOrder: C.labelOrder });
+  assert.deepEqual(plain(job.caps), ['label-list']);
+  const url = LR.jobUrl('https://edgelabel.jerrari3d.com/', ['Torx bits'], job);
+  const hash = url.slice(url.indexOf('#'));
+  const local = { servedFromLocalhost: PLANNER_ORIGIN.startsWith('http://localhost') };
+  const old = GD.parseJob(hash, local);
+  assert.equal(old.ok, true, 'the deployed validator ignores the unknown top-level key: ' + old.reason);
+  assert.equal(typeof GD.canEditPartLabels, 'undefined', 'the deployed generator knows nothing of capabilities (it lays out no hardware rows either)');
+  const now = GL.parseJob(hash, local);
+  assert.equal(now.ok, true);
+  assert.equal(GL.canEditPartLabels(now.job), true, 'the step 3 generator reads it');
+  const older = { ...job }; delete older.caps;
+  assert.equal(GL.canEditPartLabels(older), false, 'a job from an older planner: words only');
 });
 
 test('C-pin-2: the vendored copy equals the generator checkout\'s label-link.js, byte for byte', (t) => {

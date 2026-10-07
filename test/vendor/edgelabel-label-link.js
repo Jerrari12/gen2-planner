@@ -141,6 +141,22 @@ function parseJob(hash, opts) {
   return validateJob(job, opts);
 }
 
+/* What the planner that made a job can take back (Release B, LABEL-LIST-FORMAT.md section 3a item 3.1). `caps` is a short list
+   of names; ANYTHING malformed means no capabilities, and never refuses the job (a job is valid without it - every planner older
+   than Release B sends none). 'label-list': the planner keeps a structured label list, so part labels may come from it (the
+   laid-out hardware rows) and, when part-label editing in a linked set is built, may be edited there. A job without it comes from
+   a planner tab older than the label list: words only, and the page says to refresh that tab. */
+const CAPS_MAX = 16;
+const CAP_RE = /^[a-z][a-z0-9-]{0,31}$/;
+function jobCaps(job) {
+  const out = new Set();
+  const c = isObj(job) ? job.caps : null;
+  if (!Array.isArray(c) || c.length > CAPS_MAX) return out;
+  for (const x of c) if (typeof x === 'string' && CAP_RE.test(x)) out.add(x);
+  return out;
+}
+const canEditPartLabels = (job) => jobCaps(job).has('label-list');
+
 /* The legacy `#labels=<base64 JSON array of strings>` hand-off, exactly as the page has always read it. */
 function importedLabelsFromHash(hash) {
   try {
@@ -418,7 +434,7 @@ function parseSession(raw, opts) {
 return {
   PLANNER_ORIGINS, LOOPBACK_ORIGIN, JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, RETURN_JSON_MAX, JOB_VALUE_MAX, TEXT_MAX, TEXT_INPUT_MAX,
   STYLE_KEYS, STYLE_INPUT, STYLE_FLAGS, STYLE_LIMITS, STYLE_DEFAULTS,
-  canon, newId, encodeJob, decodeJob, originAllowed, hasJobParam, validateJob, parseJob, importedLabelsFromHash,
+  canon, newId, encodeJob, decodeJob, originAllowed, hasJobParam, validateJob, parseJob, jobCaps, canEditPartLabels, importedLabelsFromHash,
   hasWords, isLinked, hasContent, badgeRep, isUnsupplied, jobToRows,
   styleFromInputs, inputsFromStyle, styleEqual,
   returnCore, buildReturn, isUnsaved, parseAnswer, onAnswer, adoptApplied,

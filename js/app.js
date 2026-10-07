@@ -1,7 +1,9 @@
 /* GEN2 Planner — application logic.
    All catalog data and BOM rules live in js/data.js. */
 
-(function () {
+/* NAMED on purpose (Release B): gen2Planner.toString() is the exact source this tab runs, which the newer-deploy check compares
+   with the served js/app.js (see "A NEWER DEPLOY"). */
+(function gen2Planner() {
   "use strict";
 
   /* ----------------------------- State ----------------------------- */
@@ -2312,6 +2314,7 @@
     BUILD_FIELDS.forEach((k) => { if (k in data) state[k] = data[k]; });
     enforceMountLength(); // a stale/edited link can't restore an invalid mount+length (e.g. tabletop + 59)
     state.selectedUnit = null;
+    if (!history.restoring) checkLabelCopy();   // a build back without its label list, with a copy in this browser (BEFORE the save below)
     // Reflect the restored setup back into the controls.
     $("#printer-select").value = state.printer;
     if (state.customBed) { $("#bed-x").value = state.customBed.x ?? ""; $("#bed-y").value = state.customBed.y ?? ""; }
@@ -2364,6 +2367,7 @@
     if (history.stack.length > HISTORY_MAX) { history.stack.shift(); history.loadIds.shift(); }
     history.idx = history.stack.length - 1;
     saveSession(snap);   // auto-save: a closed tab costs nothing
+    rememberLabelCopy();
     updateHistoryButtons();
   }
   function snapshotHistory() {
@@ -2400,6 +2404,7 @@
     // undoing a change and closing the tab used to resume the UNDONE state
     // (found 2026-08-23 while proving the mount-switch rebase is atomic).
     saveSession(history.stack[history.idx]);
+    rememberLabelCopy();
     updateHistoryButtons();
   }
   function updateHistoryButtons() {
@@ -2545,6 +2550,128 @@
     box.appendChild(btn);
     const main = document.querySelector("main");
     if (main) main.prepend(box);
+  }
+
+  /* A NEWER DEPLOY (Release B: LABEL-LIST-FORMAT.md section 3a item 3.2; handoffs/label-release/step3/RELEASE-B-PROTECTIONS.md).
+     The planner is branch-deployed with no build stamp, so the tab compares the files it RUNS with the files the site SERVES:
+     - js/app.js EXACTLY: this script is the named function gen2Planner, and its source text is the bytes this tab executes; the
+       served app.js must still contain it verbatim, whatever the browser cache held at boot;
+     - js/label-list.js, js/label-return.js and js/data.js against the copy the browser held at boot (force-cache): approximate,
+       because another tab's fetch can refresh that cache entry first. app.js changes with nearly every deploy, so it carries
+       the check; these three cover a deploy that touches only them.
+     Checked on focus, on becoming visible and on coming back online, at most once a minute, with cache "no-cache" (a conditional
+     request; when a file changed, the HTTP cache now holds the new one, which is what makes a refresh load it). A deploy is
+     declared only when two checks at least a minute apart both differ WITH THE SAME RESULT, so a CDN edge serving old and new in
+     turn, or a deploy caught half-way, never raises the notice (Sol 01a11446). Then labels wait for a refresh: the linked
+     generator and Add labels / #labels-add= ask for one first. Only this tab and later ones can do any of this. */
+  const DEPLOY_FILES = ["js/label-list.js", "js/label-return.js", "js/data.js"];
+  const DEPLOY_CHECK_MS = 60 * 1000;
+  const deploy = { base: null, newer: false, last: -Infinity, busy: false, seen: null, seenAt: 0, timer: null };
+  const DEPLOY_FETCH_MS = 15 * 1000;   // a request that never answers must not wedge the check (Sol 01a11481)
+  const fnv1a = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); };
+  const canFetchSelf = () => typeof window.fetch === "function" && /^https?:$/.test(location.protocol);
+  const ownSource = () => { try { return gen2Planner.toString(); } catch (e) { return null; } };
+  async function fetchText(file, cache) {
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    const t = ctl ? setTimeout(() => ctl.abort(), DEPLOY_FETCH_MS) : null;
+    try {
+      const r = await window.fetch(file, ctl ? { cache, signal: ctl.signal } : { cache });
+      if (!r || !r.ok) throw new Error(file + " " + (r && r.status));
+      return await r.text();
+    } finally { if (t) clearTimeout(t); }
+  }
+  async function deployBaseline() {
+    if (!canFetchSelf()) return;
+    try { deploy.base = (await Promise.all(DEPLOY_FILES.map((f) => fetchText(f, "force-cache")))).map(fnv1a); }
+    catch (e) { deploy.base = null; }   // offline at boot: the first good check takes the baseline (app.js stays exact)
+  }
+  // one check; "same" (nothing changed), "pending" (changed once, confirm later), "newer" (declared), "skip" or "error"
+  async function checkDeploy(force) {
+    if (!canFetchSelf() || deploy.newer || deploy.busy) return "skip";
+    const now = Date.now();
+    if (!force && now - deploy.last < DEPLOY_CHECK_MS) return "skip";
+    deploy.busy = true;
+    try {
+      const app = await fetchText("js/app.js", "no-cache");
+      const others = (await Promise.all(DEPLOY_FILES.map((f) => fetchText(f, "no-cache")))).map(fnv1a);
+      deploy.last = Date.now();
+      if (!deploy.base) deploy.base = others;
+      const self = ownSource();
+      const sig = [self && app.includes(self) ? "=" : "app:" + fnv1a(app)]
+        .concat(others.map((h, i) => (h === deploy.base[i] ? "=" : h))).join("|");
+      if (/^=(\|=)*$/.test(sig)) { deploy.seen = null; return "same"; }
+      // the SAME answer again, at least a minute after the first - an "online" event or a forced check sooner than that waits
+      if (deploy.seen === sig && deploy.last - deploy.seenAt >= DEPLOY_CHECK_MS) {
+        deploy.newer = true; clearTimeout(deploy.timer); showNewerDeploy(); track("deploy:newer"); return "newer";
+      }
+      if (deploy.seen !== sig) { deploy.seen = sig; deploy.seenAt = deploy.last; }
+      clearTimeout(deploy.timer);
+      deploy.timer = setTimeout(() => { if (document.visibilityState !== "hidden") checkDeploy(true); }, DEPLOY_CHECK_MS);
+      return "pending";
+    } catch (e) {
+      return "error";   // offline or a failed request: the next focus, visibility or "online" event tries again
+    } finally { deploy.busy = false; }
+  }
+  function bindDeployCheck() {
+    const wake = () => { if (document.visibilityState !== "hidden") checkDeploy(false); };
+    window.addEventListener("focus", wake);
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("online", () => checkDeploy(true));
+  }
+  // the notice: soft, at the top of <main>, with a refresh that keeps the build
+  function showNewerDeploy() {
+    if (document.getElementById("newer-deploy-note")) return;
+    const box = document.createElement("div");
+    box.className = "warn warn-soft";
+    box.id = "newer-deploy-note";
+    box.setAttribute("role", "status");
+    const msg = document.createElement("div");
+    msg.textContent = "The planner was updated since this tab opened. Refresh to use the new version - your build is kept.";
+    box.appendChild(msg);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn small warn-fix";
+    btn.textContent = "Refresh now";
+    btn.addEventListener("click", () => refreshKeepingBuild());
+    box.appendChild(btn);
+    const main = document.querySelector("main");
+    if (main) main.prepend(box);
+  }
+  /* REFRESH, KEEPING THE BUILD (Sol 01a11446). Neither the shared session slot nor the address can be trusted for this: another
+     tab may have written the slot (or it holds a newer planner's build this tab may not overwrite), and a #build= link that
+     loaded is left in the address, so a plain reload reopens the LINK's build and drops every edit since. The current build goes
+     into sessionStorage, which belongs to this tab alone and survives the reload; boot applies it first (takeRefreshBuild). A
+     waiting #labels-add= stays in the address, so the refreshed tab adds those labels. If the build cannot be kept, nothing
+     reloads. */
+  const REFRESH_KEY = "gen2-refresh-build";
+  function refreshKeepingBuild() {
+    pushHistoryNow();
+    let kept = false;
+    try {
+      const json = JSON.stringify(serializeBuild());
+      window.sessionStorage.setItem(REFRESH_KEY, json);
+      kept = window.sessionStorage.getItem(REFRESH_KEY) === json;   // written AND readable, or nothing reloads (Sol 01a11481)
+    } catch (e) { kept = false; }
+    if (!kept) {
+      const msg = "This tab couldn't keep your build across a refresh (the browser's storage is unavailable or full). Save the build file first (Save & share), then refresh.";
+      setTrayStatus(msg, true); renderTray(); showLabelsNotice(msg);
+      const note = document.getElementById("newer-deploy-note");
+      if (note && note.firstChild) note.firstChild.textContent = msg;
+      return false;
+    }
+    const rest = (location.hash || "").replace(/^#/, "").split("&").filter((p) => p && !/^build=/.test(p)).join("&");
+    window.history.replaceState(null, "", location.pathname + location.search + (rest ? "#" + rest : ""));
+    track("deploy:refresh");
+    try { location.reload(); } catch (e) { /* jsdom */ }
+    return true;
+  }
+  // boot: a build this tab kept across its own refresh comes back FIRST (before a #build= link and the session resume)
+  function takeRefreshBuild() {
+    let raw = null;
+    try { raw = window.sessionStorage.getItem(REFRESH_KEY); if (raw !== null) window.sessionStorage.removeItem(REFRESH_KEY); }
+    catch (e) { return false; }
+    if (!raw) return false;
+    try { return applyBuild(JSON.parse(raw)); } catch (e) { return false; }
   }
 
   function showDamagedLink(offerSaved) {
@@ -3027,6 +3154,178 @@
     try { const a = JSON.parse(store.get(LABEL_BATCHES_KEY) || "[]"); return Array.isArray(a) ? a.filter((x) => typeof x === "string") : []; }
     catch (e) { return []; }
   }
+  /* SAME-BROWSER RECOVERY OF A DROPPED LABEL LIST (Release B: LABEL-LIST-FORMAT.md section 3a item 3.3; handoffs/label-release/
+     step3/RELEASE-B-PROTECTIONS.md). Every planner tab of the site writes ONE saved-session slot, and an older tab (from before the
+     carry-through, or one carrying only the list it loaded) can save a build back WITHOUT its label list. So this tab keeps, per
+     buildId, the last list it wrote, in localStorage "gen2-label-copies" (at most COPIES_MAX builds, each at most COPY_MAX_CHARS
+     of JSON), with each assigned drawer's geometry. When a build is LOADED (applyBuild, never an undo/redo) without a list and
+     this browser holds a copy for its buildId, the copy is offered back.
+     - A tab writes or deletes the copy only when ITS OWN list changed since it last wrote or loaded it (copyWritten), so a
+       second tab still holding an older list never writes it over a deletion made here by layout edits alone (Sol 01a11446),
+       and LOADING a build never replaces a copy this browser already holds (Sol 01a11481); with no copy yet, the first save
+       writes one. Two tabs both editing labels follow the session slot's own last-writer-wins: the second tab's save puts its
+       list back in the slot anyway.
+     - A copy too big to hold, or one that cannot be written, is DELETED: a stale copy is worse than none, it could bring back
+       labels removed since. A build whose list is gone here (its last label removed, an Undo before the labels) deletes its
+       copy - unless this tab has an offer open for that build.
+     - Restore keeps an assignment only where the drawer is still there with the geometry the copy recorded (unit ids are
+       build-local; a stale tab can mint an id the copy used for another drawer), then reconciles with the spec's OLDER-TOOL
+       rules, never the live editInPlace ones: a drawer the older tab cleared sends its label to the tray, a drawer it renamed
+       gets a new label (the original goes to the tray). Nothing is deleted or edited in place, so a coincidental id + geometry
+       match can never destroy a label (Sol 01a11446). The residual: an icon-only label on a replacement drawer with the same id,
+       geometry and no words stays attached.
+     - While an offer is open or set aside, labels are not added (importLabels): a new list would replace the copy at the next
+       save. Restore and Discard each end it and add any labels a link brought in the meantime.
+     - Limits: this browser only; a label removed on ANOTHER device after the copy was taken comes back (the notice shows the
+       copy's age, and Restore is one Undo step); a pre-carry-through tab on another device stays unrecoverable. */
+  const COPIES_KEY = "gen2-label-copies", COPIES_MAX = 5, COPY_MAX_CHARS = 512 * 1024, COPY_MAX_AGE = 30 * 24 * 3600 * 1000;
+  const copyWritten = new Map();          // buildId -> what THIS tab last wrote for it (JSON of [list, assign]; null = deleted)
+  const labelCopyOffer = { pending: null };   // { buildId, copy, n, setAside } while this tab offers a copy back
+  function readCopies() {
+    let o = null;
+    try { o = JSON.parse(window.localStorage.getItem(COPIES_KEY) || "null"); } catch (e) { o = null; }
+    return o && o.v === 1 && o.copies && typeof o.copies === "object" && !Array.isArray(o.copies) ? o : { v: 1, copies: {} };
+  }
+  function writeCopies(o) {
+    try {
+      if (Object.keys(o.copies).length) window.localStorage.setItem(COPIES_KEY, JSON.stringify(o));
+      else window.localStorage.removeItem(COPIES_KEY);
+      return true;
+    } catch (e) { return false; }
+  }
+  function dropCopy(id) {   // true when no copy of the build is left
+    const o = readCopies();
+    if (!o.copies[id]) return true;
+    delete o.copies[id];
+    return writeCopies(o);
+  }
+  const offerOpenFor = (id) => !!(labelCopyOffer.pending && labelCopyOffer.pending.buildId === id);
+  const currentList = () => (state.labelList && Array.isArray(state.labelList.labels) && state.labelList.labels.length ? state.labelList : null);
+  const copyKey = () => (currentList() ? JSON.stringify([state.labelList, state.labelAssign || {}]) : null);
+  // after every session save (pushHistoryNow, undoRedo)
+  function rememberLabelCopy() {
+    const id = state.buildId;
+    if (!id || offerOpenFor(id)) return;   // an open offer keeps its copy until Restore or Discard
+    const list = currentList();
+    const key = copyKey();
+    if (copyWritten.has(id) && copyWritten.get(id) === key) return;   // this tab's list has not changed since it last wrote (or loaded) it
+    copyWritten.set(id, key);
+    if (!list) { dropCopy(id); return; }
+    const geom = {};
+    for (const k of Object.keys(state.labelAssign || {})) {
+      const u = state.placed.find((p) => String(p.id) === k);
+      if (u) geom[k] = [u.x, u.y, u.w, u.hh];
+    }
+    const entry = { savedAt: Date.now(), list, assign: state.labelAssign || {}, geom };
+    let size = Infinity;
+    try { size = JSON.stringify(entry).length; } catch (e) { /* not JSON: too big to hold */ }
+    if (size > COPY_MAX_CHARS) { dropCopy(id); return; }   // no copy beats a stale one
+    const o = readCopies();
+    o.copies[id] = entry;
+    const ids = Object.keys(o.copies).sort((a, b) => (Number(o.copies[b].savedAt) || 0) - (Number(o.copies[a].savedAt) || 0));
+    for (const k of ids.slice(COPIES_MAX)) delete o.copies[k];
+    if (!writeCopies(o)) { dropCopy(id); copyWritten.delete(id); }   // full storage: delete what is there; the next save retries
+  }
+  // in applyBuild, for an EXTERNAL load only: a build arriving without its list, with a copy of it in this browser
+  function checkLabelCopy() {
+    labelCopyOffer.pending = null;   // a load ends any offer; a load of the same build decides again below
+    hideLabelCopyOffer();
+    const L = LL();
+    if (!L) return;
+    if (state.labelList) {
+      // a build arriving WITH a list: if this browser already holds a copy (perhaps newer - another tab's, or one taken before
+      // this older link or file was opened), the load does not replace it; the copy follows this tab's own changes from here
+      // (Sol 01a11481). With no copy yet, the first save writes one.
+      if (readCopies().copies[state.buildId]) copyWritten.set(state.buildId, copyKey());
+      else copyWritten.delete(state.buildId);
+      return;
+    }
+    const c = readCopies().copies[state.buildId];
+    if (!c || !c.list || !Array.isArray(c.list.labels) || typeof c.savedAt !== "number" || !(Date.now() - c.savedAt < COPY_MAX_AGE)) return;
+    const n = c.list.labels.filter((l) => L.assignable(l)).length;
+    if (!n) return;
+    labelCopyOffer.pending = { buildId: state.buildId, copy: c, n, setAside: false };
+    track("labels:copy-offered");
+  }
+  function hideLabelCopyOffer() {
+    const prev = document.getElementById("label-copy-offer");
+    if (prev) prev.remove();
+  }
+  // from renderTray (every refresh): the notice shows while the offered build is on the board and has no list of its own
+  function renderLabelCopyOffer() {
+    const p = labelCopyOffer.pending;
+    if (p && p.buildId === state.buildId && state.labelList) labelCopyOffer.pending = null;   // its list came back (an Undo/Redo)
+    const show = !!(labelCopyOffer.pending && labelCopyOffer.pending.buildId === state.buildId && !labelCopyOffer.pending.setAside);
+    const box = document.getElementById("label-copy-offer");
+    if (!show) { if (box) box.remove(); return; }
+    if (box) return;
+    const q = labelCopyOffer.pending;
+    const div = document.createElement("div");
+    div.className = "warn warn-soft";
+    div.id = "label-copy-offer";
+    div.setAttribute("role", "status");
+    const msg = document.createElement("div");
+    let when = "";
+    try { when = new Date(q.copy.savedAt).toLocaleString(); } catch (e) { when = "earlier"; }
+    msg.textContent = `This build came back without its label list - an older planner tab probably saved it. This browser kept a copy from ${when}: `
+      + `${q.n} ${plural(q.n, "label", "labels")}. Restore it? Drawers the older tab changed keep its words; their earlier labels go to the tray.`;
+    div.appendChild(msg);
+    const btn = (label, fn) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "btn small warn-fix"; b.textContent = label;
+      b.addEventListener("click", fn);
+      div.appendChild(b);
+    };
+    btn("Restore labels", () => restoreLabelCopy());
+    btn("Not now", () => { if (labelCopyOffer.pending) labelCopyOffer.pending.setAside = true; hideLabelCopyOffer(); });
+    btn("Discard the copy", () => discardLabelCopy());
+    const main = document.querySelector("main");
+    if (main) main.prepend(div);
+  }
+  function restoreLabelCopy() {
+    const p = labelCopyOffer.pending;
+    if (!p || p.buildId !== state.buildId || state.labelList) return false;
+    const c = p.copy;
+    const keep = {};
+    for (const [k, id] of Object.entries(c.assign || {})) {
+      const u = state.placed.find((x) => String(x.id) === k);
+      const g = c.geom && c.geom[k];
+      if (u && Array.isArray(g) && u.x === g[0] && u.y === g[1] && u.w === g[2] && u.hh === g[3]) keep[k] = id;
+    }
+    pushHistoryNow();   // flush any pending change WHILE the offer still protects the copy (labelAction's own flush is then a no-op)
+    labelCopyOffer.pending = null;
+    hideLabelCopyOffer();
+    copyWritten.delete(state.buildId);   // the save after the restore writes the restored list
+    const done = labelAction((Lm) => {
+      const r = Lm.reconcile(state.placed, c.list, keep);   // the older-tool rules: never deletes, never edits in place
+      if (!r.list.labels.length) return null;
+      const n = r.list.labels.length, on = new Set(Object.values(r.assignments)).size;
+      const moved = r.changes.filter((ch) => ch.kind === "cleared" || ch.kind === "edited").length;
+      return { state: { list: r.list, assignments: r.assignments },
+        msg: `Restored ${n} ${plural(n, "label", "labels")} (${on} on drawers).` + (moved ? ` ${moved} ${plural(moved, "drawer", "drawers")} the older tab changed kept its words; the earlier labels are in the tray.` : "") };
+    });
+    if (!done) { labelCopyOffer.pending = p; renderLabelCopyOffer(); return false; }   // nothing restorable after all: the offer stays
+    track("labels:copy-restored");
+    importFromHash();   // labels a link brought while the offer was open
+    return true;
+  }
+  function discardLabelCopy() {
+    const p = labelCopyOffer.pending;
+    if (!p) return false;
+    if (!window.confirm(`Discard the saved copy of ${p.n} ${plural(p.n, "label", "labels")}? It can't be brought back.`)) return false;
+    if (!dropCopy(p.buildId)) {   // the browser refused the delete: say so, and keep the offer
+      setTrayStatus("The copy could not be deleted (the browser's storage refused). It is still there.", true);
+      renderTray(); showLabelsNotice(tray.status);
+      return false;
+    }
+    copyWritten.set(p.buildId, null);
+    labelCopyOffer.pending = null;
+    hideLabelCopyOffer();
+    track("labels:copy-discarded");
+    importFromHash();
+    return true;
+  }
+
   function rememberBatch(id) {
     const a = seenBatches().filter((x) => x !== id);
     a.push(id);
@@ -3039,6 +3338,16 @@
     if (lastRefusedNewer || SESSION_HOLDS_NEWER) {   // the newer-build notice is up: these labels belong to that build
       setTrayStatus("These labels were not added: refresh this tab first (see the notice above).", true);
       renderTray();
+      return "refused";
+    }
+    if (deploy.newer) {   // a newer planner is deployed: a new label list starts in it (a #labels-add= stays in the address)
+      setTrayStatus("These labels were not added: the planner was updated since this tab opened. Refresh this tab first (your build is kept), then add them.", true);
+      renderTray(); showLabelsNotice(tray.status);
+      return "refused";
+    }
+    if (offerOpenFor(state.buildId)) {   // adding would start a new list, and the next save would replace the offered copy
+      setTrayStatus("These labels were not added yet: first restore or discard this build's earlier labels (see the notice above).", true);
+      renderTray(); showLabelsNotice(tray.status);
       return "refused";
     }
     const got = labelsFromDoc(doc);
@@ -3110,6 +3419,7 @@
   }
 
   function renderTray() {
+    renderLabelCopyOffer();
     const sec = $("#label-tray");
     if (!sec) return;
     const L = LL();
@@ -3266,6 +3576,11 @@
     const mod = LR();
     if (!mod || !/^https?:/.test(location.origin)) return;   // no module (or a file: page, whose origin is "null"): the plain one-way link
     e.preventDefault();
+    if (deploy.newer) {   // Release B: a new structured-label session starts in the deployed planner, not in this tab
+      showLabelGenNote("deploy", "The planner was updated since this tab opened. Refresh this tab before linking the label generator (your build is kept), or open it one-way - changes made there won't come back.",
+        [{ label: "Refresh now", fn: () => refreshKeepingBuild() }, { label: "Open one-way", fn: () => { window.open(a.href, "_blank", "noopener"); } }, { label: "Close" }]);
+      return;
+    }
     const field = $("#ut-label");
     if (field && document.activeElement === field) field.blur();   // commits a label still being typed (its change handler), so the job carries what is on screen
     const fdef = GEN2.faceplateStyles.find((s) => s.id === state.faceStyle);
@@ -6310,7 +6625,8 @@
   bindStepCollapse();
   applyBoardColors();
   refresh();
-  const sharedLink = loadBuildFromHash();   // open a shared #build=… link, if present
+  // a build this tab kept across its own "Refresh now" (refreshKeepingBuild) comes back FIRST
+  const sharedLink = takeRefreshBuild() ? "refreshed" : loadBuildFromHash();   // else open a shared #build=… link, if present
   // Resume the previous session's build — closing the tab shouldn't cost the
   // layout. Anything explicit wins: if the hash restored a build (or the page
   // somehow starts non-empty), skip. An empty saved state means the user
@@ -6318,7 +6634,7 @@
   // A DAMAGED share link also blocks the resume: silently showing the user's
   // own build under someone else's link is how a wrong BOM gets printed. The
   // banner offers the saved build as an explicit choice instead.
-  if (sharedLink !== "damaged" && sharedLink !== "newer" && !state.placed.length && LAST_BUILD_RAW) {
+  if (sharedLink !== "damaged" && sharedLink !== "newer" && sharedLink !== "refreshed" && !state.placed.length && LAST_BUILD_RAW) {
     try {
       const last = JSON.parse(LAST_BUILD_RAW);
       if (last && Array.isArray(last.placed) && last.placed.length && applyBuild(last)) track("resume-build");
@@ -6326,6 +6642,9 @@
   }
   // labels handed over by the generator (#labels-add=): they join the build this tab now has open, never replace it
   importFromHash();
+  // Release B: notice a newer deploy (the baseline is what this tab holds now; checks run on focus / visibility / online)
+  bindDeployCheck();
+  deployBaseline();
 
   /* Headless test hook. Attaches the live state and a few pure helpers to the
      window ONLY when a harness opts in by setting this flag truthy before the
@@ -6343,6 +6662,8 @@
       partLinks, setLinkSite, applyRemoteSite, linkSite: () => linkSite,
       cleanLabelBadge, cleanLabelStyle, cleanLabelText, labelOrder, shownLabel, layoutSig, newBuildId, syncOptionsToViewer,
       carryLabelData, LABEL_DATA_MAX, BUILD_SCHEMA, buildTooNew, sessionHoldsNewer: () => SESSION_HOLDS_NEWER,
+      deploy, checkDeploy, deployBaseline, refreshKeepingBuild, REFRESH_KEY, labelCopyOffer, readCopies, COPIES_KEY, COPIES_MAX,
+      COPY_MAX_CHARS, rememberLabelCopy, restoreLabelCopy, discardLabelCopy,
       syncLabels, trayTap, trayUnassign, trayRemove, setPick, importLabels, importFromHash, itemWords, hardwareByUnit, tray, drawerNumber,
       labelGenOrigins, plannerTabId, loadIdNow: () => loadId, labelQueueLength: () => labelQueue.length, labelOpenItem: () => labelOpen,
       viewerWinInfo: () => ({ has: !!viewerWin, closed: !!(viewerWin && viewerWin.closed), origin: viewerOrigin, isFrame: !!(viewerWin && $("#viewer-frame") && viewerWin === $("#viewer-frame").contentWindow), isGen: [...labelGenWin.values()].some((w) => w === viewerWin) }),

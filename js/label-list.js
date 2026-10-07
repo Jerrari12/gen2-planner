@@ -301,7 +301,9 @@ function reconcile(units, list, assignments, opts) {
     // never change behind the user's back.
     if (inPlace && soleCarrier(l)) {
       l.text = words;
-      if (badge) l.badge = badge; else delete l.badge;
+      // the mirror carries a built-in icon id or a letter, never an UPLOADED icon: when the label's badge is one the mirror
+      // cannot show, a mirror with no badge says nothing about it, and the icon stays (typing a word used to delete it)
+      if (badge) l.badge = badge; else if (!(visibleBadge(l) && !cleanBadge(l.badge))) delete l.badge;
       out[key] = l.id;
       changes.push({ unit: u.id, kind: 'edited-in-place', label: l.id });
       continue;

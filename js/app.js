@@ -2314,6 +2314,7 @@
     BUILD_FIELDS.forEach((k) => { if (k in data) state[k] = data[k]; });
     enforceMountLength(); // a stale/edited link can't restore an invalid mount+length (e.g. tabletop + 59)
     state.selectedUnit = null;
+    iconHold = null;   // a load or an undo/redo ends any pending "keep the icon?" question
     if (!history.restoring) checkLabelCopy();   // a build back without its label list, with a copy in this browser (BEFORE the save below)
     // Reflect the restored setup back into the controls.
     $("#printer-select").value = state.printer;
@@ -2720,21 +2721,47 @@
     }
   });
 
+  /* A max-size labelled build encodes to a ~30KB+ URL, and a label list can carry custom icon artwork (up to 64 KB an icon):
+     browsers take long links, but chat apps and some URL fields cut them short. So (Release B, LABEL-LIST-FORMAT.md 3b):
+     - over SHARE_LINK_LONG characters the link is still copied, and a note offers the build FILE as the reliable copy;
+     - over SHARE_LINK_MAX it is NOT copied (nobody can send it): the note offers the file instead.
+     The build is never trimmed to make a link fit - no icon, label or part record is dropped. The file is SAVE's file. */
+  const SHARE_LINK_LONG = 8000, SHARE_LINK_MAX = 256 * 1024;
+  function showShareNote(text) {
+    const box = $("#share-note");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!text) { box.hidden = true; return; }
+    const p = document.createElement("div");
+    p.textContent = text;
+    box.appendChild(p);
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "btn ghost small"; b.textContent = "Save the build file";
+    b.addEventListener("click", saveBuildToFile);
+    box.appendChild(b);
+    box.hidden = false;
+  }
   function shareLink() {
     if (!state.placed.length) return;
     track("share-link");
     const url = location.origin + location.pathname + "#build=" + encodeBuildHash();
-    // A max-size labelled build encodes to a ~30KB+ URL. Browsers take it, but
-    // chat apps and some URL fields truncate long links — steer big builds to
-    // the file export instead of letting the link break silently elsewhere.
-    const big = url.length > 8000;
+    const kb = Math.ceil(url.length / 1024);
+    const shareInput = $("#share-url");
+    if (url.length > SHARE_LINK_MAX) {
+      if (shareInput) shareInput.hidden = true;
+      track("share-link:too-big");
+      showShareNote(`This build is too big for a link (${kb} KB, mostly its labels' artwork), so no link was copied. Save the build file and send that instead - it keeps everything.`);
+      return;
+    }
+    const big = url.length > SHARE_LINK_LONG;
+    showShareNote(big ? `Copied, but it is a long link (${kb} KB): chat apps and some fields cut long links short. The build file is the reliable copy.` : "");
     const flash = () => {
       const b = $("#build-share"), t = b.dataset.label || b.textContent;
       b.dataset.label = t;
-      b.textContent = big ? "✓ Copied · big build · an exported file is safer" : "✓ Link copied!";
+      b.textContent = big ? "✓ Copied · long link" : "✓ Link copied!";
       setTimeout(() => { b.textContent = t; }, big ? 3500 : 1800);
     };
-    const fallback = () => { const i = $("#share-url"); i.hidden = false; i.value = url; i.focus(); i.select(); };
+    const fallback = () => { const i = shareInput; i.hidden = false; i.value = url; i.focus(); i.select(); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(flash, fallback);
     } else fallback();
@@ -3004,6 +3031,21 @@
   // a browser remembers the last 500 batches it added (12-character ids, about 7 KB): replay protection without unbounded storage
   const LABEL_BATCHES_KEY = "gen2-label-batches", LABEL_BATCHES_MAX = 500, LABEL_BATCH_RE = /^[a-z0-9]{8,32}$/;
   const tray = { pick: null, status: "", warn: false };
+  /* CLEARING A DRAWER'S WORDS ASKS WHETHER ITS ICON STAYS (LABEL-LIST-FORMAT.md section 3c; Sol 01a0fd07: an icon left behind
+     by accident would reappear). It applies to a plain label (no hardware item, no part record) that the drawer alone carries,
+     with a visible icon - the one case where clearing the field DELETES the label (editInPlace). While the field is empty and
+     still being edited, the drawer is HELD: syncLabels reconciles it as if its words were unchanged, so neither the 350 ms
+     snapshot nor a retype loses the label or its icon. The question comes when the field is committed (Enter, or leaving it):
+     OK keeps an icon-only label on the drawer, Cancel removes the label as before. Selecting another drawer, an Undo or a
+     load drops the hold without asking (the label goes, as it always did). */
+  let iconHold = null;   // the unit id held, or null
+  function holdableLabel(u) {
+    const L = LL();
+    if (!L || !u || !state.labelList || !state.labelAssign) return null;
+    const id = state.labelAssign[u.id], l = labelById(id);
+    if (!l || !labelWords(l) || !L.visibleBadge(l) || l.hardware || l.part) return null;
+    return Object.values(state.labelAssign).filter((v) => v === id).length === 1 ? l : null;
+  }
   const labelsOf = () => (state.labelList && Array.isArray(state.labelList.labels) ? state.labelList.labels : []);
   const labelById = (id) => labelsOf().find((l) => l.id === id) || null;
   const labelWords = (l) => (l && typeof l.text === "string" ? l.text.trim() : "");
@@ -3016,13 +3058,27 @@
   function syncLabels() {
     const L = LL();
     if (!L || !state.labelList) return false;
-    const r = L.reconcile(state.placed, state.labelList, state.labelAssign, { editInPlace: true });
+    let units = state.placed;
+    if (iconHold !== null) {
+      const held = state.selectedUnit === iconHold ? state.placed.find((u) => u.id === iconHold) : null;
+      const l = held && !cleanLabelText(held.label) ? holdableLabel(held) : null;
+      if (l) {
+        const m = L.mirrorOf(state.labelList, { [held.id]: l.id })[held.id] || {};
+        units = state.placed.map((u) => (u === held ? Object.assign({}, u, { label: m.label, labelBadge: m.labelBadge }) : u));
+      } else releaseIconHold();
+    }
+    const r = L.reconcile(units, state.labelList, state.labelAssign, { editInPlace: true });
     const none = !r.list.labels.length;
     const list = none ? null : r.list, assign = none ? null : r.assignments;
     if (JSON.stringify([list, assign]) === JSON.stringify([state.labelList, state.labelAssign])) return false;
     state.labelList = list; state.labelAssign = assign;
     if (tray.pick && !labelById(tray.pick)) tray.pick = null;
     return true;
+  }
+  function releaseIconHold() {
+    const u = iconHold !== null ? state.placed.find((x) => x.id === iconHold) : null;
+    if (u && !cleanLabelText(u.label)) delete u.labelBadge;   // the old rule, now that the words are gone for good
+    iconHold = null;
   }
   // unit.label / unit.labelBadge from the list: an assigned drawer shows its label's mirror (an icon-only label has none), an
   // unassigned drawer shows nothing (after a sync every worded drawer is assigned, so this only clears what an operation took off)
@@ -6400,8 +6456,11 @@
       // stored AS TYPED - the board, the exports and the generator show it in
       // the build's label style (shownLabel), ALL CAPS unless that is turned off
       const v = cleanLabelText(e.target.value);
-      // clearing the words clears the icon picked for them (cleanLabelBadge)
-      if (v) u.label = v; else { delete u.label; delete u.labelBadge; }
+      // clearing the words clears the icon picked for them (cleanLabelBadge) - unless the drawer's label is one that clearing
+      // would DELETE with its icon: that is held until the field is committed, which asks (iconHold)
+      if (v) { u.label = v; if (iconHold === u.id) iconHold = null; }
+      else if (holdableLabel(u)) { delete u.label; iconHold = u.id; }
+      else { delete u.label; delete u.labelBadge; }
       renderBoard();
       updateLabelGenLink();   // keep the handoff link's labels current as you type
       // The label is build state like any other: give it the SAME coalesced
@@ -6427,6 +6486,24 @@
       // re-read the field into state: a viewer options post that arrived mid-word was kept off THIS unit (the handler above),
       // so the field, not state, holds the truth until this commit
       const v = cleanLabelText(e.target.value);
+      if (!v && iconHold === u.id && holdableLabel(u)) {
+        const keep = window.confirm("Keep the icon on this drawer, with no words?\n\nOK: the drawer keeps an icon-only label.\nCancel: the label is removed.");
+        if (keep) {
+          const id = state.labelAssign[u.id];
+          labelAction((Lm, cur) => {   // still held during labelAction's own flush, so the label is intact here
+            const l = cur.list.labels.find((x) => x.id === id);
+            if (!l) return null;
+            l.text = "";
+            return { state: cur, msg: "The drawer keeps its icon, with no words." };
+          });
+          iconHold = null;
+          refresh();
+          updateLabelGenLink();
+          syncLayoutToViewer();
+          return;
+        }
+      }
+      if (iconHold === u.id) releaseIconHold();
       if (v) u.label = v; else { delete u.label; delete u.labelBadge; }
       renderBoard();
       updateLabelGenLink();
@@ -6663,7 +6740,8 @@
       cleanLabelBadge, cleanLabelStyle, cleanLabelText, labelOrder, shownLabel, layoutSig, newBuildId, syncOptionsToViewer,
       carryLabelData, LABEL_DATA_MAX, BUILD_SCHEMA, buildTooNew, sessionHoldsNewer: () => SESSION_HOLDS_NEWER,
       deploy, checkDeploy, deployBaseline, refreshKeepingBuild, REFRESH_KEY, labelCopyOffer, readCopies, COPIES_KEY, COPIES_MAX,
-      COPY_MAX_CHARS, rememberLabelCopy, restoreLabelCopy, discardLabelCopy,
+      COPY_MAX_CHARS, rememberLabelCopy, restoreLabelCopy, discardLabelCopy, shareLink, SHARE_LINK_LONG, SHARE_LINK_MAX,
+      iconHoldNow: () => iconHold,
       syncLabels, trayTap, trayUnassign, trayRemove, setPick, importLabels, importFromHash, itemWords, hardwareByUnit, tray, drawerNumber,
       labelGenOrigins, plannerTabId, loadIdNow: () => loadId, labelQueueLength: () => labelQueue.length, labelOpenItem: () => labelOpen,
       viewerWinInfo: () => ({ has: !!viewerWin, closed: !!(viewerWin && viewerWin.closed), origin: viewerOrigin, isFrame: !!(viewerWin && $("#viewer-frame") && viewerWin === $("#viewer-frame").contentWindow), isGen: [...labelGenWin.values()].some((w) => w === viewerWin) }),

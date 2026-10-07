@@ -296,6 +296,8 @@
             </div>
             <button type="button" class="btn ghost small" id="build-share">🔗 Copy share link</button>
             <input type="text" class="share-url" id="share-url" readonly hidden aria-label="Shareable build link" />
+            <!-- a link too long to travel safely: the build FILE is offered instead (Release B, LABEL-LIST-FORMAT.md 3b) -->
+            <div class="share-note" id="share-note" role="status" hidden></div>
             <!-- dev machines only (unhidden by IS_LOCAL_DEV): author an official
                  kit file for the 3D Build Studio's builds/ folder -->
             <button type="button" class="btn ghost small" id="build-official" hidden title="Export this layout as an official kit file for the 3D Build Studio (dev only)">📦 Export official kit</button>

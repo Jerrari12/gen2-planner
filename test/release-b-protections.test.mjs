@@ -399,3 +399,97 @@ test('RB-17: a check whose request never answers is aborted, so the next check c
   assert.equal(app.deploy.busy, false, 'not wedged');
   window.close();
 });
+
+/* ------------------------------------------------------------------------------------------------ found 2026-10-07 */
+
+test('RB-18: typing new words over a label in the drawer field keeps its UPLOADED icon (the mirror cannot carry it)', () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>';
+  const b = labelBuild({ labelList: { format: 'modulith-labels', version: 1, labels: [{ id: 'iconlabel001', text: 'Bolts', badge: { type: 'icon', svg } }] },
+    labelAssign: { 1: 'iconlabel001' } }, [unit(1, 0, 0, { label: 'Bolts' }), unit(2, 1, 0)]);
+  const { app, window } = boot({ build: b });
+  app.state.selectedUnit = 1; app.refresh();
+  const f = window.document.getElementById('ut-label');
+  f.value = 'Bolts M5'; f.dispatchEvent(new window.Event('input'));
+  app.pushHistoryNow();
+  const l = app.state.labelList.labels.find((x) => x.id === app.state.labelAssign[1]);
+  assert.equal(l.id, 'iconlabel001', 'edited in place');
+  assert.equal(l.text, 'Bolts M5');
+  assert.deepEqual(plain(l.badge), { type: 'icon', svg }, 'the artwork survives');
+  window.close();
+});
+
+/* ------------------------------------------------------------------------------------------------ LABEL-LIST-FORMAT.md 3c */
+
+function iconDrawer(badge, extra = {}) {
+  const b = labelBuild({ labelList: { format: 'modulith-labels', version: 1, labels: [{ id: 'iconlabel001', text: 'Bolts', badge, ...extra }] },
+    labelAssign: { 1: 'iconlabel001' } }, [unit(1, 0, 0, badge && badge.value ? { label: 'Bolts', labelBadge: badge } : { label: 'Bolts' }), unit(2, 1, 0)]);
+  const r = boot({ build: b });
+  r.app.state.selectedUnit = 1; r.app.refresh();
+  const f = r.window.document.getElementById('ut-label');
+  f.focus();
+  const type = (v) => { f.value = v; f.dispatchEvent(new r.window.Event('input')); };
+  const commit = () => f.dispatchEvent(new r.window.Event('change'));
+  return { ...r, f, type, commit };
+}
+const labelOf = (app, unitId) => app.state.labelAssign && app.state.labelList && app.state.labelList.labels.find((l) => l.id === app.state.labelAssign[unitId]);
+
+test('RB-19: clearing the words of a sole label with an icon HOLDS it while editing, then asks; OK keeps an icon-only label (one Undo step)', () => {
+  const { app, window, type, commit } = iconDrawer({ type: 'icon', value: 'nut' });
+  type('');
+  app.pushHistoryNow();   // the 350 ms snapshot while the field is still empty
+  assert.equal(app.iconHoldNow(), 1, 'held');
+  assert.equal(labelOf(app, 1).text, 'Bolts', 'the label is not deleted while the field is being edited');
+  const asked = [];
+  window.confirm = (m) => { asked.push(m); return true; };
+  const before = app.history.stack.length;
+  commit();
+  assert.equal(asked.length, 1);
+  assert.match(asked[0], /Keep the icon on this drawer/);
+  const l = labelOf(app, 1);
+  assert.equal(l.id, 'iconlabel001');
+  assert.equal(l.text, '', 'an icon-only label');
+  assert.deepEqual(plain(l.badge), { type: 'icon', value: 'nut' });
+  assert.equal(app.state.placed.find((u) => u.id === 1).label, undefined, 'the mirror has no words (an older tool cannot show an icon-only drawer)');
+  assert.equal(app.history.stack.length, before + 1, 'one Undo step');
+  app.pushHistoryNow();
+  assert.equal(labelOf(app, 1).text, '', 'a later sync keeps it (icon-only labels survive an empty mirror)');
+  window.close();
+});
+
+test('RB-20: Cancel removes the label as before; a label with no icon is removed without a question; retyping keeps the icon', () => {
+  let r = iconDrawer({ type: 'icon', value: 'nut' });
+  r.type(''); r.app.pushHistoryNow();
+  r.window.confirm = () => false;
+  r.commit();
+  assert.equal(r.app.state.labelList, null, 'Cancel: the label (the only one) is gone');
+  r.window.close();
+  r = iconDrawer(null);
+  let asked = 0;
+  r.window.confirm = () => { asked++; return true; };
+  r.type(''); r.commit();
+  assert.equal(asked, 0, 'no icon: no question');
+  assert.equal(r.app.state.labelList, null);
+  r.window.close();
+  r = iconDrawer({ type: 'icon', value: 'nut' });
+  r.type(''); r.app.pushHistoryNow(); r.type('Bolts M5'); r.app.pushHistoryNow();
+  assert.equal(r.app.iconHoldNow(), null, 'retyping releases the hold');
+  assert.equal(labelOf(r.app, 1).text, 'Bolts M5');
+  assert.deepEqual(plain(labelOf(r.app, 1).badge), { type: 'icon', value: 'nut' }, 'clear-and-retype keeps the icon');
+  r.window.close();
+});
+
+test('RB-21: a shared or hardware label is never held (clearing only unassigns it, the icon stays with it in the tray)', () => {
+  const b = labelBuild({ labelList: { format: 'modulith-labels', version: 1, labels: [{ id: 'sharedlab001', text: 'Bolts', badge: { type: 'icon', value: 'nut' } }] },
+    labelAssign: { 1: 'sharedlab001', 2: 'sharedlab001' } }, [unit(1, 0, 0, { label: 'Bolts', labelBadge: { type: 'icon', value: 'nut' } }), unit(2, 1, 0, { label: 'Bolts', labelBadge: { type: 'icon', value: 'nut' } })]);
+  const { app, window } = boot({ build: b });
+  app.state.selectedUnit = 1; app.refresh();
+  const f = window.document.getElementById('ut-label');
+  f.focus(); f.value = ''; f.dispatchEvent(new window.Event('input'));
+  assert.equal(app.iconHoldNow(), null);
+  let asked = 0; window.confirm = () => { asked++; return true; };
+  f.dispatchEvent(new window.Event('change'));
+  assert.equal(asked, 0);
+  assert.ok(app.state.labelList.labels.some((l) => l.id === 'sharedlab001'), 'the shared label stays (on drawer 2)');
+  assert.equal(app.state.labelAssign[1], undefined);
+  window.close();
+});

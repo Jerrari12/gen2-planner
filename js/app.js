@@ -2339,6 +2339,22 @@
      restore's own refresh doesn't re-snapshot. */
   const HISTORY_MAX = 50;
   const history = { stack: [], loadIds: [], idx: -1, timer: null, restoring: false };
+  /* A #build= LINK STOPS CLAIMING THE BOARD ONCE THE BOARD CHANGES. A link that loads stays in the address (back/forward between
+     links, a refresh of an untouched link), but a refresh reloads the CURRENT address - so after an edit, F5 reopened the
+     link's build and silently dropped every edit since (the session resume is skipped because the board is not empty). Now the
+     first history entry that differs from the build the link loaded (an edit, another load, an undo past it) drops build= from
+     the address, keeping any other fragment parts; a refresh then resumes the session like any other tab. A damaged link and a
+     refused newer build keep their hash, as before (their own notices handle them). */
+  let linkSnap = null;   // the snapshot a #build= link loaded, while the address still names it
+  function rememberLinkBuild() { pushHistoryNow(); linkSnap = history.stack[history.idx] || null; }
+  function forgetLink() {
+    linkSnap = null;
+    const parts = (location.hash || "").replace(/^#/, "").split("&").filter(Boolean);
+    if (!parts.some((p) => /^build=/.test(p))) return;
+    const rest = parts.filter((p) => !/^build=/.test(p)).join("&");
+    // window.history: the undo object above is named `history` and shadows the global
+    window.history.replaceState(null, "", location.pathname + location.search + (rest ? "#" + rest : ""));
+  }
   /* A BUILD-LOADING SESSION (label plan step 3, STEP3-SPEC section 6.6). Unit ids are only unique inside one build, and one build
      can come back in an older form: a share link, a saved file, Undo through a load, "Surprise me". A label job remembers the
      loadId it was made in; a return from a job of ANOTHER session is reviewed line by line, never pre-ticked - drawer id +
@@ -2367,6 +2383,7 @@
     history.loadIds.push(loadId);
     if (history.stack.length > HISTORY_MAX) { history.stack.shift(); history.loadIds.shift(); }
     history.idx = history.stack.length - 1;
+    if (linkSnap !== null && snap !== linkSnap) forgetLink();   // the board changed: the address no longer names it
     saveSession(snap);   // auto-save: a closed tab costs nothing
     rememberLabelCopy();
     updateHistoryButtons();
@@ -2400,6 +2417,7 @@
     // next undo's flush sees a "change" and pushes a phantom entry, making
     // every second undo press a no-op.
     history.stack[history.idx] = JSON.stringify(serializeBuild());
+    if (linkSnap !== null && history.stack[history.idx] !== linkSnap) forgetLink();   // undone past the link's build
     // The auto-save must follow an undo too: pushHistoryNow() is the only
     // other writer and the restore's refresh() is guarded out of it, so
     // undoing a change and closing the tab used to resume the UNDONE state
@@ -2504,7 +2522,7 @@
   function loadBuildFromHash() {
     const m = (location.hash || "").match(/build=([^&]+)/);
     if (!m) return false;
-    if (applyBuildHash(m[1])) return true;
+    if (applyBuildHash(m[1])) { rememberLinkBuild(); return true; }
     if (lastRefusedNewer) return "newer";   // its own notice is up; the hash stays so a refresh opens it
     showDamagedLink(true);
     track("error:share-link-damaged");
@@ -2713,6 +2731,7 @@
     const m = (location.hash || "").match(/build=([^&]+)/);
     if (!m) return;                                   // not a share link - not ours
     if (applyBuildHash(m[1])) {
+      rememberLinkBuild();
       const prev = document.getElementById("share-link-warn");
       if (prev) prev.remove();                        // a good link supersedes the warning
     } else if (!lastRefusedNewer) {

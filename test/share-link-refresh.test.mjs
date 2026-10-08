@@ -71,6 +71,41 @@ test('SL-5: a link opened into an open tab, then edited: dropped from the addres
   assert.doesNotMatch(a.window.location.hash, /build=/);
 });
 
+// a second link opened into the same tab (pasted, or back/forward between links) while the first is still untouched
+function navigate(a, hash) {
+  a.window.location.hash = hash;
+  a.window.dispatchEvent(new a.window.HashChangeEvent('hashchange'));
+}
+const OTHER = labelBuild({}, [unit(1, 0, 0, { label: 'Washers' })]);
+
+test('SL-7: untouched link A, then link B: B keeps its address (A\'s build is not compared against B) (Sol 01a118d9)', () => {
+  const a = boot(URL0 + '#build=' + enc(LINKED));
+  navigate(a, '#build=' + enc(OTHER));
+  assert.equal(labels(a.app), 'Washers');
+  assert.match(a.window.location.hash, /build=/, 'the newly opened link stays in the address');
+  const b = refresh(a);
+  assert.equal(labels(b.app), 'Washers');
+  edit(a.app, 'Hinges');
+  assert.doesNotMatch(a.window.location.hash, /build=/, 'an edit to B still drops it');
+});
+
+test('SL-8: untouched link A, then a damaged link: an edit keeps the damaged hash (its notice owns it) (Sol 01a118d9)', () => {
+  const a = boot(URL0 + '#build=' + enc(LINKED));
+  navigate(a, '#build=not-a-build');
+  assert.ok(a.window.document.getElementById('share-link-warn'), 'the damaged-link notice is up');
+  edit(a.app, 'Screws');
+  assert.match(a.window.location.hash, /build=not-a-build/);
+});
+
+test('SL-9: untouched link A, then a build too new for this planner: an edit keeps its hash, so a refresh after an update opens it (Sol 01a118d9)', () => {
+  const a = boot(URL0 + '#build=' + enc(LINKED));
+  const newer = '#build=' + enc({ ...plain(OTHER), schema: 99 });
+  navigate(a, newer);
+  assert.equal(labels(a.app), 'Bolts,Nuts', 'the newer build was refused; the board is unchanged');
+  edit(a.app, 'Screws');
+  assert.equal(a.window.location.hash, newer);
+});
+
 test('SL-6: undo back past the link load drops it too, and a refresh resumes the undone-to build', () => {
   const start = labelBuild({}, [unit(1, 0, 0, { label: 'Mine' })]);
   const a = boot(URL0);

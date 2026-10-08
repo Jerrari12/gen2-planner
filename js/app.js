@@ -2728,6 +2728,10 @@
   // build= hashes; reads location.hash rather than the event so back/forward
   // between shared links restores each one through the same path.
   window.addEventListener("hashchange", () => {
+    // the address changed, so the link it named before no longer claims anything: without this, opening link B over an
+    // untouched link A compared B against A and dropped B's own build=, and a damaged or too-new link lost its hash at the
+    // next edit (Sol 01a118d9). A valid load below remembers the new link.
+    linkSnap = null;
     const m = (location.hash || "").match(/build=([^&]+)/);
     if (!m) return;                                   // not a share link - not ours
     if (applyBuildHash(m[1])) {

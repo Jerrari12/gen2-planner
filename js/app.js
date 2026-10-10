@@ -3628,7 +3628,23 @@
     }
     return out;
   }
-  const labelView = () => ({ units: state.placed, faceStyle: state.faceStyle, labelStyle: state.labelStyle, buildId: state.buildId, hardware: hardwareByUnit(), uploads: uploadsByUnit() });
+  /* the drawers whose label is ICON-ONLY (no words: the mirror carries nothing): unit id -> { value } (a catalog icon id) or
+     { char } (a letter), plus { svg } for an uploaded icon - so the label generator shows and prints it instead of an empty row */
+  function iconOnlyByUnit() {
+    const L = LL();
+    const out = {};
+    if (!L || !state.labelAssign) return out;
+    for (const u of state.placed) {
+      if (u.fill !== "decor" || cleanLabelText(u.label)) continue;
+      const l = labelById(state.labelAssign[u.id]);
+      if (!l || !L.iconOnly(l)) continue;
+      const b = L.cleanBadge(l.badge, { svg: true });
+      if (b && b.type === "char") out[u.id] = { char: b.value };
+      else if (b && b.type === "icon") out[u.id] = { ...(b.value ? { value: b.value } : {}), ...(b.svg ? { svg: b.svg } : {}) };
+    }
+    return out;
+  }
+  const labelView = () => ({ units: state.placed, faceStyle: state.faceStyle, labelStyle: state.labelStyle, buildId: state.buildId, hardware: hardwareByUnit(), uploads: uploadsByUnit(), iconOnly: iconOnlyByUnit() });
   const labelCtx = (extra) => ({ origin: location.origin, textMax: LABEL_MAX, loadId, plannerTabId, newId: newBuildId,
     cleanText: cleanLabelText, cleanBadge: cleanLabelBadge, cleanStyle: cleanLabelStyle, labelOrder, ...extra });
   function labelStore() {
@@ -3735,6 +3751,22 @@
     if (bound) { if (bound !== e.source) return; } else labelGenWin.set(jobId, e.source);
     if (d.gen2label === "hello") return onLabelHello(e, d, mod);
     if (d.gen2label === "return") return onLabelReturn(e, d, mod);
+    if (d.gen2label === "need-uploads") return onLabelNeedUploads(e, d);
+  }
+  /* A linked generator asks for the drawers' icons its job was too small to carry (`up: true`): answer with the SVG this build
+     holds for each drawer asked about, posted to that window only (ChatGPT's second review via Joey: an uploaded icon must
+     not quietly drop out of the print). A drawer without one is left out; the generator keeps waiting and says so. */
+  function onLabelNeedUploads(e, d) {
+    if (d.v !== 1 || d.family !== "edgelabel" || !Array.isArray(d.units)) return;
+    if (d.buildId !== state.buildId) { postLabel(e.source, e.origin, { gen2label: "refused", v: 1, jobId: d.jobId, reason: "other-build" }); return; }
+    const svgs = new Map(Object.entries(uploadsByUnit()));
+    for (const [id, v] of Object.entries(iconOnlyByUnit())) if (typeof v.svg === "string") svgs.set(id, v.svg);
+    const rows = [];
+    for (const u of new Set(d.units.slice(0, 400))) {
+      const svg = Number.isInteger(u) ? svgs.get(String(u)) : undefined;
+      if (typeof svg === "string") rows.push({ u, up: svg });
+    }
+    postLabel(e.source, e.origin, { gen2label: "uploads", v: 1, jobId: d.jobId, rows });
   }
   function onLabelHello(e, d, mod) {
     if (d.v !== 1 || d.family !== "edgelabel") return;

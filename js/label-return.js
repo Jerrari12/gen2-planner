@@ -75,14 +75,22 @@ const JOB_CAPS = Object.freeze(['label-list']);
    relayed by Joey 2026-10-09: an uploaded icon survives the trip). A row key the deployed generator ignores: there the row
    is what it was. Past JOB_UP_MAX of encoded SVG in one job a row carries `up: true` instead - the drawer has one, this job
    does not carry it - so a full job still fits JOB_URL_MAX (400 rows of 40 characters + this budget, base64url'd). */
-const JOB_UP_MAX = 96 * 1024;   // UTF-8 bytes of JSON-encoded SVG per job
-/* view: { units: state.placed, faceStyle, labelStyle, buildId, hardware?, uploads? } (uploads: unit id -> the SVG text)
+const JOB_UP_MAX = 96 * 1024;   // UTF-8 bytes of JSON-encoded SVG per job; a generator that needs the rest asks over the link
+/* A drawer whose label is ICON-ONLY (no words, so the mirror and the row's `t` carry nothing) sends it as the row's `io`:
+   { value } its catalog icon id, { char } its letter, {} neither - its uploaded SVG then rides in `up` under the same budget
+   (ChatGPT's second review via Joey: an icon-only label must not come out blank). A row key the deployed generator ignores.
+   view: { units: state.placed, faceStyle, labelStyle, buildId, hardware?, uploads?, iconOnly? } (uploads: unit id -> the SVG
+   text; iconOnly: unit id -> { value? , char?, svg? })
    ctx:  { origin, textMax, jobId?, baseRev?, newId?, cleanText, cleanBadge, cleanStyle, labelOrder }
    EVERY decor unit, in labelOrder (Classic drawers have no label slot). */
 function buildLabelJob(view, ctx) {
   const decor = ctx.labelOrder(view.units.filter((u) => u.fill === 'decor'));
   const mint = ctx.newId || newId;
   let upLeft = JOB_UP_MAX;
+  const giveUp = (row, svg) => {
+    const n = byteLength(JSON.stringify(svg));   // the job's limits are UTF-8 bytes
+    if (n <= upLeft) { row.up = svg; upLeft -= n; } else row.up = true;
+  };
   return {
     v: 1, family: 'edgelabel', jobId: ctx.jobId || mint(), buildId: view.buildId, baseRev: ctx.baseRev || mint(),
     origin: ctx.origin, textMax: ctx.textMax, caps: JOB_CAPS.slice(),
@@ -95,9 +103,11 @@ function buildLabelJob(view, ctx) {
       const hw = view.hardware && view.hardware[u.id];
       if (hw && t) row.hw = hw;
       const up = view.uploads && view.uploads[u.id];
-      if (typeof up === 'string' && t && !row.hw) {
-        const n = byteLength(JSON.stringify(up));   // the job's limits are UTF-8 bytes
-        if (n <= upLeft) { row.up = up; upLeft -= n; } else row.up = true;
+      if (typeof up === 'string' && t && !row.hw) giveUp(row, up);
+      const io = !t && view.iconOnly && view.iconOnly[u.id];
+      if (io) {
+        row.io = typeof io.value === 'string' ? { value: io.value } : typeof io.char === 'string' ? { char: io.char } : {};
+        if (typeof io.svg === 'string') giveUp(row, io.svg);
       }
       return row;
     }),

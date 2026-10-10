@@ -119,3 +119,76 @@ test('P-up-6: a change to a drawer\'s uploaded icon ALONE re-posts the layout to
   assert.equal(after.at(-1).build.labelList.labels.find((l) => l.id === 'lbllogo00001').badge.svg, SVG2);
   p.close();
 });
+
+/* ChatGPT's second review, relayed by Joey 2026-10-09: an icon the job could not carry must not quietly drop out of the print -
+   the linked generator ASKS for it over the link and the planner answers; and an icon-only label reaches the generator instead
+   of arriving as an empty row. */
+function bigBuild() {
+  const big = '<svg xmlns="http://www.w3.org/2000/svg">' + '<path d="M0 0H1V1H0Z"/>'.repeat(2500) + '</svg>';   // ~60 KB each
+  const labels = [], assign = {}, units = {};
+  for (let i = 3; i <= 6; i++) { labels.push({ id: 'lblbig00000' + i, text: 'Big ' + i, badge: { type: 'icon', svg: big + '<!--' + i + '-->' }, manual: true }); assign[i] = 'lblbig00000' + i; units[i] = { label: 'Big ' + i }; }
+  return { big, build: buildWithUpload(big, { labels, assign, units }) };
+}
+
+test('P-up-7: a linked generator asks for the icons its job could not carry, and gets exactly those, from this build, in that window only', () => {
+  const { big, build } = bigBuild();
+  const p = labelPlanner({ build });
+  const { job } = startJob(p);
+  p.post(helloOf(job));
+  const waiting = job.rows.filter((r) => r.up === true).map((r) => r.u);
+  assert.deepEqual(waiting, [3, 4, 5, 6]);
+  p.post(GL.uploadsRequest({ job }, [...waiting, 99]));
+  const ans = p.answers('uploads');
+  assert.equal(ans.length, 1);
+  assert.ok(GL.parseAnswer(ans[0]), 'the generator accepts the answer');
+  assert.equal(ans[0].jobId, job.jobId);
+  assert.deepEqual(ans[0].rows.map((r) => r.u), [3, 4, 5, 6], 'a drawer with no upload (99) is left out');
+  for (const r of ans[0].rows) assert.equal(GL.upOf(r), big + '<!--' + r.u + '-->', `drawer ${r.u}'s own upload`);
+  assert.equal(p.fromPlanner.at(-1).o, GEN_ORIGIN, 'posted to the generator origin, never "*"');
+  // not the window bound to the job, not the generator's origin, another build, a bad shape: no uploads
+  const other = p.mkWin([]);
+  p.post(GL.uploadsRequest({ job }, [3]), { source: other });
+  p.post(GL.uploadsRequest({ job }, [3]), { origin: 'https://evil.example' });
+  p.post({ ...GL.uploadsRequest({ job }, [3]), units: 'all' });
+  assert.equal(p.answers('uploads').length, 1, 'none of those got an answer');
+  p.post({ ...GL.uploadsRequest({ job }, [3]), buildId: 'z'.repeat(12) });
+  assert.equal(p.answers('refused').at(-1).reason, 'other-build');
+  assert.equal(p.answers('uploads').length, 1);
+  p.close();
+});
+
+test('P-io-1: an icon-only label goes in the job as `io` (icon id, letter, or an upload in `up`); the deployed generator ignores it; an untouched return keeps it', () => {
+  const units = { 3: { label: undefined }, 4: { label: undefined }, 5: { label: undefined } };
+  const p = labelPlanner({ build: buildWithUpload(SVG, {
+    labels: [
+      { id: 'lblionly0003', text: '', badge: { type: 'icon', value: 'nut' }, manual: true },
+      { id: 'lblionly0004', text: '', badge: { type: 'char', value: 'A' }, manual: true },
+      { id: 'lblionly0005', text: '', badge: { type: 'icon', svg: SVG }, manual: true },
+    ],
+    assign: { 3: 'lblionly0003', 4: 'lblionly0004', 5: 'lblionly0005' }, units }) });
+  assert.equal(p.app.state.labelAssign[3], 'lblionly0003', 'the icon-only labels stay assigned');
+  const { job, url } = startJob(p);
+  const row = (u) => job.rows.find((r) => r.u === u);
+  assert.deepEqual([row(3).t, row(3).b, row(3).io, row(3).up], ['', null, { value: 'nut' }, undefined]);
+  assert.deepEqual([row(4).io, row(4).up], [{ char: 'A' }, undefined]);
+  assert.deepEqual([row(5).io, row(5).up], [{}, SVG]);
+  assert.equal(row(6).io, undefined, 'an empty drawer has none');
+  const old = GD.parseJob(hashOf(url), LOCAL);
+  assert.equal(old.ok, true, 'the deployed generator still opens the job');
+  for (const r of GD.jobToRows(old.job, ['nut']).filter((x) => [3, 4, 5].includes(x.u))) assert.deepEqual([r.type, r.manual], ['none', false], 'and shows the empty row it always did');
+  const snaps = GL.jobToRows(GL.parseJob(hashOf(url), LOCAL).job, ['nut']);
+  assert.deepEqual(snaps.filter((s) => [3, 4, 5].includes(s.u)).map((s) => [s.type, s.value === undefined ? null : s.value, s.svg]),
+    [['icon', 'nut', false], ['char', 'A', false], ['icon', null, true]]);
+  p.post(helloOf(job));
+  p.post(GL.uploadsRequest({ job }, [5]));
+  assert.deepEqual(p.answers('uploads').at(-1).rows, [{ u: 5, up: SVG }], 'an icon-only upload is answered too');
+  const link = { job, baseRev: job.baseRev, baseline: { rows: job.rows.map((r) => ({ u: r.u, t: r.t, b: r.b })), style: job.style }, pending: null };
+  const { msg } = GL.buildReturn(link, snaps, job.style, { iconIds: ['nut'], newId: () => 'y'.repeat(12) });
+  assert.deepEqual(msg.rows.filter((r) => [3, 4, 5].includes(r.u)).map((r) => [r.t, r.b]), [['', null], ['', null], ['', null]], 'nothing goes back');
+  p.post(JSON.parse(JSON.stringify(msg)));
+  p.timers.advance(1000);
+  const L = p.app.state.labelList.labels;
+  assert.deepEqual([3, 4, 5].map((u) => p.app.state.labelAssign[u]), ['lblionly0003', 'lblionly0004', 'lblionly0005']);
+  assert.deepEqual(L.find((l) => l.id === 'lblionly0005').badge.svg, SVG, 'the icon-only upload is still in the build');
+  p.close();
+});

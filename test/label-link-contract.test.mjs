@@ -22,7 +22,7 @@ import { join, resolve } from 'node:path';
 import { LR, cleaners, bootPlanner, labelBuild, unit, plain, root } from './lib/label-env.mjs';
 
 const require = createRequire(import.meta.url);
-const PIN = 'ef15538a39fb84fa0b5b1a7ecc377051a68c5548e2b2b741d01aa2a9ddfdc6b1';   // 2026-10-09: the generator reads a row's uploaded icon (`up`)
+const PIN = 'c04966dd640d2ca636ebfb3fd2b3786367707fa06ea623cd8a851624c1a29503';   // 2026-10-09: the generator reads a row's uploaded icon (`up`)
 const DEPLOYED_PIN = 'abe71b329a8b8bd1053bbcf3fe4aa026d16847d23061e97182881d49f73f5bd3';
 const DEPLOYED = join(root, 'test', 'vendor', 'edgelabel-label-link.deployed.js');
 const VENDORED = join(root, 'test', 'vendor', 'edgelabel-label-link.js');

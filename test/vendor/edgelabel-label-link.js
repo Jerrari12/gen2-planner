@@ -175,6 +175,23 @@ function importedLabelsFromHash(hash) {
    ignores the key and shows the row as it always did. */
 const upOf = (r) => (r && r.up === true) ? true
   : (r && typeof r.up === 'string' && r.up.length <= UP_MAX && /^\s*<svg[\s>/]/i.test(r.up)) ? r.up : null;
+/* An ICON-ONLY label on a drawer (no words: the mirror carries nothing, so the row's `t` is empty), `io` (ChatGPT's second
+   review via Joey: an icon-only label must not come out blank): { value } = its catalog icon id, { char } = its letter, {} =
+   neither (its uploaded SVG rides in `up`, as for any drawer). The deployed generator ignores the key: the row is the empty
+   row it always was. Anything else is no icon-only label. */
+function ioOf(r) {
+  if (!r || r.t || !isObj(r.io)) return null;
+  const { value, char } = r.io;
+  if (value !== undefined) return typeof value === 'string' && value.length <= 40 && ICON_ID_RE.test(value) ? { value } : null;
+  if (char !== undefined) return typeof char === 'string' && char.trim() && char.length <= 4 ? { char } : null;
+  return {};
+}
+/* The request for the icons a job could not carry (`up: true`): sent over the link once the planner confirms it, answered
+   with `uploads` { rows: [{ u, up }] } (parseAnswer). */
+function uploadsRequest(link, units) {
+  return { gen2label: 'need-uploads', v: 1, family: 'edgelabel', jobId: link.job.jobId, buildId: link.job.buildId,
+    units: units.filter((u) => isInt(u, 1, ID_MAX)).slice(0, JOB_ROWS_MAX) };
+}
 
 /* ---- row snapshots ----
    One row of the list as these rules see it (index.html's rowSnap() builds it from the DOM):
@@ -182,8 +199,8 @@ const upOf = (r) => (r && r.up === true) ? true
    u/n = the Planner drawer id and its position when the job was made (null on an extra); value = the letter or the icon id;
    svg = a custom uploaded icon; manual = the user (or the Planner) chose the badge, so prediction leaves it alone;
    held = the badge object a job carried that this generator cannot show (section 7.3), kept byte-for-byte;
-   keep = { b }: the row shows the planner's own uploaded icon (or says the drawer has one), and returns the job's badge `b`
-   unchanged until the user picks another badge on the row. */
+   keep = { b }: the row shows the planner's own uploaded icon or icon-only label (or waits for it), and returns the job's
+   badge `b` unchanged until the user picks another badge on the row (an untouched icon-only row returns nothing). */
 const hasWords = (s) => !!String(s.text || '').trim();
 const isLinked = (s) => s.u !== null && s.u !== undefined;
 const hasContent = (s) => hasWords(s) || (s.manual && (s.type === 'char' || s.type === 'icon')) || !!s.held;
@@ -192,7 +209,10 @@ const hasContent = (s) => hasWords(s) || (s.manual && (s.type === 'char' || s.ty
 function badgeRep(s, iconIds) {
   const icons = iconIds || [];
   const picked = s.manual && (s.type === 'char' || s.type === 'icon');
-  if (!hasWords(s)) return (picked || s.held) ? { type: 'unsupplied', why: 'icon-only' } : null;
+  if (!hasWords(s)) {
+    if (s.keep) return null;   // the planner's own icon-only label, untouched: nothing to change
+    return (picked || s.held) ? { type: 'unsupplied', why: 'icon-only' } : null;
+  }
   if (s.held) return s.held;
   if (s.keep) return s.keep.b === undefined ? null : s.keep.b;
   if (!s.manual) return null;
@@ -213,12 +233,17 @@ function jobToRows(job, iconIds) {
   const icons = iconIds || [];
   return job.rows.map((r) => {
     const snap = { u: r.u, n: r.n, text: r.t, type: 'none', value: undefined, svg: false, manual: false, held: null, keep: null };
-    const up = r.t ? upOf(r) : null;
-    if (up) {
+    const io = ioOf(r);
+    const up = (r.t || io) ? upOf(r) : null;
+    if (up || io) {
       snap.manual = true;
-      snap.keep = { b: r.b === undefined ? null : r.b };
-      if (up !== true) { snap.type = 'icon'; snap.svg = true; }
-      return snap;
+      // an icon-only label returns nothing (badgeRep) unless words are added here: then its icon id goes back with them
+      snap.keep = { b: r.t ? (r.b === undefined ? null : r.b)
+        : io.value ? { type: 'icon', value: io.value } : io.char ? { type: 'char', value: io.char } : null };
+      if (typeof up === 'string') { snap.type = 'icon'; snap.svg = true; }
+      else if (!up && io && io.value && icons.includes(io.value)) { snap.type = 'icon'; snap.value = io.value; }
+      else if (!up && io && io.char) { snap.type = 'char'; snap.value = io.char; }
+      return snap;   // no artwork here (up: true, or an id this generator lacks): the page has the row wait for it
     }
     const b = r.b;
     if (b === null) return snap;
@@ -301,7 +326,7 @@ function isUnsaved(link, snaps, style, opts) {
 function parseAnswer(data) {
   if (!isObj(data) || typeof data.gen2label !== 'string' || data.v !== 1) return null;
   const kind = data.gen2label;
-  if (!['ack', 'received', 'applied', 'cancelled', 'superseded', 'refused'].includes(kind)) return null;
+  if (!['ack', 'received', 'applied', 'cancelled', 'superseded', 'refused', 'uploads'].includes(kind)) return null;
   if (typeof data.jobId !== 'string' || !ID_RE.test(data.jobId)) return null;
   if (data.returnId !== undefined && (typeof data.returnId !== 'string' || !ID_RE.test(data.returnId))) return null;
   if (kind === 'ack') {
@@ -321,6 +346,10 @@ function parseAnswer(data) {
   }
   if ((kind === 'received' || kind === 'cancelled' || kind === 'superseded') && typeof data.returnId !== 'string') return null;
   if (kind === 'refused' && typeof data.reason !== 'string') return null;
+  if (kind === 'uploads') {   // the icons a job could not carry; each `up` is checked again (upOf) where it is used
+    if (!Array.isArray(data.rows) || data.rows.length > JOB_ROWS_MAX) return null;
+    for (const r of data.rows) if (!isObj(r) || !isInt(r.u, 1, ID_MAX) || typeof r.up !== 'string') return null;
+  }
   return data;
 }
 
@@ -458,7 +487,7 @@ return {
   PLANNER_ORIGINS, LOOPBACK_ORIGIN, JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, RETURN_JSON_MAX, JOB_VALUE_MAX, TEXT_MAX, TEXT_INPUT_MAX,
   STYLE_KEYS, STYLE_INPUT, STYLE_FLAGS, STYLE_LIMITS, STYLE_DEFAULTS,
   canon, newId, encodeJob, decodeJob, originAllowed, hasJobParam, validateJob, parseJob, jobCaps, canEditPartLabels, importedLabelsFromHash,
-  hasWords, isLinked, hasContent, badgeRep, isUnsupplied, jobToRows, upOf, UP_MAX,
+  hasWords, isLinked, hasContent, badgeRep, isUnsupplied, jobToRows, upOf, ioOf, uploadsRequest, UP_MAX,
   styleFromInputs, inputsFromStyle, styleEqual,
   returnCore, buildReturn, isUnsaved, parseAnswer, onAnswer, adoptApplied,
   snapsFromProject, styleFromProject, planBoot, parseSession,

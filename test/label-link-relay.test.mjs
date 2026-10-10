@@ -413,7 +413,8 @@ test('P-rc-13: a message from an allowed origin but a DIFFERENT window than the 
 });
 
 test('P-rc-14: refresh() and the page load never touch label-return.js; the planner boots and the button falls through without it', () => {
-  const src = read('js/app.js');
+  // a Windows checkout (core.autocrlf=true; app.js has no eol rule) has CRLF lines - the pattern below is LF-only
+  const src = read('js/app.js').replace(/\r\n/g, '\n');
   const m = src.match(/\n  function refresh\(\) \{[\s\S]*?\n  \}\n/);
   assert.ok(m, 'could not extract refresh()');
   assert.ok(!/GEN2LabelReturn|label-return|LR\(\)/.test(m[0]), 'refresh() references the label-return module');

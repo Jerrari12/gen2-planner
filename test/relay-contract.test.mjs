@@ -428,6 +428,21 @@ test("layoutSig DISTINGUISHES a buildId-only change (the asymmetric-guards rule:
   p.close();
 });
 
+test("layoutSig DISTINGUISHES a change to only a label's part item, stripe colours or stripe position (the 3D view draws them)", () => {
+  const p = planner(labelBuild());
+  const u = p.app.state.placed[0];
+  p.app.state.labelList = { format: "modulith-labels", version: 1, labels: [{ id: "labela0001", text: u.label || "Bolts" }] };
+  p.app.state.labelAssign = { [u.id]: "labela0001" };
+  const lab = p.app.state.labelList.labels[0];
+  const seen = [p.app.layoutSig()];
+  lab.colours = { band: { colour: "sky-blue", hex: "#56B4E9", label: "Metric", pattern: "solid" } }; seen.push(p.app.layoutSig());
+  lab.bandPosition = "wedge"; seen.push(p.app.layoutSig());
+  lab.hardware = { schema: "part-picker-label-item/1", id: "rec_test_1", family: "screw" }; seen.push(p.app.layoutSig());
+  assert.equal(new Set(seen).size, seen.length, "a look-only change would never be posted to the 3D view");
+  assert.equal(p.app.layoutSig(), seen.at(-1), "layoutSig is not deterministic");
+  p.close();
+});
+
 test("a NEW build id reaches the viewer as a LAYOUT before any options post (Surprise me must not trip the viewer's gate)", () => {
   /* Surprise me is random, and some of its boards are BLOCKED (a layoutBlocked carries no build): that case must post no
      options naming the new id (pinned deterministically by the BLOCKED test below). This test failed 1 in 12 runs while a

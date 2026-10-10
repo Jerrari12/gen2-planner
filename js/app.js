@@ -2966,7 +2966,17 @@
     // the drawers' UPLOADED label icons live in the label list, not the units: a change to one alone must still be posted
     // (the viewer's layoutKey carries them too, as uploadsKey)
     up: uploadsDigest(),
+    // a label's part item, stripe colours and stripe position draw in the 3D view too (its layoutKey carries them as
+    // labelLooksKey): a change to only one of them must still be posted
+    lk: labelLooksDigest(),
   });
+  function labelLooksDigest() {
+    if (!state.labelAssign) return "";
+    return JSON.stringify(state.placed.map((u) => {
+      const l = labelById(state.labelAssign[u.id]);
+      return l && (l.hardware || l.colours || l.bandPosition) ? [u.id, l.hardware || null, l.colours === undefined ? "-" : l.colours, l.bandPosition || ""] : null;
+    }).filter(Boolean));
+  }
   // the SVG text itself, not a digest: a 32-bit hash can be matched by a different upload on purpose (Sol 01a1234d)
   function uploadsDigest() {
     return JSON.stringify(Object.entries(uploadsByUnit()));

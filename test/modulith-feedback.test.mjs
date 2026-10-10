@@ -37,6 +37,9 @@ test("F-1: the message - tag per kind, clean page URL (no query, no #build), bro
   }
   assert.match(prob.body, /Browser: Chrome 141 on Windows/);
   assert.ok(!/Browser:/.test(help.body) && !/Browser:/.test(idea.body), "help and ideas carry no browser line");
+  const given = F.compose({ tool: "Planner", page: "https://gen2planner.jerrari3d.com/x?y=1#build=SECRET" }, "help", false);
+  assert.match(given.body, /Page: https:\/\/gen2planner\.jerrari3d\.com\/x
+/, "a supplied page is cleaned too (Terra 01a126e2)");
 });
 
 test("F-2: a build link only when asked, and only when it fits an email link; otherwise the attach-the-file note", () => {

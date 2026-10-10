@@ -122,7 +122,7 @@
     var tool = String((opts && opts.tool) || 'MODULITH').slice(0, 40);
     var subject = '[MODULITH ' + tool + '] ' + k.tag;
     var lines = ['--', 'MODULITH ' + tool + ((opts && opts.version) ? ' ' + String(opts.version).slice(0, 40) : '')];
-    var page = (opts && opts.page) || cleanPage();
+    var page = String((opts && opts.page) || cleanPage()).split(/[?#]/)[0];   // never a query or a hash, whoever supplies it
     if (page) lines.push('Page: ' + page);
     if (k.id === 'problem') { var b = (opts && opts.browser) || browserLine(); if (b) lines.push('Browser: ' + b); }
     var note = '';
@@ -205,10 +205,15 @@
       });
       fire('feedback:copy');
     });
-    x.addEventListener('click', function () { d.close(); });
-    d.addEventListener('click', function (e) { if (e.target === d) d.close(); });   // a click on the backdrop
+    x.addEventListener('click', function () { shut(d); });
+    d.addEventListener('click', function (e) { if (e.target === d) shut(d); });   // a click on the backdrop
     d.addEventListener('close', function () { if (state && state.back && state.back.focus) { try { state.back.focus(); } catch (e) {} } });
     return { d: d, chk: chk, kinds: kinds, step2: step2, status: status, box: box };
+  }
+  // a browser without <dialog> methods (pre-2022) gets the open attribute and its removal
+  function shut(d) {
+    if (typeof d.close === 'function') d.close();
+    else { d.removeAttribute('open'); d.dispatchEvent(new Event('close')); }
   }
   function fire(name) { try { if (state && state.opts && typeof state.opts.track === 'function') state.opts.track(name); } catch (e) {} }
 

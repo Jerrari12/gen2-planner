@@ -3524,7 +3524,7 @@
     $("#lt-hint").textContent = picked ? `Tap a drawer for ${quoteLabel(picked)}. Esc or tap the label again to stop.`
       : free.length ? "Tap a label, then tap a drawer. The next label is picked for you."
       : labels.length ? "Every label is on a drawer. Open “on drawers” to move one."
-      : "Add labels made in the label generator or the Part Picker, then place them on drawers.";
+      : "Add labels made in the Label Studio or the Part Picker, then place them on drawers.";
     const chip = (l, where) => {
       const wrap = document.createElement("span");
       wrap.className = "lt-item";
@@ -3693,7 +3693,7 @@
     if (!mod || !/^https?:/.test(location.origin)) return;   // no module (or a file: page, whose origin is "null"): the plain one-way link
     e.preventDefault();
     if (deploy.newer) {   // Release B: a new structured-label session starts in the deployed planner, not in this tab
-      showLabelGenNote("deploy", "The planner was updated since this tab opened. Refresh this tab before linking the label generator (your build is kept), or open it one-way - changes made there won't come back.",
+      showLabelGenNote("deploy", "The planner was updated since this tab opened. Refresh this tab before linking the Label Studio (your build is kept), or open it one-way - changes made there won't come back.",
         [{ label: "Refresh now", fn: () => refreshKeepingBuild() }, { label: "Open one-way", fn: () => { window.open(a.href, "_blank", "noopener"); } }, { label: "Close" }]);
       return;
     }
@@ -3709,20 +3709,20 @@
     // the ACTUAL encoded size, measured before anything opens - never a silent one-way open
     const m = mod.measureJob(job, url);
     if (!m.ok) {
-      showLabelGenNote("size", `This build has too many labels for a linked generator session (${Math.ceil(m.urlChars / 1024)} KB; the limit is ${Math.round(mod.JOB_URL_MAX / 1024)} KB). Open it one-way instead? Changes made there won't come back.`,
+      showLabelGenNote("size", `This build has too many labels for a linked Label Studio session (${Math.ceil(m.urlChars / 1024)} KB; the limit is ${Math.round(mod.JOB_URL_MAX / 1024)} KB). Open it one-way instead? Changes made there won't come back.`,
         [{ label: "Open one-way", fn: openOneWay }, { label: "Close" }]);
       return;
     }
     const st = labelStore();
     const put = st ? st.put(mod.makeJobRecord(view, job, labelCtx({ now: Date.now() }))) : { ok: false };
     if (!put.ok) {
-      showLabelGenNote("storage", "Your browser's storage is full, so the generator can't be linked. Open it one-way (changes won't come back)?", [{ label: "Open one-way", fn: openOneWay }, { label: "Close" }]);
+      showLabelGenNote("storage", "Your browser's storage is full, so the Label Studio can't be linked. Open it one-way (changes won't come back)?", [{ label: "Open one-way", fn: openOneWay }, { label: "Close" }]);
       return;
     }
     const w = window.open(url, "gen2-labelgen-" + plannerTabId);
     if (!w) {
       st.remove(job.jobId);
-      showLabelGenNote("blocked", "Your browser blocked the label generator window. Allow pop-ups for this site, or middle-click the button for a one-way copy.", [{ label: "Close" }]);
+      showLabelGenNote("blocked", "Your browser blocked the Label Studio window. Allow pop-ups for this site, or middle-click the button for a one-way copy.", [{ label: "Close" }]);
       return;
     }
     labelGenWin.set(job.jobId, w);
@@ -3732,7 +3732,7 @@
     // an older generator (or a stale cached one) receives the labels but never speaks: say so, instead of looking linked
     setTimeout(() => {
       if (labelHelloSeen.has(job.jobId)) return;
-      showLabelGenNote("hello", "The label generator didn't confirm the link. If its tab still shows earlier labels, reload that tab. (An older generator version only receives labels; nothing comes back.)", [{ label: "Close" }]);
+      showLabelGenNote("hello", "The Label Studio didn't confirm the link. If its tab still shows earlier labels, reload that tab. (An older Label Studio version only receives labels; nothing comes back.)", [{ label: "Close" }]);
     }, 5000);
   }
 
@@ -3861,7 +3861,7 @@
       const theirs = it.field ? lrFieldText(it, it.theirs) : mod.styleText(it.key, it.theirs);
       if (it.class === "conflict") {
         li.appendChild(lrEl("div", "lr-head", head));
-        [["planner", "Keep the planner's: " + now], ["generator", "Use the generator's: " + theirs]].forEach(([val, text]) => {
+        [["planner", "Keep the planner's: " + now], ["generator", "Use the Label Studio's: " + theirs]].forEach(([val, text]) => {
           const lab = lrEl("label", "lr-opt");
           const r = document.createElement("input");
           r.type = "radio"; r.name = "lr-r-" + key; r.value = val; r.checked = item.sel[key] === val;
@@ -3876,11 +3876,11 @@
         lab.appendChild(c);
         const txt = lrEl("span", "");
         txt.appendChild(lrEl("span", "lr-head", head));
-        txt.appendChild(lrEl("span", "lr-diff", `Now: ${now} → From the generator: ${theirs}`));
+        txt.appendChild(lrEl("span", "lr-diff", `Now: ${now} → From the Label Studio: ${theirs}`));
         lab.appendChild(txt);
         li.appendChild(lab);
       }
-      const why = it.why === "moved" ? "This drawer moved or was replaced since you opened the generator." : (it.why === "unknown" ? "The planner has no record of this drawer in that session." : "");
+      const why = it.why === "moved" ? "This drawer moved or was replaced since you opened the Label Studio." : (it.why === "unknown" ? "The planner has no record of this drawer in that session." : "");
       if (why) li.appendChild(lrEl("div", "lr-why", why));
       if (it.note) li.appendChild(lrEl("div", "lr-why", it.note));
       return li;
@@ -3894,7 +3894,7 @@
     if (rowsOf("review").length) { const s = section("Check these", rowsOf("review").length); rowsOf("review").forEach((x) => s.appendChild(rowEl(x))); any = true; }
     const styles = items.filter((x) => x.kind === "style");
     if (styles.length) { const s = section("Label style", styles.length); styles.forEach((x) => s.appendChild(rowEl(x))); any = true; }
-    if (!any) body.appendChild(lrEl("p", "lr-empty", "Nothing to change: the generator's labels match this build."));
+    if (!any) body.appendChild(lrEl("p", "lr-empty", "Nothing to change: the Label Studio's labels match this build."));
     if (plan.notSaved.length) { const s = section("Not saved to the planner", null); plan.notSaved.forEach((n) => s.appendChild(lrEl("div", "lr-why", n.text))); }
     if (plan.notApplied.length) {
       const det = lrEl("details", "lr-sec lr-na");

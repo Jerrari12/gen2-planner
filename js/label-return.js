@@ -192,10 +192,10 @@ function mergeLabelReturn(view, record, ret, ctx) {
   const mode = !record ? 'untrusted' : (record.loadId !== ctx.loadId || ret.baseRev !== record.baseRev ? 'full' : 'normal');
   const hasBase = !!record && ret.baseRev === record.baseRev;
   const modeText = mode === 'normal' ? '' : mode === 'untrusted'
-    ? 'These labels came from a generator session this planner tab has no record of.'
+    ? 'These labels came from a Label Studio session this planner tab has no record of.'
     : (record.loadId !== ctx.loadId
-      ? 'The planner was reloaded, or opened a different build, since you opened the generator.'
-      : 'The generator\'s labels were based on an older version than this planner has on record.') + ' So every difference is listed for you to check.';
+      ? 'The planner was reloaded, or opened a different build, since you opened the Label Studio.'
+      : 'The Label Studio\'s labels were based on an older version than this planner has on record.') + ' So every difference is listed for you to check.';
   const units = new Map(view.units.map((u) => [u.id, u]));
   const order = ctx.labelOrder(view.units.filter((u) => u.fill === 'decor'));
   const nOf = new Map(order.map((u, i) => [u.id, i + 1]));
@@ -244,8 +244,8 @@ function mergeLabelReturn(view, record, ret, ctx) {
     const baseBadge = baseRow ? (baseRow.b ? (ctx.cleanBadge(baseRow.b) || null) : null) : null;
     if (theirsBadge === undefined) theirsBadge = baseRow ? baseBadge : mineBadge;   // "theirs = base": no change proposed
 
-    if (unsupplied === 'custom') notApplied.push({ u: r.u, text: 'Drawer #' + n + ': a custom uploaded icon stays in the generator.' });
-    if (unsupplied === 'icon-only') notSaved.push({ u: r.u, text: 'Drawer #' + n + ': icon-only label stays in the generator.' });
+    if (unsupplied === 'custom') notApplied.push({ u: r.u, text: 'Drawer #' + n + ': a custom uploaded icon stays in the Label Studio.' });
+    if (unsupplied === 'icon-only') notSaved.push({ u: r.u, text: 'Drawer #' + n + ': icon-only label stays in the Label Studio.' });
 
     const base = { u: unit.id, n, pos: posText(unit), g: [unit.x, unit.y, unit.w, unit.hh] };
     const t = classify('text', baseText, mineText, theirsText, hb, flags);
@@ -273,7 +273,7 @@ function mergeLabelReturn(view, record, ret, ctx) {
     if (fixedFace) { notApplied.push({ key, text: STYLE_LABEL[key] + ': this build now uses another faceplate, so the label style is not changed.' }); continue; }
     style.push({ key, label: STYLE_LABEL[key], class: c.cls, why: c.why, base: baseEff ? baseEff[key] : null, mine: mineEff[key], theirs });
   }
-  if (ret.extras > 0) notApplied.push({ text: ret.extras + ' extra label' + (ret.extras === 1 ? '' : 's') + ' you added in the generator ' + (ret.extras === 1 ? 'is' : 'are') + ' printed there only.' });
+  if (ret.extras > 0) notApplied.push({ text: ret.extras + ' extra label' + (ret.extras === 1 ? '' : 's') + ' you added in the Label Studio ' + (ret.extras === 1 ? 'is' : 'are') + ' printed there only.' });
 
   const plan = { mode, modeText, rows, style, notApplied, notSaved, jobUnits, styleDropped, fixedFace };
   plan.sig = planSig(plan);

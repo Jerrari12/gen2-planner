@@ -223,8 +223,8 @@ test('P-merge-9: an `unsupplied` badge NEVER changes the planner\'s badge; icon-
     3: { t: '', b: { type: 'unsupplied', why: 'icon-only' } } }));
   assert.equal(find(plan, 1, 'badge'), undefined, 'custom: no badge proposal');
   assert.equal(find(plan, 1, 'text').class, 'change', 'the words still merge');
-  assert.ok(plan.notApplied.some((n) => /custom uploaded icon stays in the generator/.test(n.text)));
-  assert.deepEqual(plain(plan.notSaved.map((n) => n.text)), ['Drawer #3: icon-only label stays in the generator.']);
+  assert.ok(plan.notApplied.some((n) => /custom uploaded icon stays in the Label Studio/.test(n.text)));
+  assert.deepEqual(plain(plan.notSaved.map((n) => n.text)), ['Drawer #3: icon-only label stays in the Label Studio.']);
   assert.equal(find(plan, 3, 'badge'), undefined);
   // applying everything changes no badge and invents none
   const sel = LR.defaultSelections(plan);
@@ -373,8 +373,8 @@ test('P-merge-20: style conflicts and full mode', () => {
 
 test('P-merge-21: extras are named under Not applied', () => {
   const s = setup(three());
-  assert.ok(merge(s, ret(s.job, {}, { extras: 3 })).notApplied.some((n) => /3 extra labels you added in the generator are printed there only/.test(n.text)));
-  assert.ok(merge(s, ret(s.job, {}, { extras: 1 })).notApplied.some((n) => /1 extra label you added in the generator is printed there only/.test(n.text)));
+  assert.ok(merge(s, ret(s.job, {}, { extras: 3 })).notApplied.some((n) => /3 extra labels you added in the Label Studio are printed there only/.test(n.text)));
+  assert.ok(merge(s, ret(s.job, {}, { extras: 1 })).notApplied.some((n) => /1 extra label you added in the Label Studio is printed there only/.test(n.text)));
   assert.equal(merge(s, ret(s.job, {}, { extras: 0 })).notApplied.length, 0);
 });
 

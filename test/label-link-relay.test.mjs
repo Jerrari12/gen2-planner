@@ -114,7 +114,7 @@ test('P-rc-3c: an over-limit build is explained in a note with "Open one-way" an
   assert.equal(p.open.length, 0, 'never a silent open');
   const note = p.window.document.getElementById('label-gen-note');
   assert.equal(note.hidden, false);
-  assert.match(note.textContent, /too many labels for a linked generator session \(300 KB; the limit is 256 KB\)\. Open it one-way instead\? Changes made there won't come back\./);
+  assert.match(note.textContent, /too many labels for a linked Label Studio session \(300 KB; the limit is 256 KB\)\. Open it one-way instead\? Changes made there won't come back\./);
   const btns = [...note.querySelectorAll('button')].map((b) => b.textContent);
   assert.deepEqual(btns, ['Open one-way', 'Close']);
   let oneWay = null;
@@ -135,7 +135,7 @@ test('P-rc-4: window.open returning null (blocked) deletes the record and says h
   assert.equal(keys.length, 0, 'the record of the blocked window is deleted');
   const note = p.window.document.getElementById('label-gen-note');
   assert.equal(note.hidden, false);
-  assert.match(note.textContent, /Your browser blocked the label generator window\. Allow pop-ups for this site, or middle-click the button for a one-way copy\./);
+  assert.match(note.textContent, /Your browser blocked the Label Studio window\. Allow pop-ups for this site, or middle-click the button for a one-way copy\./);
   p.close();
 });
 
@@ -145,7 +145,7 @@ test('P-rc-4b: storage that cannot hold the record says so and offers the one-wa
   p.window.Storage.prototype.setItem = function (k, v) { if (String(k).startsWith('gen2-label-job:')) { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; } return real.call(this, k, v); };
   p.click();
   assert.equal(p.open.length, 0);
-  assert.match(p.window.document.getElementById('label-gen-note').textContent, /Your browser's storage is full, so the generator can't be linked\. Open it one-way \(changes won't come back\)\?/);
+  assert.match(p.window.document.getElementById('label-gen-note').textContent, /Your browser's storage is full, so the Label Studio can't be linked\. Open it one-way \(changes won't come back\)\?/);
   p.window.Storage.prototype.setItem = real;
   p.close();
 });
@@ -156,7 +156,7 @@ test('P-rc-4c: a note appears when the generator never says hello (an older / ca
   p.timers.advance(5100);
   const note = p.window.document.getElementById('label-gen-note');
   assert.equal(note.hidden, false);
-  assert.match(note.textContent, /The label generator didn't confirm the link\. If its tab still shows earlier labels, reload that tab\./);
+  assert.match(note.textContent, /The Label Studio didn't confirm the link\. If its tab still shows earlier labels, reload that tab\./);
   p.post(helloOf(job));
   assert.equal(note.hidden, true, 'a hello removes the note');
   const p2 = lp();
@@ -466,9 +466,9 @@ test('P-rc-16: the dialog\'s conflict, review and not-saved presentation: a relo
   assert.equal(doc.getElementById('lr-apply').textContent, 'Apply 0 changes');
   assert.match(doc.getElementById('lr-body').textContent, /Check these \(1\)/);
   assert.match(doc.getElementById('lr-body').textContent, /Not saved to the planner/);
-  assert.match(doc.getElementById('lr-body').textContent, /Drawer #3: icon-only label stays in the generator\./);
+  assert.match(doc.getElementById('lr-body').textContent, /Drawer #3: icon-only label stays in the Label Studio\./);
   assert.match(doc.getElementById('lr-body').textContent, /Not applied \(1\)/);
-  assert.match(doc.getElementById('lr-body').textContent, /2 extra labels you added in the generator are printed there only\./);
+  assert.match(doc.getElementById('lr-body').textContent, /2 extra labels you added in the Label Studio are printed there only\./);
   boxes[0].click();
   assert.equal(doc.getElementById('lr-apply').textContent, 'Apply 1 change');
   assert.equal(doc.getElementById('lr-apply').disabled, false);

@@ -6302,6 +6302,25 @@
     $("#load-example").addEventListener("click", loadExample);
     $("#build-save").addEventListener("click", saveBuildToFile);
     $("#build-share").addEventListener("click", shareLink);
+    /* Feedback & support (Astra 2026-10-10): the shared MODULITH dialog, js/modulith-feedback.js. It offers a link to
+       this build UNCHECKED, and only when there is a layout: the link holds the whole build, drawer labels included. */
+    const feedbackOpts = () => ({
+      tool: "Planner",
+      version: (($(".footer-ver") || {}).textContent || "").trim(),
+      buildLink: state.placed.length ? () => location.origin + location.pathname + "#build=" + encodeBuildHash() : null,
+      attachHint: "Your build is too big to put in an email link. Use Save the build file and attach that file to your email.",
+      track,
+    });
+    if (window.MODULITHFeedback) {
+      document.querySelectorAll("[data-feedback]").forEach((el) => el.addEventListener("click", (e) => {
+        e.preventDefault();
+        const menu = el.closest("dialog");
+        if (menu && menu.open) menu.close();          // the phone menu: close it before the dialog opens
+        window.MODULITHFeedback.open(feedbackOpts());
+      }));
+      const spot = $("#mast-feedback");
+      if (spot) spot.replaceWith(window.MODULITHFeedback.button(feedbackOpts, "Feedback"));
+    } else document.querySelectorAll("[data-feedback]").forEach((el) => { el.hidden = true; });
     // official-kit authoring is a dev-machine tool — invisible in prod
     const official = $("#build-official");
     if (official) { official.hidden = !IS_LOCAL_DEV; official.addEventListener("click", exportOfficialBuild); }

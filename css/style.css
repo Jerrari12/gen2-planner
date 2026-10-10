@@ -143,10 +143,12 @@ dialog.mobilenav a:hover, dialog.mobilenav a[aria-current] { color: #ff6a1a; }
    (measured 2026-09-24: 221 + 32 + 578 + 32 + 46). A media query cannot see that; the container query can, and it also
    covers tablet widths. The dropdown is absolute inside .navmenu and the phone menu is a top-layer dialog, so the
    container's layout containment traps neither. */
-@container (max-width: 920px) {
+/* ⚠ 1060, was 920: the Feedback & support button (Astra 2026-10-10) adds ~144 px (button + one gap) to the ~910 measured below. */
+@container (max-width: 1060px) {
   .mainnav { display: none; }
   .mobilebtn { display: block; }
   .mast #theme-toggle { margin-left: auto; }
+  .mast .mfb-trigger { margin-left: auto; }
 }
 @media (max-width: 760px) {
   .mast { padding: 0 16px; }
@@ -155,6 +157,8 @@ dialog.mobilenav a:hover, dialog.mobilenav a[aria-current] { color: #ff6a1a; }
   .mainnav { display: none; }
   .mobilebtn { display: block; }
   .mast #theme-toggle { margin-left: auto; }   /* the nav that pushed it right is hidden */
+  .mast .mfb-trigger { margin-left: auto; }
+  .mast .mfb-trigger-text { display: none; }   /* icon only on a phone; its name stays as aria-label */
 }
 /* the dark-mode switch — a small sun/moon slider in the masthead (Joey
    2026-08-08, replacing the text pill). State renders from aria-checked so
@@ -1866,3 +1870,10 @@ html[data-theme="dark"] .hero-shade {
     rgba(20, 21, 23, 0.55) 0%, rgba(20, 21, 23, 0.10) 42%,
     rgba(29, 30, 32, 0.85) 86%, var(--bg) 100%);
 }
+
+/* Feedback & support (Astra 2026-10-10): the masthead button and the phone-menu entry; the dialog styles itself
+   (js/modulith-feedback.js). */
+.mast .mfb-trigger { flex: none; }
+.mast .mfb-trigger + #theme-toggle { margin-left: -14px; }   /* the button already took the auto margin; sit them as a pair */
+.mobilenav .mnfeedback { appearance: none; background: none; border: none; border-top: 1px solid #4a4b50; margin-top: 6px;
+  padding: 12px 0 4px; color: #ff6a1a; font: 600 1rem inherit; text-align: left; cursor: pointer; }

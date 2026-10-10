@@ -70,12 +70,19 @@ function effectiveStyle(styleSet) {   // LABEL_DEFAULTS under whatever is stored
    to edit part labels"). A top-level key: the deployed generator's validateJob ignores unknown top-level keys, so this job still
    opens it (pinned by test/label-link-contract.test.mjs). */
 const JOB_CAPS = Object.freeze(['label-list']);
-/* view: { units: state.placed, faceStyle, labelStyle, buildId }
+/* A drawer whose label carries an UPLOADED icon (the build's label list keeps it; the mirror the row's `b` comes from cannot)
+   sends it as the row's `up`, so a generator that reads it shows and prints it and returns `b` unchanged (ChatGPT's review,
+   relayed by Joey 2026-10-09: an uploaded icon survives the trip). A row key the deployed generator ignores: there the row
+   is what it was. Past JOB_UP_MAX of encoded SVG in one job a row carries `up: true` instead - the drawer has one, this job
+   does not carry it - so a full job still fits JOB_URL_MAX (400 rows of 40 characters + this budget, base64url'd). */
+const JOB_UP_MAX = 96 * 1024;   // UTF-8 bytes of JSON-encoded SVG per job
+/* view: { units: state.placed, faceStyle, labelStyle, buildId, hardware?, uploads? } (uploads: unit id -> the SVG text)
    ctx:  { origin, textMax, jobId?, baseRev?, newId?, cleanText, cleanBadge, cleanStyle, labelOrder }
    EVERY decor unit, in labelOrder (Classic drawers have no label slot). */
 function buildLabelJob(view, ctx) {
   const decor = ctx.labelOrder(view.units.filter((u) => u.fill === 'decor'));
   const mint = ctx.newId || newId;
+  let upLeft = JOB_UP_MAX;
   return {
     v: 1, family: 'edgelabel', jobId: ctx.jobId || mint(), buildId: view.buildId, baseRev: ctx.baseRev || mint(),
     origin: ctx.origin, textMax: ctx.textMax, caps: JOB_CAPS.slice(),
@@ -87,6 +94,11 @@ function buildLabelJob(view, ctx) {
       // hardware row (read-only there; it comes back unchanged). An older generator ignores the key and shows the words.
       const hw = view.hardware && view.hardware[u.id];
       if (hw && t) row.hw = hw;
+      const up = view.uploads && view.uploads[u.id];
+      if (typeof up === 'string' && t && !row.hw) {
+        const n = byteLength(JSON.stringify(up));   // the job's limits are UTF-8 bytes
+        if (n <= upLeft) { row.up = up; upLeft -= n; } else row.up = true;
+      }
       return row;
     }),
   };
@@ -389,7 +401,7 @@ function jobStore(storage, opts) {
 }
 
 return {
-  JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, RETURN_JSON_MAX, TEXT_MAX, ID_MAX, LABEL_DEFAULTS, STYLE_KEYS, STYLE_FLAGS, STYLE_LIMITS, STORE_PREFIX,
+  JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, JOB_UP_MAX, RETURN_JSON_MAX, TEXT_MAX, ID_MAX, LABEL_DEFAULTS, STYLE_KEYS, STYLE_FLAGS, STYLE_LIMITS, STORE_PREFIX,
   RECORD_MAX_AGE, RECORDS_MAX, ANSWERS_KEPT,
   JOB_CAPS, canon, newId, effectiveStyle, buildLabelJob, encodeJob, legacyHash, jobUrl, measureJob, makeJobRecord,
   parseLabelReturn, mergeLabelReturn, planSig, defaultSelections, carrySelections, applyPlan, resultRows, summarize,

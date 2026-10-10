@@ -2963,7 +2963,14 @@
     // the build's own id: a layout differing only in it must still be POSTED (and the viewer's layoutKey carries it, so it
     // is APPLIED) - that is how a viewer booted from an official kit learns the id this planner minted
     id: state.buildId || "",
+    // the drawers' UPLOADED label icons live in the label list, not the units: a change to one alone must still be posted
+    // (the viewer's layoutKey carries them too, as uploadsKey)
+    up: uploadsDigest(),
   });
+  // the SVG text itself, not a digest: a 32-bit hash can be matched by a different upload on purpose (Sol 01a1234d)
+  function uploadsDigest() {
+    return JSON.stringify(Object.entries(uploadsByUnit()));
+  }
   function postLayoutNow() {
     if (!viewerWin || viewerWin.closed) return;
     const sig = layoutSig();
@@ -3607,7 +3614,21 @@
     }
     return out;
   }
-  const labelView = () => ({ units: state.placed, faceStyle: state.faceStyle, labelStyle: state.labelStyle, buildId: state.buildId, hardware: hardwareByUnit() });
+  /* the drawers whose label carries an UPLOADED icon: unit id -> the SVG text (the label list keeps it; the mirror cannot). Only
+     while the drawer's words are its label's, as for hardware above. */
+  function uploadsByUnit() {
+    const L = LL();
+    const out = {};
+    if (!L || !state.labelAssign) return out;
+    for (const u of state.placed) {
+      const l = labelById(state.labelAssign[u.id]);
+      const b = l && L.cleanBadge(l.badge, { svg: true });
+      const m = b && b.svg && L.mirrorOfLabel(l);
+      if (m && m.label === cleanLabelText(u.label)) out[u.id] = b.svg;
+    }
+    return out;
+  }
+  const labelView = () => ({ units: state.placed, faceStyle: state.faceStyle, labelStyle: state.labelStyle, buildId: state.buildId, hardware: hardwareByUnit(), uploads: uploadsByUnit() });
   const labelCtx = (extra) => ({ origin: location.origin, textMax: LABEL_MAX, loadId, plannerTabId, newId: newBuildId,
     cleanText: cleanLabelText, cleanBadge: cleanLabelBadge, cleanStyle: cleanLabelStyle, labelOrder, ...extra });
   function labelStore() {

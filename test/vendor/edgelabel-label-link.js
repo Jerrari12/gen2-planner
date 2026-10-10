@@ -27,6 +27,7 @@ const TEXT_MAX = 40;                  // the Planner's LABEL_MAX
 const TEXT_INPUT_MAX = 48;            // this page's own text field (extras keep it)
 const ID_RE = /^[a-z0-9]{8,32}$/;
 const ICON_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const UP_MAX = 64 * 1024;             // label-list.js SVG_MAX: the largest uploaded icon a label carries
 const ID_MAX = 1e9;
 
 /* The six label-style settings, and the page inputs they live in (section 4.7). STYLE_LIMITS are the inputs' own min/max
@@ -167,12 +168,22 @@ function importedLabelsFromHash(hash) {
   } catch (e) { return []; }
 }
 
+/* An uploaded icon a job row carries, `up` (ChatGPT's review, relayed by Joey 2026-10-09: an uploaded icon survives the trip
+   to the generator and back). The build keeps a drawer's uploaded icon in its label list, which the row's `b` (the mirror)
+   cannot hold, so a planner sends it beside `b`: the SVG text, or `true` when the drawer has one this job did not carry (past
+   the planner's per-job budget). Anything else counts as no upload, so a future shape stays harmless. The deployed generator
+   ignores the key and shows the row as it always did. */
+const upOf = (r) => (r && r.up === true) ? true
+  : (r && typeof r.up === 'string' && r.up.length <= UP_MAX && /^\s*<svg[\s>/]/i.test(r.up)) ? r.up : null;
+
 /* ---- row snapshots ----
    One row of the list as these rules see it (index.html's rowSnap() builds it from the DOM):
-     { u, n, text, type: 'none'|'char'|'icon', value, svg, manual, held }
+     { u, n, text, type: 'none'|'char'|'icon', value, svg, manual, held, keep }
    u/n = the Planner drawer id and its position when the job was made (null on an extra); value = the letter or the icon id;
    svg = a custom uploaded icon; manual = the user (or the Planner) chose the badge, so prediction leaves it alone;
-   held = the badge object a job carried that this generator cannot show (section 7.3), kept byte-for-byte. */
+   held = the badge object a job carried that this generator cannot show (section 7.3), kept byte-for-byte;
+   keep = { b }: the row shows the planner's own uploaded icon (or says the drawer has one), and returns the job's badge `b`
+   unchanged until the user picks another badge on the row. */
 const hasWords = (s) => !!String(s.text || '').trim();
 const isLinked = (s) => s.u !== null && s.u !== undefined;
 const hasContent = (s) => hasWords(s) || (s.manual && (s.type === 'char' || s.type === 'icon')) || !!s.held;
@@ -183,6 +194,7 @@ function badgeRep(s, iconIds) {
   const picked = s.manual && (s.type === 'char' || s.type === 'icon');
   if (!hasWords(s)) return (picked || s.held) ? { type: 'unsupplied', why: 'icon-only' } : null;
   if (s.held) return s.held;
+  if (s.keep) return s.keep.b === undefined ? null : s.keep.b;
   if (!s.manual) return null;
   if (s.type === 'none') return { type: 'none' };
   if (s.type === 'char') return { type: 'char', value: s.value };
@@ -195,11 +207,19 @@ function badgeRep(s, iconIds) {
 }
 const isUnsupplied = (b) => !!b && b.type === 'unsupplied';
 
-/* A job row -> a row snapshot. A badge this generator cannot show is HELD, never converted to Auto (section 7.3). */
+/* A job row -> a row snapshot. A badge this generator cannot show is HELD, never converted to Auto (section 7.3). A row
+   carrying the drawer's uploaded icon shows it (the page takes the SVG from the job row) and KEEPS the job's badge. */
 function jobToRows(job, iconIds) {
   const icons = iconIds || [];
   return job.rows.map((r) => {
-    const snap = { u: r.u, n: r.n, text: r.t, type: 'none', value: undefined, svg: false, manual: false, held: null };
+    const snap = { u: r.u, n: r.n, text: r.t, type: 'none', value: undefined, svg: false, manual: false, held: null, keep: null };
+    const up = r.t ? upOf(r) : null;
+    if (up) {
+      snap.manual = true;
+      snap.keep = { b: r.b === undefined ? null : r.b };
+      if (up !== true) { snap.type = 'icon'; snap.svg = true; }
+      return snap;
+    }
     const b = r.b;
     if (b === null) return snap;
     snap.manual = true;
@@ -353,7 +373,9 @@ function adoptApplied(link, snaps, answer, iconIds) {
     const act = { index, u: s.u, kind: 'set' };
     if (td !== 'not-applied') act.text = r.t;
     const rep = badgeRep(s, icons);
-    if (bd !== 'not-applied' && !isUnsupplied(rep)) {
+    // a row showing the planner's uploaded icon keeps it while the planner's badge for the drawer is the one it came with
+    const kept = !!s.keep && canon(r.b === undefined ? null : r.b) === canon(s.keep.b);
+    if (bd !== 'not-applied' && !isUnsupplied(rep) && !kept) {
       const b = r.b === undefined ? null : r.b;
       if (b === null) act.badge = { mode: 'auto' };
       else if (b.type === 'none') act.badge = { mode: 'manual', type: 'none' };
@@ -379,7 +401,8 @@ function snapsFromProject(project) {
   return ((project && project.labels) || []).map((l) => {
     const b = l.badge || { type: 'none' };
     return { u: l.u === undefined ? null : l.u, n: l.n === undefined ? null : l.n, text: l.text || '', type: b.type || 'none',
-      value: b.value, svg: !!b.svg, manual: !!l.manual, held: l.held ? b : null };
+      value: b.value, svg: !!b.svg, manual: !!l.manual, held: l.held ? b : null,
+      keep: isObj(l.keep) && 'b' in l.keep ? { b: l.keep.b } : null };
   });
 }
 function planBoot(input) {
@@ -435,7 +458,7 @@ return {
   PLANNER_ORIGINS, LOOPBACK_ORIGIN, JOB_ROWS_MAX, JOB_JSON_MAX, JOB_URL_MAX, RETURN_JSON_MAX, JOB_VALUE_MAX, TEXT_MAX, TEXT_INPUT_MAX,
   STYLE_KEYS, STYLE_INPUT, STYLE_FLAGS, STYLE_LIMITS, STYLE_DEFAULTS,
   canon, newId, encodeJob, decodeJob, originAllowed, hasJobParam, validateJob, parseJob, jobCaps, canEditPartLabels, importedLabelsFromHash,
-  hasWords, isLinked, hasContent, badgeRep, isUnsupplied, jobToRows,
+  hasWords, isLinked, hasContent, badgeRep, isUnsupplied, jobToRows, upOf, UP_MAX,
   styleFromInputs, inputsFromStyle, styleEqual,
   returnCore, buildReturn, isUnsaved, parseAnswer, onAnswer, adoptApplied,
   snapsFromProject, styleFromProject, planBoot, parseSession,

@@ -3025,7 +3025,9 @@
      allowlist, the message comes from the window this planner opened for that job, and every answer goes to that origin - never
      "*". A gen2label message has no `gen2` key, so the viewer relay's listener ignores it and it can never set viewerWin. */
   const LR = () => window.GEN2LabelReturn || null;
-  const LABEL_GEN_ORIGINS = ["https://edgelabel.jerrari3d.com"];
+  /* the Label Studio's new address first; the old one stays while its tabs and forwarded links are still about (the old
+     address forwards every link, keeping this tab as the opener - MODULITH handoffs/label-release/move/MOVE-DESIGN.md) */
+  const LABEL_GEN_ORIGINS = ["https://labels.modulith.systems", "https://edgelabel.jerrari3d.com"];
   const DEV_LABELGEN = devOrigin("dev_labelgen");   // local dev only: URL and allowlist entry together (see devOrigin)
   const labelGenOrigins = () => (DEV_LABELGEN ? LABEL_GEN_ORIGINS.concat([DEV_LABELGEN]) : LABEL_GEN_ORIGINS.slice());
   /* this tab's identity, across reloads: the generator window is NAMED after it, so one planner tab reuses its own generator tab

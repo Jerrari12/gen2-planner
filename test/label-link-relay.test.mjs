@@ -60,13 +60,13 @@ test('P-rc-2: a message from a DISALLOWED origin changes nothing and gets no ans
 });
 
 test('P-rc-2b: the PRODUCTION planner trusts only the generator\'s own origin; a loopback one only exists with the dev override on a local planner', () => {
-  assert.deepEqual(plain(lp().app.labelGenOrigins()), ['https://edgelabel.jerrari3d.com', GEN_ORIGIN]);
-  assert.deepEqual(plain(lp({ qs: '' }).app.labelGenOrigins()), ['https://edgelabel.jerrari3d.com'], 'without ?dev_labelgen: production list only');
-  assert.deepEqual(plain(lp({ qs: '?dev_labelgen=https://evil.example' }).app.labelGenOrigins()), ['https://edgelabel.jerrari3d.com'], 'a non-loopback override is ignored');
-  assert.deepEqual(plain(lp({ qs: '?dev_labelgen=http://localhost:1/x' }).app.labelGenOrigins()), ['https://edgelabel.jerrari3d.com'], 'a path is not an origin');
+  assert.deepEqual(plain(lp().app.labelGenOrigins()), ['https://labels.modulith.systems', 'https://edgelabel.jerrari3d.com', GEN_ORIGIN]);
+  assert.deepEqual(plain(lp({ qs: '' }).app.labelGenOrigins()), ['https://labels.modulith.systems', 'https://edgelabel.jerrari3d.com'], 'without ?dev_labelgen: production list only');
+  assert.deepEqual(plain(lp({ qs: '?dev_labelgen=https://evil.example' }).app.labelGenOrigins()), ['https://labels.modulith.systems', 'https://edgelabel.jerrari3d.com'], 'a non-loopback override is ignored');
+  assert.deepEqual(plain(lp({ qs: '?dev_labelgen=http://localhost:1/x' }).app.labelGenOrigins()), ['https://labels.modulith.systems', 'https://edgelabel.jerrari3d.com'], 'a path is not an origin');
   // a PRODUCTION-hosted planner has no override at all
   const { window, app } = bootPlanner({ url: 'https://gen2planner.jerrari3d.com/?dev_labelgen=http://localhost:8702' });
-  assert.deepEqual(plain(app.labelGenOrigins()), ['https://edgelabel.jerrari3d.com']);
+  assert.deepEqual(plain(app.labelGenOrigins()), ['https://labels.modulith.systems', 'https://edgelabel.jerrari3d.com']);
   window.close();
 });
 

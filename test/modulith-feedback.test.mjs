@@ -88,8 +88,9 @@ test("F-3: the dialog - three kinds, the build box hidden without a layout and U
 
 test("F-4: the planner wires it - masthead button, footer and phone-menu entries, the script before app.js", () => {
   const html = readFileSync(join(root, "index.html"), "utf8");
-  assert.ok(html.indexOf('<script src="js/modulith-feedback.js"></script>') > 0);
-  assert.ok(html.indexOf('<script src="js/modulith-feedback.js"></script>') < html.indexOf('<script src="js/app.js"></script>'));
+  const at = (f) => html.search(new RegExp(`<script src="js/${f}\\.js(\\?v=[0-9a-f]{8})?"></script>`));
+  assert.ok(at("modulith-feedback") > 0);
+  assert.ok(at("modulith-feedback") < at("app"));
   assert.ok(/<span id="mast-feedback" hidden><\/span>[^\n]*\n\s*<button id="theme-toggle"/.test(html), "the masthead spot sits before the theme switch");
   assert.ok(/<footer class="footer">[\s\S]*<a href="#" data-feedback>Feedback &amp; support<\/a>[\s\S]*<\/footer>/.test(html));
   assert.ok(/<dialog class="mobilenav"[\s\S]*<button type="button" class="mnfeedback" data-feedback>Feedback &amp; support<\/button>\s*<\/dialog>/.test(html));

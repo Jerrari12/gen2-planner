@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="preload" href="fonts/space-grotesk-700.woff2" as="font" type="font/woff2" crossorigin />
 <meta name="theme-color" content="#1d1e20" />
-<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/style.css?v=cf2d264c" />
 <!-- apply the saved mode before first paint. DARK IS THE DEFAULT (Joey
      2026-08-08), so BOTH choices are now stored explicitly — with dark as the
      fallback, "no key" can no longer mean light, and a cleared/blocked
@@ -621,18 +621,18 @@
 
 <!-- The shared requirement-scope contract. MUST load before data.js, which
      throws if it is missing. Vendored byte-for-byte into the viewer. -->
-<script src="js/requirement-scope.js"></script>
+<script src="js/requirement-scope.js?v=9d50b076"></script>
 <!-- The shared tabletop-completion contract (which cells are missing before a
      run's top is level). Vendored byte-for-byte into the viewer, like the
      requirement-scope file above. Loads before app.js, which calls it. -->
-<script src="js/tabletop-completion.js"></script>
-<script src="js/data.js"></script>
-<script src="js/label-list.js"></script>
-<script src="js/label-return.js"></script>
+<script src="js/tabletop-completion.js?v=b65de204"></script>
+<script src="js/data.js?v=f7f8bd47"></script>
+<script src="js/label-list.js?v=9d480022"></script>
+<script src="js/label-return.js?v=f770aec2"></script>
 <!-- Feedback & support: the shared MODULITH dialog (this repo owns it; the other tools vendor it byte for byte). -->
-<script src="js/modulith-feedback.js"></script>
-<script src="js/app.js"></script>
-<script src="js/hero.js"></script>
+<script src="js/modulith-feedback.js?v=b5e41b40"></script>
+<script src="js/app.js?v=070e5d23"></script>
+<script src="js/hero.js?v=036a9f19"></script>
 <!-- the dark-mode switch. Same direct-goatcounter pattern as track-links.js
      (app.js's track() is private to its IIFE); names are fixed vocabulary per
      the analytics rules. Visual state renders from aria-checked. -->
@@ -694,7 +694,7 @@
 })();
 </script>
 <!-- counts the static masthead/footer links via their data-track attributes -->
-<script src="js/track-links.js"></script>
+<script src="js/track-links.js?v=874823c8"></script>
 <!-- GoatCounter analytics: cookieless, no consent banner. Counts a pageview on
      load; app.js's track() sends custom events (mount/length/faceplate/share…).
      Loads async and fails silent · the planner never depends on it. -->

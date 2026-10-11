@@ -125,7 +125,7 @@ const GEN2 = {
     { id: "classic",    label: "Classic",     integratedHandle: true, sub: "Free · no hardware needed",
       img: "img/parts/Faceplate-Classic.jpg",
       blurb: "The free Classic series · the grip prints as part of the plate, so there's no handle to bolt on and nothing to buy. No labels or accents. Optional back cover." },
-    { id: "edgelabel",  label: "EdgeLabel",   integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://edgelabel.jerrari3d.com/",
+    { id: "edgelabel",  label: "EdgeLabel",   integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://labels.modulith.systems/",
       img: "img/parts/Faceplate-EdgeLabel.jpg",
       blurb: "Swappable labels and accents with the signature edge-label look · restyle and relabel any drawer in seconds. Built-in handle. Included with the Club." },
     { id: "classicpro", label: "Classic Pro", integratedHandle: true, club: true, sub: "Swappable labels + accents", labelGen: "https://classic.jerrari3d.com/",

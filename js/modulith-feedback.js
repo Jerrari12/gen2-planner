@@ -1,6 +1,6 @@
 /* MODULITH Feedback & support - ONE shared dialog for every MODULITH tool (planner, Label Studio, Part Picker,
    3D Build Studio). The planner owns this file; the other tools vendor it byte for byte and pin its hash, so the
-   wording, the email templates and the diagnostic lines are the same everywhere (Astra 2026-10-10).
+   wording, the email templates and the diagnostic lines are the same everywhere (design review 2026-10-10).
 
    It sends nothing itself: a static site cannot. "Open email app" opens a mailto: link, "Copy message" copies the whole
    message (address, subject and body) for webmail users. The address is assembled when the dialog opens - that deters

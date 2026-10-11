@@ -5,7 +5,7 @@
    Planner's repo, against a sha-pinned copy of this exact file (test/label-link-contract.test.mjs there).
 
    The vocabulary is the Planner's job (planner -> generator, in the URL), the return (generator -> planner), and the
-   planner's answers. The spec is D:/MODULITH/handoffs/label-plan-step3/STEP3-SPEC.md; section numbers below name it.
+   planner's answers. The spec is MODULITH/handoffs/label-plan-step3/STEP3-SPEC.md; section numbers below name it.
 
    Loaded as a classic script (exposes GEN2EdgeLabelLink) and, under node, as a CommonJS module. */
 (function (root, factory) {
@@ -168,15 +168,14 @@ function importedLabelsFromHash(hash) {
   } catch (e) { return []; }
 }
 
-/* An uploaded icon a job row carries, `up` (ChatGPT's review, relayed by Joey 2026-10-09: an uploaded icon survives the trip
+/* An uploaded icon a job row carries, `up` (a design review: an uploaded icon survives the trip
    to the generator and back). The build keeps a drawer's uploaded icon in its label list, which the row's `b` (the mirror)
    cannot hold, so a planner sends it beside `b`: the SVG text, or `true` when the drawer has one this job did not carry (past
    the planner's per-job budget). Anything else counts as no upload, so a future shape stays harmless. The deployed generator
    ignores the key and shows the row as it always did. */
 const upOf = (r) => (r && r.up === true) ? true
   : (r && typeof r.up === 'string' && r.up.length <= UP_MAX && /^\s*<svg[\s>/]/i.test(r.up)) ? r.up : null;
-/* An ICON-ONLY label on a drawer (no words: the mirror carries nothing, so the row's `t` is empty), `io` (ChatGPT's second
-   review via Joey: an icon-only label must not come out blank): { value } = its catalog icon id, { char } = its letter, {} =
+/* An ICON-ONLY label on a drawer (no words: the mirror carries nothing, so the row's `t` is empty), `io` (a second design review: an icon-only label must not come out blank): { value } = its catalog icon id, { char } = its letter, {} =
    neither (its uploaded SVG rides in `up`, as for any drawer). The deployed generator ignores the key: the row is the empty
    row it always was. Anything else is no icon-only label. */
 function ioOf(r) {

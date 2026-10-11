@@ -1,5 +1,5 @@
 /* GEN2 EdgeLabel generator - THE LABEL LIST (2026-10-06): one format for a build's labels, a standalone label project and AI
-   input. Spec: D:/MODULITH/handoffs/label-release/LABEL-LIST-FORMAT.md (design review Sol 01a11238); the decisions behind it:
+   input. Spec: MODULITH/handoffs/label-release/LABEL-LIST-FORMAT.md (design reviewed); the decisions behind it:
    the MODULITH vault, decisions.md, "The label tool: one fast tool, one label-list format, the build as the store".
 
    Three things are kept apart: a PART RECORD (what the item is), a LABEL (how it is described and shown) and an ASSIGNMENT
@@ -121,7 +121,7 @@ function cleanHardware(h) {
 const isHardware = (l) => !!l && isObj(l.hardware);
 
 // a part snapshot: a part-record/1 with a family, at most PART_MAX characters of JSON besides its photo. The photo is judged on
-// its own (Astra 2026-10-06: a compact build leaves it out, but the full project backup must not lose it silently).
+// its own (design review 2026-10-06: a compact build leaves it out, but the full project backup must not lose it silently).
 function partOk(p) {
   if (!isObj(p) || p.schema !== PART_SCHEMA || typeof p.family !== 'string' || !p.family) return false;
   if (p.photo !== undefined && !photoOk(p.photo)) return false;
@@ -137,7 +137,7 @@ function cleanPins(p) {
 // data survives this one. opts.inBuild: the COMPACT form a planner build stores - no part PHOTO (a reference, not label
 // content, and too big for a share link); the FULL form (a standalone project, the backup) keeps it, and a part whose photo is
 // malformed or too big keeps its record and loses only the photo (validation says so). An uploaded ICON is label content and
-// is kept in BOTH forms (Astra 2026-10-06: a build must reproduce its labels; a build too big for a share link gets a
+// is kept in BOTH forms (design review 2026-10-06: a build must reproduce its labels; a build too big for a share link gets a
 // full-file route, never a silently stripped icon).
 function cleanLabel(l, opts) {
   const inBuild = !!(opts && opts.inBuild);
@@ -159,8 +159,8 @@ function cleanLabel(l, opts) {
   return out;
 }
 
-/* What a label SHOWS (Astra 2026-10-06): text only, icon only, and text with an icon are all labels; neither is an EMPTY label,
-   which stays in a list but is never assigned to a drawer (Sol 01a11238, finding 2: the mirror cannot carry it, and the next
+/* What a label SHOWS (design review 2026-10-06): text only, icon only, and text with an icon are all labels; neither is an EMPTY label,
+   which stays in a list but is never assigned to a drawer (a code review, finding 2: the mirror cannot carry it, and the next
    load would read it as an older tool clearing the drawer). A visible badge is an icon (by id or an uploaded SVG - kept in a
    build too) or a letter; { type: 'none' } and an absent badge show nothing when there are no words (prediction needs words).
    (`opts` is accepted for older callers and ignored.) */
@@ -318,7 +318,7 @@ const fromLegacyUnits = (units) => reconcile(units, null, null);
 
 /* ---- today's generator project file -> a standalone label list (LABEL-LIST-FORMAT.md section 4) ----
    { fmt, v: 1, labels: [{ text, badge, manual, u?, n?, held? }], settings: { <input id>: value } }:
-   - a badge with manual:false came from prediction, so it becomes ABSENT (predict), never a frozen snapshot (Astra); a manual
+   - a badge with manual:false came from prediction, so it becomes ABSENT (predict), never a frozen snapshot (design review); a manual
      badge is kept, an uploaded icon as { type: 'icon', svg };
    - the six label settings map to `style` through label-link.js's STYLE_INPUT (dropped when missing or out of range); every
      other setting (printer preset, plate, export format, colours) goes to `output` unchanged;
@@ -361,7 +361,7 @@ function addLabel(state, label, opts) {
   return { ok: true, state: s, id: c.id };
 }
 // append labels from an import (a planner tray upload, a #labels-add= link): each is cleaned like any label, keeps its id when the
-// list does not already use it, and otherwise gets a fresh one (Sol 01a112c2 finding 3: an import never overwrites a label and
+// list does not already use it, and otherwise gets a fresh one (a code review finding 3: an import never overwrites a label and
 // never creates a duplicate id). Returns { state, added: [ids], remapped, dropped }.
 function appendLabels(state, labels, opts) {
   const s = clone(state);

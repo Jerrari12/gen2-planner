@@ -22,7 +22,7 @@ import { join, resolve } from 'node:path';
 import { cleaners, bootPlanner, labelBuild, unit, plain, root } from './lib/label-env.mjs';
 
 const require = createRequire(import.meta.url);
-const PIN = '9d4800221af2a23041b22184074736fc56e917d3c403ca007d0c4bcc98af6e21';   // generator step3 (2026-10-07): an in-place word edit keeps an uploaded icon the mirror cannot carry (was e8df8966..., e91500e)
+const PIN = 'a8667353815054b367c4be5b990dafb4dfe0b4808ff8f5563c939b3375125862';   // generator step3 (2026-10-07): an in-place word edit keeps an uploaded icon the mirror cannot carry (was e8df8966..., e91500e)
 const VENDORED = join(root, 'js', 'label-list.js');
 const L = require('../js/label-list.js');
 const C = cleaners();

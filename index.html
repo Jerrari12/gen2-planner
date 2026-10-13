@@ -2,6 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!-- CUTOVER: the planner now lives at planner.modulith.systems (the merged MODULITH planner, 2026-10). This page only
+     forwards, keeping what the address carries: a build (#build=), a labels link (#labels-add=, #labels-open), a kit
+     (?build=) and the site's ?ref=. Only on this host, so local checkouts and the test suites still open the old app. -->
+<script>
+(function () {
+  if (location.hostname !== 'gen2planner.jerrari3d.com') return;
+  var q = new URLSearchParams(location.search), dest = new URL('https://planner.modulith.systems/');
+  dest.searchParams.set('ws', 'build');
+  if (q.get('build')) dest.searchParams.set('build', q.get('build'));
+  if (q.get('ref')) dest.searchParams.set('ref', q.get('ref'));
+  location.replace(dest.href + (location.hash || ''));
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Planner · MODULITH</title>
 <meta name="description" content="Plan a MODULITH build (formerly GEN2): pick a mount, lay out your drawers, and get the exact parts list with download links and a 3D assembly guide for your layout." />

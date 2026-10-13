@@ -4,15 +4,30 @@
 <meta charset="UTF-8" />
 <!-- CUTOVER: the planner now lives at planner.modulith.systems (the merged MODULITH planner, 2026-10). This page only
      forwards, keeping what the address carries: a build (#build=), a labels link (#labels-add=, #labels-open), a kit
-     (?build=) and the site's ?ref=. Only on this host, so local checkouts and the test suites still open the old app. -->
+     (?build=) and the site's ?ref=. A visitor who arrives with NOTHING in the address gets the build this browser had
+     open last (the autosave slot, gen2-last-build: the same record a share link carries), because the new planner is
+     another origin and cannot read this one's storage; the slot is left in place. Only on this host, so local
+     checkouts and the test suites still open the old app. The forwarding function is also exposed for the test. -->
 <script>
 (function () {
-  if (location.hostname !== 'gen2planner.jerrari3d.com') return;
-  var q = new URLSearchParams(location.search), dest = new URL('https://planner.modulith.systems/');
-  dest.searchParams.set('ws', 'build');
-  if (q.get('build')) dest.searchParams.set('build', q.get('build'));
-  if (q.get('ref')) dest.searchParams.set('ref', q.get('ref'));
-  location.replace(dest.href + (location.hash || ''));
+  function forward(loc, storage) {
+    var q = new URLSearchParams(loc.search), dest = new URL('https://planner.modulith.systems/');
+    dest.searchParams.set('ws', 'build');
+    if (q.get('build')) dest.searchParams.set('build', q.get('build'));
+    if (q.get('ref')) dest.searchParams.set('ref', q.get('ref'));
+    var hash = loc.hash || '';
+    if (!q.get('build') && !/(^#|&)build=/.test(hash)) {
+      try {
+        var raw = storage.getItem('gen2-last-build');
+        if (raw && JSON.parse(raw) && typeof JSON.parse(raw) === 'object') hash = '#build=' + btoa(unescape(encodeURIComponent(raw))) + (hash ? '&' + hash.slice(1) : '');
+      } catch (e) { /* no storage, or a slot that is not a record: the new planner opens its own default */ }
+    }
+    return dest.href + hash;
+  }
+  if (typeof window !== 'undefined') window.__gen2CutoverForward = forward;
+  if (typeof location === 'undefined' || location.hostname !== 'gen2planner.jerrari3d.com') return;
+  var storage = null; try { storage = window.localStorage; } catch (e) { storage = null; }
+  location.replace(forward(location, storage || { getItem: function () { return null; } }));
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />

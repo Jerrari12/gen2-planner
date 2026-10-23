@@ -2,6 +2,43 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!-- CUTOVER: the planner now lives at planner.modulith.systems (the merged MODULITH planner, 2026-10). This page only
+     forwards, keeping what the address carries: a build (#build=), a labels link (#labels-add=, #labels-open), a kit
+     (?build=), the site's ?ref= and a store listing's ?from= (the merged planner reads it as this one did: the listing a
+     visit came from, and the store its part links open first). A visitor who arrives with NOTHING in the address gets
+     the build this browser had open last (the autosave slot, gen2-last-build: the same record a share link carries),
+     because the new planner is another origin and cannot read this one's storage; the slot is left in place. It goes
+     ONCE per browser (the first forward sets gen2-cutover-forwarded): the new planner keeps what it opens in its own
+     Recent list, so a later visit through a bookmark must not hand it the stale copy over the visitor's newer edits. Only a
+     slot that holds a build goes: units placed (this planner's own resume rule) on a chosen mount and length. The
+     slot is written from the first page load, so most visitors hold an empty one, and one made before a mount was
+     picked: forwarded, either opens the new planner on "Can't show this build yet" instead of its own start. Only on
+     this host, so local checkouts and the test suites still open the old app. The forwarding function is also exposed
+     for the test. -->
+<script>
+(function () {
+  function forward(loc, storage) {
+    var q = new URLSearchParams(loc.search), dest = new URL('https://planner.modulith.systems/');
+    dest.searchParams.set('ws', 'build');
+    ['build', 'ref', 'from'].forEach(function (k) { if (q.get(k)) dest.searchParams.set(k, q.get(k)); });
+    var hash = loc.hash || '';
+    if (!q.get('build') && !/(^#|&)build=/.test(hash)) {
+      try {
+        var raw = storage.getItem('gen2-cutover-forwarded') ? null : storage.getItem('gen2-last-build'), rec = raw ? JSON.parse(raw) : null;
+        if (rec && typeof rec === 'object' && Array.isArray(rec.placed) && rec.placed.length && rec.mount && rec.length) {
+          hash = '#build=' + btoa(unescape(encodeURIComponent(raw))) + (hash ? '&' + hash.slice(1) : '');
+          try { storage.setItem('gen2-cutover-forwarded', new Date().toISOString()); } catch (e2) { /* a storage that cannot be written: the slot goes again next time */ }
+        }
+      } catch (e) { /* no storage, or a slot that is not a record: the new planner opens its own default */ }
+    }
+    return dest.href + hash;
+  }
+  if (typeof window !== 'undefined') window.__gen2CutoverForward = forward;
+  if (typeof location === 'undefined' || location.hostname !== 'gen2planner.jerrari3d.com') return;
+  var storage = null; try { storage = window.localStorage; } catch (e) { storage = null; }
+  location.replace(forward(location, storage || { getItem: function () { return null; } }));
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Planner · MODULITH</title>
 <meta name="description" content="Plan a MODULITH build (formerly GEN2): pick a mount, lay out your drawers, and get the exact parts list with download links and a 3D assembly guide for your layout." />

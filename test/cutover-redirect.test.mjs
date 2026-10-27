@@ -102,6 +102,13 @@ test('a storage that cannot take the flag still forwards the slot: setItem throw
   assert.equal(forward(loc('', ''), readOnly), 'https://planner.modulith.systems/?ws=build#build=' + b64(built));
 });
 
+test('the page names the merged planner as its canonical address, once, in the head', () => {
+  const links = [...html.matchAll(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi)].map((l) => l[0]);
+  assert.equal(links.length, 1, links.join('\n'));
+  assert.match(links[0], /\bhref="https:\/\/planner\.modulith\.systems\/"/);
+  assert.ok(html.indexOf(links[0]) < html.indexOf('</head>'), 'the canonical link is inside the head');
+});
+
 test('a plain forward sets no flag: no slot, a slot that is not a record, a slot without a build', () => {
   for (const v of [null, 'not json', '"a string"', JSON.stringify({ mount: null, length: null, placed: [] }), JSON.stringify({ mount: 'tabletop', length: 185, placed: [] })]) {
     const s = mem(v);

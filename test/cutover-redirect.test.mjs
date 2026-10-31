@@ -102,6 +102,33 @@ test('a storage that cannot take the flag still forwards the slot: setItem throw
   assert.equal(forward(loc('', ''), readOnly), 'https://planner.modulith.systems/?ws=build#build=' + b64(built));
 });
 
+test('where the visitor came from goes along as ?ref=, named as the counter names it: a forward makes this address the referrer', () => {
+  const P = 'https://planner.modulith.systems/?ws=build';
+  for (const r of ['https://www.google.com/', 'https://google.com/', 'https://www.google.co.uk/', 'https://www.google.com.au/', 'https://www.google.de/search?q=x', 'android-app://com.google.android.googlequicksearchbox/']) {
+    assert.equal(forward(loc('', ''), mem(null), r), P + '&ref=Google', r);
+  }
+  // every other row on the counter is the bare host, so a host goes as it is, and never its path
+  assert.equal(forward(loc('', ''), mem(null), 'https://www.printables.com/model/1-x?y=1'), P + '&ref=www.printables.com');
+  assert.equal(forward(loc('', ''), mem(null), 'https://thangs.com/'), P + '&ref=thangs.com');
+  assert.equal(forward(loc('', ''), mem(null), 'https://www.bing.com/'), P + '&ref=www.bing.com');
+  // a Google product that is not the search keeps its own name
+  assert.equal(forward(loc('', ''), mem(null), 'https://mail.google.com/'), P + '&ref=mail.google.com');
+  // beside what the address carries, and behind the build in the hash
+  assert.equal(forward(loc('?from=printables', '#build=AAA'), mem(null), 'https://www.printables.com/'), P + '&from=printables&ref=www.printables.com#build=AAA');
+});
+
+test('the address\'s own ?ref= wins, and nothing is added with no outside referrer', () => {
+  const P = 'https://planner.modulith.systems/?ws=build';
+  assert.equal(forward(loc('?ref=site', ''), mem(null), 'https://www.google.com/'), P + '&ref=site');
+  for (const r of [undefined, '', 'not a url', 'https://gen2planner.jerrari3d.com/', 'https://gen2planner.jerrari3d.com/x', 'https://planner.modulith.systems/']) {
+    assert.equal(forward(loc('', ''), mem(null), r), P, String(r));
+  }
+});
+
+test('the page hands its real referrer to the forward', () => {
+  assert.ok(m[1].includes('location.replace(forward(location, storage || { getItem: function () { return null; } }, document.referrer));'));
+});
+
 test('the page names the merged planner as its canonical address, once, in the head', () => {
   const links = [...html.matchAll(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi)].map((l) => l[0]);
   assert.equal(links.length, 1, links.join('\n'));

@@ -14,13 +14,25 @@
      slot is written from the first page load, so most visitors hold an empty one, and one made before a mount was
      picked: forwarded, either opens the new planner on "Can't show this build yet" instead of its own start. Only on
      this host, so local checkouts and the test suites still open the old app. The forwarding function is also exposed
-     for the test. -->
+     for the test.
+     WHERE THE VISITOR CAME FROM goes along too (2026-10-31), as ?ref=, which the counter reads as the referrer: the forward
+     makes this address the new page's document.referrer, so a click on the old Google listing or on a Printables link
+     would otherwise count as a visit from here. Google gets the name the counter's rows give it; any other host goes as
+     it is, which is how those rows read. Only the host: never a path. The address's own ?ref= wins. -->
 <script>
 (function () {
-  function forward(loc, storage) {
+  function cameFrom(referrer) {
+    var host = '';
+    try { host = new URL(referrer).hostname; } catch (e) { return ''; }
+    if (/^(gen2planner\.jerrari3d\.com|planner\.modulith\.systems)$/.test(host)) return '';
+    return /^(www\.)?google\.[a-z]{2,3}(\.[a-z]{2})?$|^com\.google\.android\.googlequicksearchbox$/.test(host) ? 'Google' : host;
+  }
+  function forward(loc, storage, referrer) {
     var q = new URLSearchParams(loc.search), dest = new URL('https://planner.modulith.systems/');
     dest.searchParams.set('ws', 'build');
     ['build', 'ref', 'from'].forEach(function (k) { if (q.get(k)) dest.searchParams.set(k, q.get(k)); });
+    var from = q.get('ref') ? '' : cameFrom(referrer);
+    if (from) dest.searchParams.set('ref', from);
     var hash = loc.hash || '';
     if (!q.get('build') && !/(^#|&)build=/.test(hash)) {
       try {
@@ -36,7 +48,7 @@
   if (typeof window !== 'undefined') window.__gen2CutoverForward = forward;
   if (typeof location === 'undefined' || location.hostname !== 'gen2planner.jerrari3d.com') return;
   var storage = null; try { storage = window.localStorage; } catch (e) { storage = null; }
-  location.replace(forward(location, storage || { getItem: function () { return null; } }));
+  location.replace(forward(location, storage || { getItem: function () { return null; } }, document.referrer));
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
